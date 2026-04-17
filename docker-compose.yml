@@ -1,0 +1,152 @@
+services:
+
+  # ── Altyapı ──────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: serinvest-postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: marketsentinel
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - market-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d marketsentinel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: serinvest-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - market-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: serinvest-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"    # RabbitMQ Yönetim Paneli: http://localhost:15672
+    networks:
+      - market-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ── Analiz Servisleri ─────────────────────────────────────────────────────────
+  market-data-service:
+    build:
+      context: ./market-data-service
+    container_name: serinvest-market-data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+    networks:
+      - market-network
+    restart: unless-stopped
+
+  analyst-engine:
+    build:
+      context: ./analyst-engine
+    container_name: serinvest-analyst
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+    networks:
+      - market-network
+    restart: unless-stopped
+
+  ai-oracle-service:
+    build:
+      context: ./ai-oracle-service
+    container_name: serinvest-oracle
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      core-api:
+        condition: service_started
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      CORE_API_URL: http://core-api:8080
+      ORACLE_CYCLE_MINUTES: 60        # Her 60 dakikada bir analiz döngüsü
+      TZ: Europe/Istanbul
+      TCMB_RATE_PCT: 42.5             # Makro bağlam için TCMB politika faizi
+    volumes:
+      - oracle_models:/app/models     # Model ve eğitim verisi burada kalıcı saklanır
+    networks:
+      - market-network
+    restart: unless-stopped
+
+  fundamental-service:
+    build:
+      context: ./fundamental-service
+    container_name: serinvest-fundamental
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      FUNDAMENTAL_CYCLE_HOURS: 6
+      TCMB_RATE_PCT: 42.5        # TCMB politika faizi — çeyreklik güncellenir
+    networks:
+      - market-network
+    restart: unless-stopped
+
+  # ── API & Frontend ────────────────────────────────────────────────────────────
+  core-api:
+    build:
+      context: ./core-api
+      dockerfile: MarketSentinel.Api/Dockerfile
+    container_name: serinvest-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=postgres;Database=marketsentinel;Username=admin;Password=password"
+      ConnectionStrings__Redis: "redis:6379"
+      RabbitMq__Host: "rabbitmq"
+    ports:
+      - "8080:8080"
+    volumes:
+      - oracle_models:/app/oracle_models:ro
+    networks:
+      - market-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: serinvest-frontend
+    ports:
+      - "3000:3000"
+    networks:
+      - market-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  oracle_models:     # ML modeli ve tahmin logları burada kalıcı saklanır
+
+networks:
+  market-network:
+    driver: bridge
