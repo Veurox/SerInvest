@@ -1,0 +1,198 @@
+/* =============================================================================
+   SerInvest — İzleme Listesi (sol panel) + Sembol Drawer
+   TradingView tarzı: gruplanabilir, eklenebilir watchlist; tıklayınca grafik açılır.
+   ============================================================================= */
+
+/* Uygulama gövdesi: sol panel + ana içerik */
+.app-body { display: flex; align-items: flex-start; width: 100%; }
+
+/* ── Sol İzleme Paneli ──────────────────────────────────────────────────────── */
+.wl-sidebar {
+  position: sticky;
+  top: 57px;                       /* header yüksekliği */
+  height: calc(100vh - 57px);
+  width: 290px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.wl-sidebar.collapsed { display: none; }
+
+.wl-head {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.wl-head .title-btn {
+  display: flex; align-items: center; gap: 5px;
+  background: none; border: none; cursor: pointer;
+  color: var(--text-primary); font-weight: var(--fw-bold); font-size: var(--text-sm);
+  padding: 2px 4px; border-radius: var(--radius-xs);
+}
+.wl-head .title-btn:hover { background: var(--bg-glass); }
+.wl-head .ico-btn {
+  background: none; border: 1px solid transparent; cursor: pointer;
+  color: var(--text-muted); width: 26px; height: 26px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center; font-size: 15px; line-height: 1;
+  transition: all var(--transition-fast);
+}
+.wl-head .ico-btn:hover { color: var(--text-primary); background: var(--bg-surface-2); }
+
+/* Kolon başlıkları */
+.wl-colhead {
+  display: grid; grid-template-columns: 1fr auto;
+  padding: 4px var(--space-3); flex-shrink: 0;
+  font-size: 10px; font-weight: var(--fw-bold); color: var(--text-disabled);
+  text-transform: uppercase; letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.wl-body { overflow-y: auto; flex: 1; padding-bottom: var(--space-4); }
+
+/* Grup (kategori) başlığı — katlanabilir */
+.wl-group-head {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px var(--space-3);
+  font-size: 10px; font-weight: var(--fw-bold); color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.05em;
+  cursor: pointer; user-select: none;
+  background: var(--bg-surface-2);
+  position: sticky; top: 0; z-index: 1;
+}
+.wl-group-head:hover { color: var(--text-secondary); }
+.wl-group-head .chev { font-size: 9px; width: 10px; color: var(--text-disabled); }
+.wl-group-head .cnt { margin-left: auto; color: var(--text-disabled); font-weight: var(--fw-medium); }
+
+/* Hisse satırı */
+.wl-row {
+  display: grid; grid-template-columns: 20px 1fr auto;
+  align-items: center; gap: var(--space-2);
+  padding: 6px 24px 6px var(--space-2);   /* sağda silme butonu için sabit gutter */
+  cursor: pointer; border: none; background: none; flex: 1; min-width: 0; text-align: left;
+  transition: background var(--transition-fast);
+}
+.wl-row:hover { background: var(--bg-glass); }
+.wl-row.active { background: var(--accent-bg); }
+.wl-row .sym { font-size: var(--text-sm); font-weight: var(--fw-bold); color: var(--text-primary); line-height: 1.2; }
+.wl-row .vol { font-size: 10px; color: var(--text-disabled); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.wl-row .right { text-align: right; line-height: 1.2; }
+.wl-row .px { font-size: var(--text-sm); font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.wl-row .chg { font-size: 11px; font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; }
+
+/* Satır sarmalayıcı — flex: grip + satır + silme */
+.wl-row-wrap {
+  position: relative; display: flex; align-items: center;
+  border-left: 2px solid transparent;
+}
+.wl-row-wrap.active { border-left-color: var(--accent); }
+.wl-row-wrap.dragging { opacity: 0.45; }
+.wl-row-wrap.drop-target { box-shadow: inset 0 2px 0 0 var(--accent); }
+.wl-row-wrap.drop-target::before {
+  content: ''; position: absolute; left: 0; right: 0; top: -1px; height: 2px;
+  background: var(--accent); z-index: 3;
+}
+
+/* Sürükleme tutamacı (grip) — sabit genişlik, hover'da görünür */
+.wl-grip {
+  width: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  color: var(--text-disabled); cursor: grab; opacity: 0; user-select: none;
+  font-size: 11px; line-height: 1; letter-spacing: -1px;
+  transition: opacity var(--transition-fast);
+}
+.wl-row-wrap:hover .wl-grip { opacity: 0.5; }
+.wl-grip:active { cursor: grabbing; }
+
+/* Silme butonu — sabit gutter içinde, rakamların üstüne binmez */
+.wl-row-wrap .rm-btn {
+  position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+  opacity: 0; background: transparent; color: var(--text-disabled); border: none;
+  width: 18px; height: 18px; border-radius: var(--radius-xs); cursor: pointer; font-size: 14px;
+  display: flex; align-items: center; justify-content: center; line-height: 1; z-index: 2;
+  transition: opacity var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
+}
+.wl-row-wrap:hover .rm-btn { opacity: 1; }
+.wl-row-wrap .rm-btn:hover { background: var(--loss-bg); color: var(--loss); }
+
+.wl-empty { padding: var(--space-5) var(--space-4); text-align: center; color: var(--text-muted); font-size: var(--text-xs); line-height: 1.6; }
+
+/* Sembol ekleme arama kutusu */
+.wl-add-box {
+  border-bottom: 1px solid var(--border-subtle); padding: var(--space-2) var(--space-3); flex-shrink: 0;
+}
+.wl-add-box input {
+  width: 100%; padding: 6px 9px; background: var(--bg-surface-2);
+  border: 1px solid var(--border-default); border-radius: var(--radius-sm);
+  color: var(--text-primary); font-size: var(--text-xs); outline: none;
+}
+.wl-add-results { max-height: 220px; overflow-y: auto; margin-top: 4px; }
+.wl-add-item {
+  display: flex; align-items: center; gap: var(--space-2); width: 100%;
+  padding: 5px 8px; border: none; background: none; cursor: pointer;
+  border-radius: var(--radius-xs); color: var(--text-primary); font-size: var(--text-xs); text-align: left;
+}
+.wl-add-item:hover { background: var(--bg-glass); }
+.wl-add-item .t { font-weight: var(--fw-bold); }
+.wl-add-item .n { color: var(--text-muted); margin-left: auto; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; }
+
+/* liste seçici dropdown */
+.wl-menu {
+  position: absolute; top: calc(100% + 4px); left: var(--space-3); z-index: 50;
+  background: var(--bg-surface); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-lg);
+  min-width: 210px; padding: 5px; max-height: 320px; overflow-y: auto;
+}
+.wl-menu-item {
+  display: flex; align-items: center; gap: var(--space-2); width: 100%;
+  padding: 7px 9px; border: none; background: none; cursor: pointer;
+  border-radius: var(--radius-xs); color: var(--text-primary); font-size: var(--text-sm); text-align: left;
+}
+.wl-menu-item:hover { background: var(--bg-glass); }
+.wl-menu-item.on { color: var(--accent); font-weight: var(--fw-bold); }
+.wl-menu-sep { height: 1px; background: var(--border-subtle); margin: 4px 0; }
+.wl-menu-item .del { margin-left: auto; opacity: 0; color: var(--loss); }
+.wl-menu-item:hover .del { opacity: 0.8; }
+
+/* sidebar açma butonu (kapalıyken) */
+.wl-reopen {
+  position: fixed; left: 0; top: 50%; transform: translateY(-50%); z-index: 90;
+  background: var(--accent); color: var(--bg-app); border: none; cursor: pointer;
+  padding: 10px 4px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  writing-mode: vertical-rl; font-size: var(--text-xs); font-weight: var(--fw-bold);
+  box-shadow: var(--shadow-md);
+}
+
+/* ── Sembol Drawer (grafik + değerler) ──────────────────────────────────────── */
+.sym-drawer-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: var(--bg-overlay); backdrop-filter: blur(2px);
+  display: flex; justify-content: flex-end;
+  animation: fade-in var(--transition-base);
+}
+.sym-drawer {
+  width: min(720px, 94vw); height: 100%;
+  background: var(--bg-app); border-left: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-xl);
+  overflow-y: auto; padding: var(--space-5);
+  animation: drawer-slide var(--transition-slow);
+}
+.sym-drawer-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
+.sym-drawer-title { display: flex; align-items: center; gap: var(--space-3); }
+.sym-drawer-px { font-size: var(--text-2xl); font-weight: var(--fw-black); font-variant-numeric: tabular-nums; line-height: 1; }
+.sym-vals {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-2); margin-top: var(--space-4);
+}
+.sym-val {
+  background: var(--bg-surface); border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3);
+}
+.sym-val .k { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: var(--fw-bold); }
+.sym-val .v { font-size: var(--text-sm); font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; margin-top: 2px; }
+
+@media (max-width: 920px) {
+  .wl-sidebar { position: fixed; left: 0; top: 57px; z-index: 95; box-shadow: var(--shadow-lg); }
+}
