@@ -14,12 +14,42 @@ namespace MarketSentinel.Api.Controllers
         private readonly MarketDbContext _db;
         private readonly IDatabase _redis;
         private readonly ILogger<MarketDataController> _logger;
+        private readonly IHttpClientFactory _httpFactory;
 
-        public MarketDataController(MarketDbContext db, IConnectionMultiplexer redis, ILogger<MarketDataController> logger)
+        public MarketDataController(MarketDbContext db, IConnectionMultiplexer redis,
+            ILogger<MarketDataController> logger, IHttpClientFactory httpFactory)
         {
             _db = db;
             _redis = redis.GetDatabase();
             _logger = logger;
+            _httpFactory = httpFactory;
+        }
+
+        /// <summary>
+        /// UI'da bir varlığa tıklayınca açılan çoklu zaman dilimli grafik verisi.
+        /// market-data-service'in Flask /chart endpoint'ine proxy yapar.
+        /// tf: 1H, 1D, 1W, 1M, 3M, 1Y, 5Y
+        /// </summary>
+        [HttpGet("{symbol}/chart")]
+        public async Task<IActionResult> GetChart(string symbol, [FromQuery] string tf = "1D")
+        {
+            var http = _httpFactory.CreateClient("market-data-chart");
+            try
+            {
+                var resp = await http.GetAsync($"/chart/{Uri.EscapeDataString(symbol)}?tf={Uri.EscapeDataString(tf)}");
+                var body = await resp.Content.ReadAsStringAsync();
+                return new ContentResult
+                {
+                    Content = body,
+                    ContentType = "application/json",
+                    StatusCode = (int)resp.StatusCode
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("Chart proxy hatası {Symbol}/{Tf}: {Msg}", symbol, tf, ex.Message);
+                return StatusCode(502, new { error = "chart servisine ulaşılamadı", detail = ex.Message });
+            }
         }
 
         /// <summary>Tüm izlenen varlıkların en son fiyat + sinyal özetini döndürür.</summary>
@@ -114,6 +144,44 @@ namespace MarketSentinel.Api.Controllers
                 .ToListAsync();
 
             return Ok(assets);
+        }
+
+        /// <summary>
+        /// Bir sembolün son N günlük fiyat geçmişini döndürür (sparkline için).
+        /// Her gün için son kayıt alınır → günde max 1 nokta.
+        /// </summary>
+        [HttpGet("price-history/{symbol}")]
+        public async Task<IActionResult> GetPriceHistory(
+            string symbol, [FromQuery] int days = 7)
+        {
+            symbol = symbol.ToUpper().Trim();
+            days = Math.Clamp(days, 1, 90);
+
+            var cutoff = DateTime.UtcNow.AddDays(-days - 1);
+            // Son N günün kayıtlarını al (5dk arayla yazılıyor, çok satır olur)
+            var rows = await _db.PriceData
+                .Where(p => p.Symbol == symbol && p.RecordedAt >= cutoff)
+                .OrderBy(p => p.RecordedAt)
+                .Select(p => new { p.RecordedAt, p.Close })
+                .ToListAsync();
+
+            // Gün başına son fiyatı al — sparkline daha temiz
+            var byDay = rows
+                .Where(r => r.Close.HasValue)
+                .GroupBy(r => r.RecordedAt.Date)
+                .Select(g => new {
+                    date  = g.Key,
+                    close = g.OrderByDescending(x => x.RecordedAt).First().Close,
+                })
+                .OrderBy(x => x.date)
+                .Take(days)
+                .ToList();
+
+            return Ok(new {
+                symbol,
+                days,
+                points = byDay.Select(p => new { p.date, p.close }).ToList(),
+            });
         }
     }
 }

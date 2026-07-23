@@ -34,6 +34,8 @@ namespace MarketSentinel.Api.Consumers
                 ShortTermBias    = msg.ShortTermBias,
                 ShortTermTarget  = msg.ShortTermTarget,
                 ShortTermStop    = msg.ShortTermStop,
+                PositionSizePct  = msg.PositionSizePct,
+                RiskRewardRatio  = msg.RiskRewardRatio,
                 LongTermBias     = msg.LongTermBias,
                 LongTermTarget   = msg.LongTermTarget,
                 Reasoning        = msg.Reasoning,

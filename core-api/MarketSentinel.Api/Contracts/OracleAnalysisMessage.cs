@@ -28,6 +28,12 @@ namespace MarketSentinel.Api.Contracts
         [JsonPropertyName("short_term_stop")]
         public double? ShortTermStop { get; set; }
 
+        [JsonPropertyName("position_size_pct")]
+        public double? PositionSizePct { get; set; }
+
+        [JsonPropertyName("risk_reward_ratio")]
+        public double? RiskRewardRatio { get; set; }
+
         [JsonPropertyName("long_term_bias")]
         public string LongTermBias { get; set; } = "YATAY";
 

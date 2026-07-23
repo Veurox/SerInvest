@@ -24,6 +24,10 @@ namespace MarketSentinel.Api.Models
         public double? ShortTermTarget { get; set; }
         public double? ShortTermStop { get; set; }
 
+        // Risk yönetimi (Audit 05/2026)
+        public double? PositionSizePct { get; set; }     // Önerilen portföy yüzdesi
+        public double? RiskRewardRatio { get; set; }     // TP / SL oranı
+
         // Uzun Vade
         public string LongTermBias { get; set; } = "YATAY";
         public double? LongTermTarget { get; set; }

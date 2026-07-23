@@ -1,7 +1,9 @@
+using System.Globalization;
 using MarketSentinel.Api.Contracts;
 using MarketSentinel.Api.Data;
 using MarketSentinel.Api.Models;
 using MassTransit;
+using Microsoft.EntityFrameworkCore;
 
 namespace MarketSentinel.Api.Consumers
 {
@@ -19,6 +21,16 @@ namespace MarketSentinel.Api.Consumers
         public async Task Consume(ConsumeContext<AnalyzedNewsMessage> context)
         {
             var msg = context.Message;
+
+            // ── Faz 1 (ml v4): GUID dedupe ────────────────────────────────────
+            // analyst-engine restart'ında seen_guids kaybolabilir / aynı haber
+            // birden çok feed'de görülebilir — kalıcı depoda tekil kalsın.
+            if (!string.IsNullOrEmpty(msg.Guid) &&
+                await _dbContext.MarketSignals.AnyAsync(s => s.NewsGuid == msg.Guid))
+            {
+                _logger.LogDebug("Haber zaten kayıtlı, atlandı: {Guid}", msg.Guid);
+                return;
+            }
 
             string direction = msg.SentimentLabel switch
             {
@@ -42,6 +54,12 @@ namespace MarketSentinel.Api.Consumers
             double geopoliticalPenalty = msg.IsGeopolitical ? 0.85 : 1.0;
             double confidence = Math.Abs(msg.SentimentScore) * sourceReliability * geopoliticalPenalty * 100;
 
+            // event_ts: haberin gerçek yayın zamanı (ISO 8601 UTC bekleniyor)
+            DateTime? publishedAt = null;
+            if (DateTime.TryParse(msg.PublishedAt, CultureInfo.InvariantCulture,
+                    DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var pub))
+                publishedAt = pub;
+
             var signal = new MarketSignal
             {
                 Entity               = msg.Entity,
@@ -55,6 +73,15 @@ namespace MarketSentinel.Api.Consumers
                 Url                  = msg.Url,
                 Direction            = direction,
                 SignalConfidenceScore = Math.Round(confidence, 2),
+                // Faz 1 (ml v4): point-in-time alanları
+                PublishedAt          = publishedAt,
+                NewsGuid             = msg.Guid,
+                SentimentRaw         = msg.SentimentRaw,
+                SourceWeight         = msg.SourceWeight,
+                Lang                 = msg.Lang,
+                // Faz 3 (ml v4): olay tipolojisi + yenilik
+                EventType            = string.IsNullOrEmpty(msg.EventType) ? "GENEL" : msg.EventType,
+                Novelty              = msg.Novelty,
             };
 
             _dbContext.MarketSignals.Add(signal);

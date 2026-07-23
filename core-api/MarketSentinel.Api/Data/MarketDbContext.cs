@@ -12,9 +12,21 @@ namespace MarketSentinel.Api.Data
         public DbSet<OracleAnalysis> OracleAnalyses  { get; set; }
         public DbSet<FundamentalData> FundamentalData { get; set; }
 
+        // ── Portföy modülü (Faz 1 — 05/2026) ─────────────────────────────
+        public DbSet<PortfolioPosition> PortfolioPositions { get; set; }
+        public DbSet<Dividend>          Dividends          { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<PortfolioPosition>()
+                .HasIndex(p => new { p.Symbol, p.Status })
+                .HasDatabaseName("idx_portfolio_symbol_status");
+
+            modelBuilder.Entity<Dividend>()
+                .HasIndex(d => new { d.Symbol, d.PaymentDate })
+                .HasDatabaseName("idx_dividend_symbol_date");
 
             modelBuilder.Entity<PriceData>()
                 .HasIndex(p => new { p.Symbol, p.RecordedAt })
