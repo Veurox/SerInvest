@@ -1,0 +1,49 @@
+{
+  "_meta": {
+    "description": "SerInvest BIST + Emtia/Döviz sembol listesi. Tüm servisler (ai-oracle, market-data, fundamental) buradan okur. Frontend de aynı listeyi /api/symbols üzerinden alır. Eklemek/çıkarmak için yalnızca burayı düzenle.",
+    "last_updated": "2026-05-07",
+    "tier": "BIST-100"
+  },
+  "bist": {
+    "AKBNK": "AKBNK.IS", "ARCLK": "ARCLK.IS", "ASELS": "ASELS.IS",
+    "BIMAS": "BIMAS.IS", "EKGYO": "EKGYO.IS", "EREGL": "EREGL.IS",
+    "FROTO": "FROTO.IS", "GARAN": "GARAN.IS", "HALKB": "HALKB.IS",
+    "ISCTR": "ISCTR.IS", "KCHOL": "KCHOL.IS", "MGROS": "MGROS.IS",
+    "PETKM": "PETKM.IS", "PGSUS": "PGSUS.IS", "SAHOL": "SAHOL.IS",
+    "SASA":  "SASA.IS",  "SISE":  "SISE.IS",  "TCELL": "TCELL.IS",
+    "THYAO": "THYAO.IS", "TOASO": "TOASO.IS", "TTKOM": "TTKOM.IS",
+    "TUPRS": "TUPRS.IS", "VAKBN": "VAKBN.IS", "VESTL": "VESTL.IS",
+    "YKBNK": "YKBNK.IS",
+    "AEFES": "AEFES.IS", "AKCNS": "AKCNS.IS", "AKSEN": "AKSEN.IS",
+    "ALARK": "ALARK.IS", "BRISA": "BRISA.IS", "CCOLA": "CCOLA.IS",
+    "CIMSA": "CIMSA.IS", "DOAS":  "DOAS.IS",  "DOHOL": "DOHOL.IS",
+    "ENJSA": "ENJSA.IS", "ENKAI": "ENKAI.IS", "GUBRF": "GUBRF.IS",
+    "KRDMD": "KRDMD.IS", "MPARK": "MPARK.IS", "OYAKC": "OYAKC.IS",
+    "SOKM":  "SOKM.IS",  "TAVHL": "TAVHL.IS", "TKFEN": "TKFEN.IS",
+    "TSKB":  "TSKB.IS",  "TTRAK": "TTRAK.IS", "ULKER": "ULKER.IS",
+    "ZOREN": "ZOREN.IS",
+    "AGHOL": "AGHOL.IS", "AKFGY": "AKFGY.IS", "AKFYE": "AKFYE.IS",
+    "AKSA":  "AKSA.IS",  "AKSGY": "AKSGY.IS", "ALBRK": "ALBRK.IS",
+    "ANHYT": "ANHYT.IS", "ANSGR": "ANSGR.IS", "ASTOR": "ASTOR.IS",
+    "BERA":  "BERA.IS",  "BIENY": "BIENY.IS", "BIOEN": "BIOEN.IS",
+    "BRSAN": "BRSAN.IS", "BUCIM": "BUCIM.IS", "CWENE": "CWENE.IS",
+    "ECILC": "ECILC.IS", "EGEEN": "EGEEN.IS", "GESAN": "GESAN.IS",
+    "GOLTS": "GOLTS.IS", "HEKTS": "HEKTS.IS", "KAREL": "KAREL.IS",
+    "KARSN": "KARSN.IS", "KCAER": "KCAER.IS", "KONTR": "KONTR.IS",
+    "KONYA": "KONYA.IS", "MAVI":  "MAVI.IS",  "MIATK": "MIATK.IS",
+    "ODAS":  "ODAS.IS",  "OTKAR": "OTKAR.IS", "PENTA": "PENTA.IS",
+    "SKBNK": "SKBNK.IS", "SMRTG": "SMRTG.IS", "TABGD": "TABGD.IS",
+    "TUKAS": "TUKAS.IS", "TURSG": "TURSG.IS", "VESBE": "VESBE.IS"
+  },
+  "commodity": {
+    "XAUUSD":   "GC=F",
+    "XAGUSD":   "SI=F",
+    "BRENTOIL": "BZ=F",
+    "NATGAS":   "NG=F",
+    "COPPER":   "HG=F"
+  },
+  "forex": {
+    "USDTRY": "USDTRY=X",
+    "EURTRY": "EURTRY=X"
+  }
+}

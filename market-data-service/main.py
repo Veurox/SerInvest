@@ -13,46 +13,49 @@ import time
 import datetime
 import os
 import math
+import socket
+from pathlib import Path
 
 import yfinance as yf
 import pandas as pd
 import ta
 
-# ── İzleme Listesi ────────────────────────────────────────────────────────────
-BIST_WATCHLIST = {
-    "THYAO": "THYAO.IS",
-    "GARAN": "GARAN.IS",
-    "AKBNK": "AKBNK.IS",
-    "EREGL": "EREGL.IS",
-    "SISE":  "SISE.IS",
-    "KCHOL": "KCHOL.IS",
-    "ARCLK": "ARCLK.IS",
-    "BIMAS": "BIMAS.IS",
-    "ASELS": "ASELS.IS",
-    "FROTO": "FROTO.IS",
-    "TUPRS": "TUPRS.IS",
-    "SASA":  "SASA.IS",
-    "SAHOL": "SAHOL.IS",
-    "TTKOM": "TTKOM.IS",
-    "TCELL": "TCELL.IS",
-    "PGSUS": "PGSUS.IS",
-    "MGROS": "MGROS.IS",
-    "HALKB": "HALKB.IS",
-    "VAKBN": "VAKBN.IS",
-    "YKBNK": "YKBNK.IS",
-    "PETKM": "PETKM.IS",
-    "EKGYO": "EKGYO.IS",
-    "ISCTR": "ISCTR.IS",
-    "TOASO": "TOASO.IS",
-    "VESTL": "VESTL.IS",
-}
+# yfinance internally uses requests; bir HTTP çağrısı askıya alınırsa cycle saatlerce
+# bloke olur ve heartbeat ölmüş olur. Global socket timeout 30 saniyeye çekildi —
+# Yahoo'nun normalde 1-3sn yanıt verdiği düşünülürse fazlasıyla yeterli.
+socket.setdefaulttimeout(30)
 
-COMMODITIES = {
+# ── İzleme Listesi ────────────────────────────────────────────────────────────
+# NOT: ai-oracle-service/main.py içindeki BIST_MAP ile aynı tutulmalı.
+# Eklenen sembol burada yoksa Oracle yarı kör çalışır (fiyat sinyali gelmez).
+def _load_symbols() -> tuple[dict, dict]:
+    """Paylaşılan symbols.json'dan BIST + Commodity haritalarını yükle."""
+    candidates = [
+        Path("/shared/symbols.json"),
+        Path(__file__).parent.parent / "shared" / "symbols.json",
+    ]
+    for p in candidates:
+        if p.exists():
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                return data.get("bist", {}), data.get("commodity", {})
+            except Exception as e:
+                print(f"[symbols] {p} okunamadı: {e}")
+    print("[symbols] UYARI: symbols.json bulunamadı!")
+    return {}, {}
+
+BIST_WATCHLIST, _COMMODITIES_FROM_JSON = _load_symbols()
+
+COMMODITIES = _COMMODITIES_FROM_JSON or {
     "XAUUSD":   "GC=F",
     "XAGUSD":   "SI=F",
     "BRENTOIL": "BZ=F",
+    "NATGAS":   "NG=F",
+    "COPPER":   "HG=F",
 }
 
+# Forex için ayrı dict (symbols.json'da forex bölümü var ama market-data
+# kendi listesini tutmaya devam ediyor — fundamental ve oracle forex işlemiyor).
 FOREX = {
     "USDTRY": "USDTRY=X",
     "EURTRY": "EURTRY=X",
@@ -78,7 +81,10 @@ def safe_float(val) -> float | None:
         return None
 
 
-def fetch_ohlcv(yf_symbol: str, period: str = "3mo") -> pd.DataFrame | None:
+def fetch_ohlcv(yf_symbol: str, period: str = "2y") -> pd.DataFrame | None:
+    # 2 yıl: EMA200 hesaplaması için minimum 200 günlük tarihsel veri gerekli.
+    # 3mo (~63 gün) sadece kısa vadeli göstergeler (EMA9/20/50, RSI) için yeterli;
+    # uzun vadeli trend EMA'sı için yetersiz kaldığı tespit edildi (denetim 04/2026).
     try:
         df = yf.download(
             yf_symbol,
@@ -208,10 +214,12 @@ def calculate_signal(close_price: float | None, ind: dict) -> tuple[str, float]:
             score -= w      # Üst bant üstü → potansiyel düzeltme
 
     if weight == 0:
-        return "NEUTRAL", 0.5
+        return "NEUTRAL", 0.0
 
     normalized = score / weight  # -1 ile +1 arası
-    strength = round((abs(normalized) * 0.5) + 0.5, 2)  # 0.5 → 1.0 arası
+    # Strength gerçek 0-1 bandında — zayıf sinyal %0'a, güçlü sinyal %100'e yaklaşsın.
+    # Eski formül (0.5 + abs/2) zayıf sinyalleri %50 olarak gösteriyordu, yanıltıcıydı.
+    strength = round(abs(normalized), 3)
 
     if normalized > 0.25:
         signal = "BUY"
@@ -224,7 +232,9 @@ def calculate_signal(close_price: float | None, ind: dict) -> tuple[str, float]:
 
 
 def build_message(symbol: str, asset_type: str, df: pd.DataFrame, ind: dict) -> dict:
-    row = df.iloc[-1]
+    # Borsa kapalıyken son satır NaN olabilir; Close dolu olan son satırı al
+    valid_rows = df[df["Close"].notna()]
+    row = valid_rows.iloc[-1] if len(valid_rows) > 0 else df.iloc[-1]
     close = safe_float(row.get("Close"))
     signal, strength = calculate_signal(close, ind)
 
@@ -253,13 +263,49 @@ def build_message(symbol: str, asset_type: str, df: pd.DataFrame, ind: dict) -> 
     }
 
 
-def publish(channel, data: dict) -> None:
-    channel.basic_publish(
+# Global tutucular — uzun döngülerde reconnect için
+_CONN: pika.BlockingConnection | None = None
+_CHANNEL = None
+
+
+def _ensure_connection() -> bool:
+    """RabbitMQ bağlantısı kapanmışsa yeniden kurar."""
+    global _CONN, _CHANNEL
+    try:
+        if _CONN is not None and _CONN.is_open and _CHANNEL is not None and _CHANNEL.is_open:
+            return True
+    except Exception:
+        pass
+
+    print("[RabbitMQ] Bağlantı kapalı, yeniden kuruluyor...")
+    try:
+        if _CONN is not None:
+            try:
+                _CONN.close()
+            except Exception:
+                pass
+        _CONN = connect_rabbitmq()
+        _CHANNEL = _CONN.channel()
+        _CHANNEL.queue_declare(queue="market.data", durable=True)
+        print("[RabbitMQ] ✓ Yeniden bağlanıldı.")
+        return True
+    except Exception as e:
+        print(f"[RabbitMQ] Yeniden bağlanma başarısız: {e}")
+        _CHANNEL = None
+        return False
+
+
+def publish(channel, data: dict) -> bool:
+    """Mesajı yayımlar; bağlantı koptuysa yeniden kurar. Başarılıysa True döner."""
+    if not _ensure_connection():
+        return False
+    _CHANNEL.basic_publish(
         exchange="",
         routing_key="market.data",
         body=json.dumps(data, ensure_ascii=False),
         properties=pika.BasicProperties(delivery_mode=2, content_type="application/json"),
     )
+    return True
 
 
 def run_cycle(channel) -> None:
@@ -322,34 +368,185 @@ def run_cycle(channel) -> None:
 
 def connect_rabbitmq() -> pika.BlockingConnection:
     host = os.environ.get("RABBITMQ_HOST", "localhost")
-    for attempt in range(15):
+    for attempt in range(30):
         try:
+            # heartbeat=0: yfinance hangi bir sembol için askıya alabilir;
+            # _ensure_connection() her publish'ten önce kontrol ediyor.
             conn = pika.BlockingConnection(
-                pika.ConnectionParameters(host=host, heartbeat=600, blocked_connection_timeout=300)
+                pika.ConnectionParameters(host=host, heartbeat=0, blocked_connection_timeout=300)
             )
             print(f"RabbitMQ bağlantısı kuruldu: {host}")
             return conn
-        except pika.exceptions.AMQPConnectionError:
-            print(f"RabbitMQ hazır değil, yeniden deneniyor ({attempt + 1}/15)...")
+        except Exception as e:
+            # socket.gaierror (DNS), AMQPConnectionError ve diğer geçici hatalar
+            print(f"RabbitMQ bekleniyor ({attempt + 1}/30): {e}")
             time.sleep(5)
     raise RuntimeError("RabbitMQ'ya bağlanılamadı")
 
 
+# ── Chart HTTP API (UI tıklayınca 1H/1D/1W/1M/3M/1Y/5Y grafiği) ──────────────
+# Flask uygulaması — main thread RabbitMQ döngüsü çalışırken paralel olarak
+# HTTP isteklerine yanıt verir. Cache ile yfinance üzerinde gereksiz yük yaratmaz.
+import threading
+from flask import Flask, jsonify, request
+
+CHART_TF_MAP = {
+    "1H": ("1d",  "1m"),    # son 60 nokta
+    "1D": ("1d",  "5m"),
+    "1W": ("5d",  "30m"),
+    "1M": ("1mo", "1h"),
+    "3M": ("3mo", "1d"),
+    "1Y": ("1y",  "1d"),
+    "5Y": ("5y",  "1wk"),
+}
+CHART_TTL_SEC = {
+    "1H": 60, "1D": 60, "1W": 300, "1M": 900,
+    "3M": 3600, "1Y": 3600, "5Y": 3600,
+}
+_CHART_CACHE: dict[tuple[str, str], tuple[float, dict]] = {}
+_CHART_LOCK = threading.Lock()
+
+# Tüm desteklenen semboller (BIST + emtia + döviz + endeksler)
+def _all_chart_symbols() -> dict:
+    return {**BIST_WATCHLIST, **COMMODITIES, **FOREX, **GLOBAL_INDICES}
+
+chart_app = Flask(__name__)
+
+@chart_app.after_request
+def _cors(resp):
+    # Tek kullanıcı / lokal — geniş CORS yeterli
+    resp.headers["Access-Control-Allow-Origin"]  = "*"
+    resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return resp
+
+@chart_app.route("/health")
+def _health():
+    return jsonify({"ok": True, "service": "market-data-chart"})
+
+@chart_app.route("/chart/<symbol>", methods=["GET", "OPTIONS"])
+def chart(symbol: str):
+    if request.method == "OPTIONS":
+        return ("", 204)
+
+    symbol = symbol.upper().strip()
+    tf = request.args.get("tf", "1D").upper()
+
+    if tf not in CHART_TF_MAP:
+        return jsonify({"error": f"desteklenmeyen tf: {tf}",
+                        "supported": list(CHART_TF_MAP.keys())}), 400
+
+    yf_sym = _all_chart_symbols().get(symbol)
+    if not yf_sym:
+        return jsonify({"error": f"bilinmeyen sembol: {symbol}"}), 404
+
+    cache_key = (symbol, tf)
+    ttl = CHART_TTL_SEC[tf]
+    now = time.time()
+
+    with _CHART_LOCK:
+        cached = _CHART_CACHE.get(cache_key)
+        if cached and (now - cached[0]) < ttl:
+            return jsonify(cached[1])
+
+    period, interval = CHART_TF_MAP[tf]
+    try:
+        df = yf.download(
+            yf_sym,
+            period=period,
+            interval=interval,
+            auto_adjust=True,
+            progress=False,
+            threads=False,
+        )
+        if df is None or df.empty:
+            payload = {"symbol": symbol, "tf": tf, "yf": yf_sym, "points": []}
+            with _CHART_LOCK:
+                _CHART_CACHE[cache_key] = (now, payload)
+            return jsonify(payload)
+
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.droplevel(1)
+        df.columns = [str(c).strip() for c in df.columns]
+
+        points = []
+        for ts, row in df.iterrows():
+            c = safe_float(row.get("Close"))
+            if c is None:
+                continue
+            try:
+                t_ms = int(pd.Timestamp(ts).timestamp() * 1000)
+            except Exception:
+                continue
+            points.append({
+                "t": t_ms,
+                "o": safe_float(row.get("Open")),
+                "h": safe_float(row.get("High")),
+                "l": safe_float(row.get("Low")),
+                "c": c,
+                "v": safe_float(row.get("Volume")),
+            })
+
+        # 1H: yfinance 1m verisi 1 günlük döner — son 60 noktayı al
+        if tf == "1H" and len(points) > 60:
+            points = points[-60:]
+
+        first_c = points[0]["c"] if points else None
+        last_c  = points[-1]["c"] if points else None
+        change_pct = ((last_c - first_c) / first_c * 100.0) if (first_c and last_c) else None
+
+        payload = {
+            "symbol": symbol,
+            "tf": tf,
+            "yf": yf_sym,
+            "interval": interval,
+            "period": period,
+            "points": points,
+            "first": first_c,
+            "last":  last_c,
+            "change_pct": round(change_pct, 4) if change_pct is not None else None,
+            "fetched_at": int(now * 1000),
+        }
+        with _CHART_LOCK:
+            _CHART_CACHE[cache_key] = (now, payload)
+        return jsonify(payload)
+
+    except Exception as e:
+        print(f"[chart] {symbol} {tf} hata: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+def start_chart_server():
+    port = int(os.environ.get("CHART_HTTP_PORT", "5002"))
+    print(f"[Chart HTTP] başlatılıyor: 0.0.0.0:{port}")
+    chart_app.run(host="0.0.0.0", port=port, debug=False,
+                  use_reloader=False, threaded=True)
+
+
 def main():
     print("SerInvest Piyasa Veri Servisi başlatılıyor...")
-    conn = connect_rabbitmq()
-    channel = conn.channel()
-    channel.queue_declare(queue="market.data", durable=True)
+    # Chart HTTP API'sini arka planda başlat (RabbitMQ döngüsü ile paralel)
+    threading.Thread(target=start_chart_server, daemon=True, name="chart-http").start()
+
+    # Docker ağ DNS'inin tamamen hazırlanması için kısa bekleme
+    time.sleep(8)
+    if not _ensure_connection():
+        raise RuntimeError("İlk RabbitMQ bağlantısı kurulamadı")
 
     try:
         while True:
-            run_cycle(channel)
+            # Channel global olarak yönetiliyor; run_cycle publish() üzerinden geçer
+            run_cycle(_CHANNEL)
             print("\nSonraki döngü 5 dakika sonra...")
             time.sleep(300)
     except KeyboardInterrupt:
         print("Durduruluyor...")
     finally:
-        conn.close()
+        try:
+            if _CONN is not None:
+                _CONN.close()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

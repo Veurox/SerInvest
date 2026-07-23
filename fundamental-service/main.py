@@ -12,10 +12,14 @@ Neler yapar:
   5. Her 6 saatte bir döngü çalışır (temel veriler çeyreklik değişir)
 """
 
-import os, json, time, datetime, math, xml.etree.ElementTree as ET
+import os, json, time, datetime, math, socket, xml.etree.ElementTree as ET
+from pathlib import Path
 import pika
 import requests
 import yfinance as yf
+
+# yfinance HTTP çağrıları askıda kalmasın — global socket timeout 30sn
+socket.setdefaulttimeout(30)
 
 RABBITMQ_HOST   = os.environ.get("RABBITMQ_HOST", "localhost")
 CYCLE_HOURS     = int(os.environ.get("FUNDAMENTAL_CYCLE_HOURS", "6"))
@@ -25,18 +29,23 @@ CYCLE_HOURS     = int(os.environ.get("FUNDAMENTAL_CYCLE_HOURS", "6"))
 TCMB_RATE_PCT   = float(os.environ.get("TCMB_RATE_PCT", "42.5"))   # % cinsinden
 
 # ── Sembol Listeleri ─────────────────────────────────────────────────────────
-BIST_MAP = {
-    "THYAO": "THYAO.IS", "GARAN": "GARAN.IS", "AKBNK": "AKBNK.IS",
-    "EREGL": "EREGL.IS", "SISE":  "SISE.IS",  "KCHOL": "KCHOL.IS",
-    "ARCLK": "ARCLK.IS", "BIMAS": "BIMAS.IS", "ASELS": "ASELS.IS",
-    "FROTO": "FROTO.IS", "TUPRS": "TUPRS.IS",  "SASA":  "SASA.IS",
-    "SAHOL": "SAHOL.IS", "TTKOM": "TTKOM.IS",  "TCELL": "TCELL.IS",
-    "PGSUS": "PGSUS.IS", "MGROS": "MGROS.IS",  "HALKB": "HALKB.IS",
-    "VAKBN": "VAKBN.IS", "YKBNK": "YKBNK.IS",  "PETKM": "PETKM.IS",
-    "EKGYO": "EKGYO.IS", "ISCTR": "ISCTR.IS",  "TOASO": "TOASO.IS",
-    "VESTL": "VESTL.IS",
-}
-COMMODITY_MAP = {"XAUUSD": "GC=F", "XAGUSD": "SI=F", "BRENTOIL": "BZ=F"}
+# Tek kaynak: shared/symbols.json (docker-compose ./shared:/shared:ro mount).
+def _load_symbols() -> tuple[dict, dict]:
+    candidates = [
+        Path("/shared/symbols.json"),
+        Path(__file__).parent.parent / "shared" / "symbols.json",
+    ]
+    for p in candidates:
+        if p.exists():
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                return data.get("bist", {}), data.get("commodity", {})
+            except Exception as e:
+                print(f"[symbols] {p} okunamadı: {e}")
+    print("[symbols] UYARI: symbols.json bulunamadı!")
+    return {}, {}
+
+BIST_MAP, COMMODITY_MAP = _load_symbols()
 ALL_SYMBOLS   = {**BIST_MAP, **COMMODITY_MAP}
 
 
@@ -143,28 +152,58 @@ def _score_ebitda_margin(margin):
 def compute_fundamental_score(pe, pb, roe, de, rev_growth, earn_growth, div_yield,
                                net_debt_ebitda=None, ebitda_margin=None) -> float:
     """
-    Ağırlıklı temel skor (0–1 arası).
-    0.5 nötr, > 0.5 olumlu, < 0.5 olumsuz.
-    """
-    # Ağırlıklar: değerleme en önemli, FAVÖK karlılık, sonra diğerleri
-    weighted = (
-        _score_pe(pe)                            * 3.0 +
-        _score_pb(pb)                            * 2.0 +
-        _score_roe(roe)                          * 2.5 +
-        _score_de(de)                            * 1.5 +
-        _score_growth(rev_growth)                * 1.0 +
-        _score_growth(earn_growth)               * 1.0 +
-        _score_dividend(div_yield)               * 0.5 +
-        _score_net_debt_ebitda(net_debt_ebitda)  * 2.0 +  # FAVÖK bazlı borçluluk
-        _score_ebitda_margin(ebitda_margin)      * 1.5    # Operasyonel karlılık
-    )
-    # Toplam ağırlık: 3+2+2.5+1.5+1+1+0.5+2+1.5 = 15
-    # Max: 2×15=30, Min: ≈ -2×(15-0.5)=-29 (temettü min 0)
-    total_weight = 3.0 + 2.0 + 2.5 + 1.5 + 1.0 + 1.0 + 0.5 + 2.0 + 1.5  # = 15.5
-    max_score    = 2 * total_weight
-    min_score    = -2 * (total_weight - 0.5)
+    Ağırlıklı temel skor (0–1 arası). 0.5 nötr.
 
-    score = (weighted - min_score) / (max_score - min_score)
+    Audit 05/2026 düzeltmesi:
+    - Eksik metrikler artık ağırlıktan DÜŞÜLÜR (eskiden 0 nötr sayılıyordu).
+      Sebep: ISCTR gibi 7 metrikten 5'i None olan hisseler sadece F/K
+      sayesinde %68 skor alıp yanıltıcı sonuç veriyordu.
+    - Veri tamamlığı < %50 → güvenilirlik düşük → 0.5 nötr dön.
+    """
+    # (skor_fonksiyonu, ham_değer, ağırlık) — None ise ağırlığa dahil edilmez
+    metrics = [
+        (_score_pe,                pe,              3.0),
+        (_score_pb,                pb,              2.0),
+        (_score_roe,               roe,             2.5),
+        (_score_de,                de,              1.5),
+        (_score_growth,            rev_growth,      1.0),
+        (_score_growth,            earn_growth,     1.0),
+        (_score_dividend,          div_yield,       0.5),
+        (_score_net_debt_ebitda,   net_debt_ebitda, 2.0),
+        (_score_ebitda_margin,     ebitda_margin,   1.5),
+    ]
+    full_weight_sum = sum(w for _, _, w in metrics)   # 15.0
+
+    # ── Kritik metrik kontrolü ───────────────────────────────────────────
+    # PE/PB değerlemeden EN AZ biri + karlılıktan (ROE veya EBITDA marjı)
+    # EN AZ biri olmalı. İkisi de yoksa hisse değerlendirilemez → 0.5 nötr.
+    # Bu, ISCTR gibi "sadece F/K var, geri kalan yok" durumunu engeller.
+    has_valuation = pe is not None or pb is not None
+    has_profitability = roe is not None or ebitda_margin is not None
+    if not (has_valuation and has_profitability):
+        return 0.5
+
+    weighted = 0.0
+    used_weight = 0.0
+    for fn, val, w in metrics:
+        if val is None:
+            continue                          # Eksik veri → ağırlıktan düş
+        weighted     += fn(val) * w
+        used_weight  += w
+
+    # Veri tamamlığı oranı (0-1)
+    completeness = used_weight / full_weight_sum if full_weight_sum > 0 else 0
+
+    # %55 altı → güvenilmez → nötr
+    if completeness < 0.55:
+        return 0.5
+
+    # Skoru kullanılan ağırlığa göre normalize et — eksik metrikler skoru
+    # şişirmesin/söndürmesin. weighted ∈ [-2*used, +2*used]
+    # score = 0.5 + (weighted / (2 * used_weight) ) * 0.5
+    # Yani max=1.0, min=0.0, weighted=0 → 0.5
+    norm = weighted / (2.0 * used_weight) if used_weight > 0 else 0
+    score = 0.5 + 0.5 * norm
     return round(max(0.0, min(1.0, score)), 4)
 
 
@@ -265,31 +304,33 @@ def fetch_fundamentals(symbol: str, yf_sym: str) -> dict | None:
             kap_title, kap_date = fetch_kap_last_disclosure(symbol)
 
         is_bist = yf_sym.endswith(".IS")
+        # NOT: `if val is not None` kullanılıyor — `if val` yazımı val=0 veya
+        # val=negatif (zarar) olduğunda False döner ve değerli sinyali kaybederiz.
         return {
             "symbol":            symbol,
             "asset_type":        "BIST" if is_bist else "COMMODITY",
             "company_name":      name,
             "sector":            sector,
             # Değerleme
-            "pe_ratio":           round(pe, 2)          if pe             else None,
-            "forward_pe":         round(fwd_pe, 2)       if fwd_pe         else None,
-            "pb_ratio":           round(pb, 2)           if pb             else None,
+            "pe_ratio":           round(pe, 2)          if pe         is not None else None,
+            "forward_pe":         round(fwd_pe, 2)       if fwd_pe     is not None else None,
+            "pb_ratio":           round(pb, 2)           if pb         is not None else None,
             # Karlılık
-            "roe":                round(roe, 4)          if roe            else None,
-            "eps":                round(eps, 4)          if eps            else None,
-            "forward_eps":        round(fwd_eps, 4)      if fwd_eps        else None,
+            "roe":                round(roe, 4)          if roe        is not None else None,
+            "eps":                round(eps, 4)          if eps        is not None else None,
+            "forward_eps":        round(fwd_eps, 4)      if fwd_eps    is not None else None,
             # FAVÖK / Operasyonel Karlılık (kritik BİST metriği)
             "ebitda":             ebitda,
             "ebitda_margin":      ebitda_margin,
             "net_debt_ebitda":    net_debt_ebitda,
             # Risk
-            "debt_to_equity":     round(de, 4)           if de             else None,
-            "beta":               round(beta, 3)         if beta           else None,
+            "debt_to_equity":     round(de, 4)           if de         is not None else None,
+            "beta":               round(beta, 3)         if beta       is not None else None,
             # Büyüme
-            "revenue_growth":     round(rev_g, 4)        if rev_g          else None,
-            "earnings_growth":    round(earn_g, 4)       if earn_g         else None,
+            "revenue_growth":     round(rev_g, 4)        if rev_g      is not None else None,
+            "earnings_growth":    round(earn_g, 4)       if earn_g     is not None else None,
             # Temettü & Piyasa
-            "dividend_yield":     round(div_y, 4)        if div_y          else None,
+            "dividend_yield":     round(div_y, 4)        if div_y      is not None else None,
             "market_cap":         mkt_cap,
             "position_52w":       pos52w,
             # Makro Bağlam
@@ -309,6 +350,41 @@ def fetch_fundamentals(symbol: str, yf_sym: str) -> dict | None:
 
 # ── Ana Döngü ─────────────────────────────────────────────────────────────────
 
+# Global bağlantı tutucuları (uzun uyku sonrası reconnect için)
+_CONN: pika.BlockingConnection | None = None
+_CHANNEL = None
+
+
+def _ensure_connection() -> bool:
+    """
+    Bağlantı kapalıysa yeniden kurar. 6 saatlik uyku sonrası heartbeat
+    çoktan ölmüş olur — her döngünün başında bu kontrol şart.
+    """
+    global _CONN, _CHANNEL
+    try:
+        if _CONN is not None and _CONN.is_open and _CHANNEL is not None and _CHANNEL.is_open:
+            return True
+    except Exception:
+        pass
+
+    print("[RabbitMQ] Bağlantı kapalı, yeniden kuruluyor...")
+    try:
+        if _CONN is not None:
+            try:
+                _CONN.close()
+            except Exception:
+                pass
+        _CONN = connect_rabbitmq()
+        _CHANNEL = _CONN.channel()
+        _CHANNEL.queue_declare(queue="fundamental.data", durable=True)
+        print("[RabbitMQ] ✓ Yeniden bağlanıldı.")
+        return True
+    except Exception as e:
+        print(f"[RabbitMQ] Yeniden bağlanma başarısız: {e}")
+        _CHANNEL = None
+        return False
+
+
 def run_cycle(channel) -> None:
     ts = datetime.datetime.now().strftime("%H:%M:%S")
     print(f"\n{'─' * 55}")
@@ -321,7 +397,11 @@ def run_cycle(channel) -> None:
         data = fetch_fundamentals(symbol, yf_sym)
 
         if data:
-            channel.basic_publish(
+            # Her publish öncesi channel kontrolü — uzun döngülerde kopma olabilir
+            if not _ensure_connection():
+                print(f"  {symbol} yayımlanamadı: RabbitMQ bağlantısı yok")
+                continue
+            _CHANNEL.basic_publish(
                 exchange="",
                 routing_key="fundamental.data",
                 body=json.dumps(data, ensure_ascii=False),
@@ -350,17 +430,19 @@ def connect_rabbitmq() -> pika.BlockingConnection:
     host = RABBITMQ_HOST
     for attempt in range(15):
         try:
+            # heartbeat=0: 6 saatlik döngü uykusunda heartbeat zaten ölecek;
+            # her döngü başı _ensure_connection() ile yeniden kuruluyor.
             conn = pika.BlockingConnection(
                 pika.ConnectionParameters(
                     host=host,
-                    heartbeat=600,
+                    heartbeat=0,
                     blocked_connection_timeout=300,
                 )
             )
             print(f"RabbitMQ bağlantısı kuruldu: {host}")
             return conn
-        except pika.exceptions.AMQPConnectionError:
-            print(f"RabbitMQ hazır değil ({attempt + 1}/15)...")
+        except Exception as e:
+            print(f"RabbitMQ bekleniyor ({attempt + 1}/15): {e}")
             time.sleep(5)
     raise RuntimeError("RabbitMQ'ya bağlanılamadı")
 
@@ -372,19 +454,27 @@ def main():
     # Diğer servislerin başlamasını bekle
     time.sleep(20)
 
-    conn    = connect_rabbitmq()
-    channel = conn.channel()
-    channel.queue_declare(queue="fundamental.data", durable=True)
+    # İlk bağlantıyı kur — global tutucular doldurulur
+    if not _ensure_connection():
+        raise RuntimeError("İlk RabbitMQ bağlantısı kurulamadı")
 
     try:
         while True:
-            run_cycle(channel)
+            # Her döngünün başında bağlantıyı yenile (6h uyku sonrası ölü olabilir)
+            if _ensure_connection():
+                run_cycle(_CHANNEL)
+            else:
+                print("[Döngü] RabbitMQ bağlantısı yok, döngü atlandı.")
             print(f"\nSonraki temel analiz döngüsü {CYCLE_HOURS} saat sonra...")
             time.sleep(CYCLE_HOURS * 3600)
     except KeyboardInterrupt:
         print("Durduruluyor...")
     finally:
-        conn.close()
+        try:
+            if _CONN is not None:
+                _CONN.close()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
