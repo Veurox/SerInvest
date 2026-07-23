@@ -3,3 +3,5 @@ feedparser>=6.0.0
 transformers>=4.35.0
 langdetect>=1.0.9
 requests>=2.31.0
+playwright>=1.40.0
+beautifulsoup4>=4.12.0

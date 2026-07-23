@@ -1,0 +1,7 @@
+# Container, host'tan farklı bir ağ alanında çalışır. Yerel önizlemeye özel
+# dev dosyaları image'a GİRMEMELİ — aksi halde VITE_API_URL=/api + proxy
+# container içinde localhost:8080'i (yanlış hedef) işaret eder ve API kırılır.
+.env.local
+.env.*.local
+node_modules
+dist

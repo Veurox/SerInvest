@@ -5,17 +5,18 @@ services:
     image: postgres:15-alpine
     container_name: serinvest-postgres
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: marketsentinel
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-marketsentinel}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - market-network
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d marketsentinel"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin} -d ${POSTGRES_DB:-marketsentinel}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -27,18 +28,28 @@ services:
       - "6379:6379"
     networks:
       - market-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: serinvest-rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
     ports:
-      - "5672:5672"
-      - "15672:15672"    # RabbitMQ Yönetim Paneli: http://localhost:15672
+      # coeng-rabbitmq gibi başka bir konteyner 5672/15672'yi tutabilir; çakışmayı
+      # önlemek için host port'ları 5673/15673'e alındı. Servisler arası iletişim
+      # Docker ağında "rabbitmq" adıyla 5672 üzerinden yapılır — bu değişiklikten etkilenmez.
+      - "5673:5672"
+      - "15673:15672"    # RabbitMQ Yönetim Paneli: http://localhost:15673
     networks:
       - market-network
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 15s
@@ -55,6 +66,11 @@ services:
         condition: service_healthy
     environment:
       RABBITMQ_HOST: rabbitmq
+      CHART_HTTP_PORT: 5002
+    ports:
+      - "5002:5002"     # Chart HTTP API (UI tıklayınca grafikler için)
+    volumes:
+      - ./shared:/shared:ro
     networks:
       - market-network
     restart: unless-stopped
@@ -68,6 +84,7 @@ services:
         condition: service_healthy
     environment:
       RABBITMQ_HOST: rabbitmq
+      ORACLE_URL: http://serinvest-oracle:5001   # C8 anomali tetikleyici için
     networks:
       - market-network
     restart: unless-stopped
@@ -83,12 +100,20 @@ services:
         condition: service_started
     environment:
       RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
       CORE_API_URL: http://core-api:8080
-      ORACLE_CYCLE_MINUTES: 60        # Her 60 dakikada bir analiz döngüsü
+      ORACLE_CYCLE_MINUTES: ${ORACLE_CYCLE_MINUTES:-60}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-dev_key_change_me}
       TZ: Europe/Istanbul
-      TCMB_RATE_PCT: 42.5             # Makro bağlam için TCMB politika faizi
+      TCMB_RATE_PCT: ${TCMB_RATE_PCT:-42.5}
+    ports:
+      - "5001:5001"     # Admin HTTP API (frontend butonları)
     volumes:
-      - oracle_models:/app/models     # Model ve eğitim verisi burada kalıcı saklanır
+      # Model + eğitim verisi PROJE KLASÖRÜNDE (bind-mount) → bilgisayar taşımada
+      # klasörle birlikte gelir, named volume gibi geride kalmaz (07/2026 kararı).
+      - ./oracle-data:/app/models
+      - ./shared:/shared:ro            # Paylaşılan symbols.json (read-only)
     networks:
       - market-network
     restart: unless-stopped
@@ -102,8 +127,10 @@ services:
         condition: service_healthy
     environment:
       RABBITMQ_HOST: rabbitmq
-      FUNDAMENTAL_CYCLE_HOURS: 6
-      TCMB_RATE_PCT: 42.5        # TCMB politika faizi — çeyreklik güncellenir
+      FUNDAMENTAL_CYCLE_HOURS: ${FUNDAMENTAL_CYCLE_HOURS:-6}
+      TCMB_RATE_PCT: ${TCMB_RATE_PCT:-42.5}
+    volumes:
+      - ./shared:/shared:ro
     networks:
       - market-network
     restart: unless-stopped
@@ -120,23 +147,45 @@ services:
       rabbitmq:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     environment:
-      ConnectionStrings__DefaultConnection: "Host=postgres;Database=marketsentinel;Username=admin;Password=password"
+      ConnectionStrings__DefaultConnection: "Host=postgres;Database=${POSTGRES_DB:-marketsentinel};Username=${POSTGRES_USER:-admin};Password=${POSTGRES_PASSWORD:-password}"
       ConnectionStrings__Redis: "redis:6379"
       RabbitMq__Host: "rabbitmq"
+      RabbitMq__Username: "${RABBITMQ_USER:-guest}"
+      RabbitMq__Password: "${RABBITMQ_PASSWORD:-guest}"
+      Admin__ApiKey: "${ADMIN_API_KEY:-dev_key_change_me}"
+      Cors__AllowedOrigins: "${ALLOWED_ORIGINS:-http://localhost:3000}"
+      MarketData__ChartUrl: "http://market-data-service:5002"
     ports:
       - "8080:8080"
     volumes:
-      - oracle_models:/app/oracle_models:ro
+      - ./oracle-data:/app/oracle_models:ro   # aynı bind-mount, read-only
     networks:
       - market-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health | grep -q ok || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   frontend:
     build:
       context: ./frontend
     container_name: serinvest-frontend
+    environment:
+      # Vite dev server bu env'i `import.meta.env.VITE_ADMIN_API_KEY` olarak yayar.
+      # Kişisel kullanım için: tarayıcıda manuel anahtar girmeye gerek yok.
+      VITE_ADMIN_API_KEY: ${ADMIN_API_KEY:-dev_key_change_me}
+      # Windows bind mount'ta inotify çalışmaz — HMR için polling şart
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      # Canlı geliştirme (HMR): kod değişikliği imaj rebuild'i gerektirmez.
+      # node_modules imaj içinde kalır (host'ta node yok).
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
     ports:
       - "3000:3000"
     networks:
@@ -144,8 +193,9 @@ services:
     restart: unless-stopped
 
 volumes:
-  postgres_data:
-  oracle_models:     # ML modeli ve tahmin logları burada kalıcı saklanır
+  postgres_data:     # Haber/sinyal/analiz geçmişi — named volume (Windows'ta
+                     # postgres bind-mount kırılgan); taşıma backup.ps1/restore.ps1 ile.
+  # oracle_models kaldırıldı → artık ./oracle-data bind-mount (proje klasöründe).
 
 networks:
   market-network:
