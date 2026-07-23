@@ -26,9 +26,20 @@ Thumbs.db
 *.swp
 *.swo
 
-# Build outputs
+# Build outputs (her seviyede — .NET obj/bin kök-dışı da olabilir)
 /dist/
 /build/
 /out/
-/bin/
-/obj/
+**/bin/
+**/obj/
+
+# Claude Code makine-yerel ayarları (settings.local.json, lock, launch)
+.claude/
+
+# ML runtime durumu — git'e GİRMEZ (sürekli değişen ikili dosyalar repo'yu şişirir;
+# training_data.csv ~11 MB her retrain'de değişir). Bilgisayar taşımada bu klasörü
+# ELLE kopyala; DB'yi backup.ps1/restore.ps1 ile taşı. Bkz. TASIMA.md.
+/oracle-data/
+
+# Yedekler (backup.ps1 çıktısı) — repo'ya değil, elle taşınır
+/backups/
