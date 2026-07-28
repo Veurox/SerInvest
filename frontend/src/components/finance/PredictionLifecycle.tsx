@@ -19,15 +19,14 @@ export interface CohortDay {
   hit_rate: number | null
   avg_return: number | null
   verdict_date: string
-  verdict_at: string          // hüküm anı (ISO, dakika hassasiyeti)
-  age_days: number; days_left: number; hours_left: number
+  age_days: number; days_left: number
   matured: boolean; progress: number
 }
 
-/** Kalan süre etiketi — 48 saatin altında saat, üstünde gün. */
+/** Kalan süre etiketi — olgunluk takvim günü bazlı (bkz. ml_live.maturity). */
 function leftLabel(d: CohortDay): string {
   if (d.matured) return 'olgun'
-  if (d.hours_left < 48) return `${d.hours_left.toFixed(d.hours_left < 10 ? 1 : 0)} saat`
+  if (d.days_left <= 1) return 'yarın'
   return `${d.days_left} gün`
 }
 interface CalendarPayload {
@@ -207,7 +206,7 @@ export function PredictionLifecycle({ onPickDay }: { onPickDay?: (date: string) 
                                 background: 'linear-gradient(90deg, var(--info), var(--accent))',
                                 transition: 'width .5s ease' }} />
                 </div>
-                <span title={`hüküm: ${d.verdict_at.replace('T', ' ')} UTC`}
+                <span title={`hüküm günü: ${dLabel(d.verdict_date)}`}
                       style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                   {leftLabel(d)}
                 </span>
@@ -265,7 +264,7 @@ export function PredictionLifecycle({ onPickDay }: { onPickDay?: (date: string) 
                     <span style={{ fontSize: 9.5, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
                       {c.hit_rate != null
                         ? `✓${(c.hit_rate * 100).toFixed(0)}%`
-                        : c.matured ? 'olgun' : c.hours_left < 48 ? `⏳${c.hours_left.toFixed(0)}sa` : `⏳${c.days_left}g`}
+                        : c.matured ? 'olgun' : `⏳${c.days_left}g`}
                     </span>
                   </>
                 )}
@@ -291,7 +290,7 @@ export function PredictionLifecycle({ onPickDay }: { onPickDay?: (date: string) 
               <div style={{ marginTop: 4, color: 'var(--text-muted)' }}>
                 Henüz yargılanmadı — {selected.matured
                   ? 'olgunlaştı, ilk değerlendirme turunda yargılanacak'
-                  : <>olgunlaşmasına <b>{leftLabel(selected)}</b> var (hüküm: {selected.verdict_at.replace('T', ' ')} UTC)</>}
+                  : <>olgunlaşmasına <b>{leftLabel(selected)}</b> var (hüküm günü: {dLabel(selected.verdict_date)})</>}
               </div>
             )}
           </div>

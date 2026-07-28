@@ -651,6 +651,28 @@ def _log_prediction(log: dict):
 #  10 GÜNLÜK DEĞERLENDİRME (eğitimle AYNI triple-barrier)
 # ═════════════════════════════════════════════════════════════════════════════
 
+def maturity(ts: datetime.datetime, now: datetime.datetime | None = None) -> dict:
+    """
+    Bir tahminin olgunluk durumu — TEK KAYNAK (evaluate_ml + admin takvimi).
+
+    Karşılaştırma TAKVİM GÜNÜ üzerinden yapılır, saat üzerinden DEĞİL.
+    Gerekçe (07/2026): tahmin akşam 22:08'de yazıldıysa saat-bazlı `(now-ts).days`
+    yargıyı ertesi günün 22:08'ine ötelerdi. Oysa kuralın amacı "10 işlem günlük
+    triple-barrier penceresi kapandı mı?" — o pencere 20. günden çok önce kapanır
+    (ölçüldü: 8 Tem tahmininde pencere 23 Tem'de kapandı, 13 bar mevcuttu).
+    Saat hassasiyeti sonucu değiştirmez, yalnızca UI'da anlamsız bekleme yaratır.
+    """
+    now = now or datetime.datetime.utcnow()
+    age = (now.date() - ts.date()).days
+    vdate = ts.date() + datetime.timedelta(days=EVAL_MIN_AGE_DAYS)
+    return {
+        "age_days":     age,
+        "matured":      age >= EVAL_MIN_AGE_DAYS,
+        "verdict_date": vdate,
+        "days_left":    max(0, (vdate - now.date()).days),
+    }
+
+
 def evaluate_ml():
     """
     Bekleyen tahminleri 10g triple-barrier ile değerlendirir (model tanımıyla AYNI).
@@ -659,7 +681,6 @@ def evaluate_ml():
     if not PREDICTION_LOG.exists():
         return
     now = datetime.datetime.utcnow()
-    MIN_AGE_DAYS = EVAL_MIN_AGE_DAYS               # ml/config.py — UI ile aynı sabit
 
     with open(PREDICTION_LOG, "r", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
@@ -672,7 +693,7 @@ def evaluate_ml():
             ts = datetime.datetime.fromisoformat(row["timestamp"])
         except Exception:
             continue
-        if (now - ts).days < MIN_AGE_DAYS:
+        if not maturity(ts, now)["matured"]:
             continue
         try:
             entry   = float(row["close"])

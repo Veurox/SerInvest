@@ -410,7 +410,6 @@ def _admin_make_app():
                             pass
 
             now = dt.datetime.utcnow()
-            span = dt.timedelta(days=EVAL_MIN_AGE_DAYS)
             out = []
             for d in sorted(days):
                 c = days[d]
@@ -419,20 +418,15 @@ def _admin_make_app():
                     made_dt = dt.datetime.fromisoformat(raw_ts)
                 except Exception:
                     made_dt = dt.datetime.fromisoformat(f"{d}T00:00:00")
-                verdict_dt = made_dt + span
-                # evaluate_ml ile AYNI ifade: (now - ts).days >= EVAL_MIN_AGE_DAYS
-                age_days = (now - made_dt).days
-                matured  = age_days >= EVAL_MIN_AGE_DAYS
-                secs_left = max(0.0, (verdict_dt - now).total_seconds())
+                # Olgunluk TEK KAYNAKTAN: ml_live.maturity (evaluate_ml de onu kullanır)
+                m = ml_live.maturity(made_dt, now)
                 rets = c.pop("returns")
                 c.update({
-                    "verdict_date":  verdict_dt.date().isoformat(),
-                    "verdict_at":    verdict_dt.isoformat(timespec="minutes"),
-                    "age_days":      age_days,
-                    "days_left":     0 if matured else max(1, int(-(-secs_left // 86400))),  # yukarı yuvarla
-                    "hours_left":    0 if matured else round(secs_left / 3600, 1),
-                    "matured":       matured,
-                    "progress":      round(min(1.0, (now - made_dt) / span), 3),
+                    "verdict_date":  m["verdict_date"].isoformat(),
+                    "age_days":      m["age_days"],
+                    "days_left":     m["days_left"],
+                    "matured":       m["matured"],
+                    "progress":      round(min(1.0, m["age_days"] / EVAL_MIN_AGE_DAYS), 3),
                     "pending":       c["total"] - c["evaluated"],
                     "hit_rate":      round(c["buy_correct"] / c["buy_decided"], 4) if c["buy_decided"] else None,
                     "avg_return":    round(sum(rets) / len(rets), 4) if rets else None,
@@ -446,7 +440,7 @@ def _admin_make_app():
             # "Fırında" = henüz olgunlaşmamış kohortlardaki tahminler
             ripening  = sum(c["total"] for c in out if not c["matured"])
             # Bir sonraki hasat: olgunlaşmamışların en yakın hüküm tarihi
-            upcoming  = sorted((c for c in out if not c["matured"]), key=lambda c: c["verdict_at"])
+            upcoming  = sorted((c for c in out if not c["matured"]), key=lambda c: c["verdict_date"])
             return jsonify({
                 "horizon_days": EVAL_MIN_AGE_DAYS,
                 "today":        today.isoformat(),
