@@ -12,6 +12,7 @@ import { ToastProvider } from './components/ui/Toast'
 // ── Sayfalar (route'lar) ─────────────────────────────────────────────────────
 import OverviewPage from './pages/OverviewPage'
 import TerminalPage from './pages/TerminalPage'
+import ModelPage from './pages/ModelPage'
 import OraclePage from './pages/OraclePage'
 import RadarPage from './pages/RadarPage'
 import ModelPortfolioPage from './pages/ModelPortfolioPage'
@@ -40,6 +41,9 @@ createRoot(document.getElementById('root')!).render(
             <Route path="history"       element={<HistoryTab />} />
             <Route path="news"          element={<NewsPage />} />
             <Route path="fundamental"   element={<FundamentalPage />} />
+            {/* Model = eski ML Ops + Yönetim (07/2026 sadeleştirme).
+                Eski rotalar korunur; yer imi/derin link kırılmasın. */}
+            <Route path="model"         element={<ModelPage />} />
             <Route path="mlops"         element={<MLOpsTab />} />
             <Route path="admin"         element={<AdminTab />} />
             <Route path="degerlendirme" element={<EvaluationPage />} />

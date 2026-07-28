@@ -138,8 +138,18 @@ export interface TrainingInfo {
     modified_at: string; label_balance: { up_pct: number; down_pct: number }
     label_counts: Record<string, number>
   }
-  live_accuracy?: { overall: number | null; total_evaluated: number; total_correct: number; last_eval: string }
+  live_accuracy?: {
+    overall: number | null; total_evaluated: number; total_correct: number; last_eval: string
+    base_rate?: number | null; lift?: number | null; breakeven?: number | null; al_signals?: number
+  }
   symbols?: { bist: string[]; commodity: string[]; forex: string[]; total: number }
+  // Şampiyon model künyesi (champion_meta.json)
+  champion?: {
+    trained_at?: string; n_rows?: number; horizon?: number; buy_threshold?: number
+    date_min?: string; date_max?: string; up_pct?: number; xsec_rank?: boolean
+    tp_atr_mult?: number; sl_atr_mult?: number
+    top_features?: { name: string; pct: number }[]
+  }
 }
 
 export interface AdminStatus {

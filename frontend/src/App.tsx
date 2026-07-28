@@ -29,7 +29,8 @@ export interface SharedData {
 }
 
 // Route sırası — klavye kısayolları (1-8) bu sırayı kullanır.
-const ROUTES = ['/', '/radar', '/oracle', '/portfolio', '/history', '/news', '/fundamental', '/mlops', '/model-portfoy', '/degerlendirme', '/dip-radar']
+// Klavye kısayolları (1-8) bu sırayı kullanır — nav sırasıyla hizalı kalmalı.
+const ROUTES = ['/', '/terminal', '/radar', '/model-portfoy', '/oracle', '/portfolio', '/history', '/news', '/fundamental', '/dip-radar', '/degerlendirme', '/model']
 
 export default function App() {
   const navigate = useNavigate()
@@ -119,14 +120,14 @@ export default function App() {
     { id: 'nav-history',     group: 'Navigasyon', icon: <Icon name="history" size={16} />, label: 'Tahmin Geçmişi',  hint: '5', action: () => navigate('/history') },
     { id: 'nav-news',        group: 'Navigasyon', icon: <Icon name="news" size={16} />, label: 'Haberler',         hint: '6', action: () => navigate('/news') },
     { id: 'nav-fundamental', group: 'Navigasyon', icon: <Icon name="fundamental" size={16} />, label: 'Temel Analiz',     hint: '7', action: () => navigate('/fundamental') },
-    { id: 'nav-mlops',       group: 'Navigasyon', icon: <Icon name="mlops" size={16} />, label: 'ML Ops Konsolu',   hint: '8', action: () => navigate('/mlops') },
+    { id: 'nav-model',       group: 'Navigasyon', icon: <Icon name="mlops" size={16} />, label: 'Model (durum + kontroller)', hint: '8', action: () => navigate('/model') },
     { id: 'nav-model-portfoy', group: 'Navigasyon', icon: <Icon name="bot" size={16} />, label: 'Model Portföyü',  hint: '9',
       keywords: ['model', 'portföy', 'paper', 'otonom', 'sanal'], action: () => navigate('/model-portfoy') },
     { id: 'nav-evaluate',    group: 'Navigasyon', icon: <Icon name="search" size={16} />, label: 'Hisse Değerlendir',
       keywords: ['değerlendirme', 'analiz', 'hisse', 'teknik', 'inceleme'], action: () => navigate('/degerlendirme') },
     { id: 'nav-dip-radar',   group: 'Navigasyon', icon: <Icon name="trending-down" size={16} />, label: 'Dip Fırsat Radarı',
       keywords: ['dip', 'fırsat', 'düşüş', 'alım', 'destek', 'düşen'], action: () => navigate('/dip-radar') },
-    { id: 'nav-admin',       group: 'Navigasyon', icon: <Icon name="settings" size={16} />, label: 'Yönetim',          action: () => navigate('/admin') },
+    { id: 'nav-admin',       group: 'Navigasyon', icon: <Icon name="settings" size={16} />, label: 'Yönetim (eski sayfa)', action: () => navigate('/admin') },
     // ── Aksiyon ──
     { id: 'act-search',      group: 'Aksiyon', icon: <Icon name="search" size={16} />, label: 'Hisse ara', hint: 'Ctrl+K',
       keywords: ['arama', 'search'],
@@ -369,10 +370,10 @@ export default function App() {
             { to: '/history',       icon: 'history',               label: 'Tahmin Geçmişi' },
             { to: '/news',          icon: 'news',                  label: 'Haberler',       badge: news.length },
             { to: '/fundamental',   icon: 'fundamental',           label: 'Temel Analiz',   badge: fundamentals.length },
-            { to: '/mlops',         icon: 'mlops',                 label: 'ML Ops' },
             { to: '/dip-radar',     icon: 'trending-down',         label: 'Dip Radarı' },
             { to: '/degerlendirme', icon: 'search',                label: 'Değerlendir' },
-            { to: '/admin',         icon: 'settings',              label: 'Yönetim' },
+            // ML Ops + Yönetim tek sayfada birleşti (07/2026 sadeleştirme)
+            { to: '/model',         icon: 'settings',              label: 'Model' },
           ] as { to: string; end?: boolean; icon: IconName; label: string; badge?: number }[]).map(n => (
             <NavLink key={n.to} to={n.to} end={n.end} className={navClass}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
