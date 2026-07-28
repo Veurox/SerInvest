@@ -30,7 +30,7 @@ export interface SharedData {
 
 // Route sırası — klavye kısayolları (1-8) bu sırayı kullanır.
 // Klavye kısayolları (1-8) bu sırayı kullanır — nav sırasıyla hizalı kalmalı.
-const ROUTES = ['/', '/terminal', '/radar', '/model-portfoy', '/oracle', '/portfolio', '/history', '/news', '/fundamental', '/dip-radar', '/degerlendirme', '/model']
+const ROUTES = ['/', '/terminal', '/model-portfoy', '/oracle', '/portfolio', '/history', '/news', '/fundamental', '/dip-radar', '/degerlendirme', '/model']
 
 export default function App() {
   const navigate = useNavigate()
@@ -113,9 +113,9 @@ export default function App() {
   const commands: Command[] = [
     // ── Navigasyon ──
     { id: 'nav-overview',    group: 'Navigasyon', icon: <Icon name="overview" size={16} />, label: 'Piyasa Genel',    hint: '1', action: () => navigate('/') },
-    { id: 'nav-radar',       group: 'Navigasyon', icon: <Icon name="target" size={16} />, label: 'Fırsat Radarı',    hint: '2',
-      keywords: ['fırsat', 'radar', 'sinyal', 'öneri'], action: () => navigate('/radar') },
-    { id: 'nav-oracle',      group: 'Navigasyon', icon: <Icon name="sparkle" size={16} />, label: 'AI Tavsiye',       hint: '3', action: () => navigate('/oracle') },
+    // Fırsat Radarı → AI Tavsiye ile birleşti (07/2026: ikisi aynı listeyi üretiyordu)
+    { id: 'nav-oracle',      group: 'Navigasyon', icon: <Icon name="sparkle" size={16} />, label: 'AI Tavsiye',       hint: '2',
+      keywords: ['fırsat', 'radar', 'sinyal', 'öneri', 'tavsiye'], action: () => navigate('/oracle') },
     { id: 'nav-portfolio',   group: 'Navigasyon', icon: <Icon name="briefcase" size={16} />, label: 'Portföyüm',        hint: '4', action: () => navigate('/portfolio') },
     { id: 'nav-history',     group: 'Navigasyon', icon: <Icon name="history" size={16} />, label: 'Tahmin Geçmişi',  hint: '5', action: () => navigate('/history') },
     { id: 'nav-news',        group: 'Navigasyon', icon: <Icon name="news" size={16} />, label: 'Haberler',         hint: '6', action: () => navigate('/news') },
@@ -363,7 +363,6 @@ export default function App() {
           {([
             { to: '/',              end: true, icon: 'overview',    label: 'Piyasa Genel' },
             { to: '/terminal',      icon: 'mlops',                 label: 'Terminal' },
-            { to: '/radar',         icon: 'target',                label: 'Fırsat Radarı' },
             { to: '/model-portfoy', icon: 'bot',                   label: 'Model Portföyü' },
             { to: '/oracle',        icon: 'sparkle',               label: 'AI Tavsiye',     badge: oracle.length },
             { to: '/portfolio',     icon: 'briefcase',             label: 'Portföyüm' },

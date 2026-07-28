@@ -77,18 +77,29 @@ export function OracleCard({ data }: { data: OracleAnalysis }) {
         }}>
           {data.shortTermTarget != null && (
             <div>
-              <div style={{ color: 'var(--text-muted)', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TP</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hedef</div>
               <div style={{ color: 'var(--profit)', fontWeight: 'var(--fw-bold)', fontVariantNumeric: 'tabular-nums' }}>
                 {fmt(data.shortTermTarget)}
               </div>
+              {/* Yüzde kazanç — eski Fırsat Radarı'ndan taşındı (07/2026 birleştirme) */}
+              {data.priceAtAnalysis != null && data.priceAtAnalysis > 0 && (
+                <div style={{ color: 'var(--profit)', fontSize: '10px', opacity: 0.85, fontVariantNumeric: 'tabular-nums' }}>
+                  +%{(((data.shortTermTarget - data.priceAtAnalysis) / data.priceAtAnalysis) * 100).toFixed(1)}
+                </div>
+              )}
             </div>
           )}
           {data.shortTermStop != null && (
             <div>
-              <div style={{ color: 'var(--text-muted)', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>SL</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Stop</div>
               <div style={{ color: 'var(--loss)', fontWeight: 'var(--fw-bold)', fontVariantNumeric: 'tabular-nums' }}>
                 {fmt(data.shortTermStop)}
               </div>
+              {data.priceAtAnalysis != null && data.priceAtAnalysis > 0 && (
+                <div style={{ color: 'var(--loss)', fontSize: '10px', opacity: 0.85, fontVariantNumeric: 'tabular-nums' }}>
+                  −%{(((data.priceAtAnalysis - data.shortTermStop) / data.priceAtAnalysis) * 100).toFixed(1)}
+                </div>
+              )}
             </div>
           )}
           {data.riskRewardRatio != null && (

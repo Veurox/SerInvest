@@ -27,8 +27,17 @@ export default function OraclePage() {
     : 0
 
   const filtered = filter === 'TÜM' ? oracle : oracle.filter(o => o.recommendation === filter)
-  // En güçlü önce
+  // En güçlü önce. DİKKAT: kalibrasyon sonrası tüm AL sinyalleri aynı olasılığı
+  // taşıyabiliyor (isotonic, ham p 0.35 üstünü tek değere eşliyor) — o durumda
+  // bu sıralama anlamsızdır ve aşağıda kullanıcıya açıkça söylenir.
   const sorted = [...filtered].sort((a, b) => b.confidence - a.confidence)
+
+  // Sıralama gerçekten ayrıştırıyor mu? AL sinyallerinde kaç FARKLI güven var?
+  const buySignals = oracle.filter(o => o.recommendation.includes('ALIM'))
+  const distinctConf = new Set(buySignals.map(o => Math.round(o.confidence * 1000))).size
+  const rankingIsFlat = buySignals.length >= 3 && distinctConf === 1
+  // Not: kazanç/risk yüzdeleri (eski Fırsat Radarı'nın özgün katkısı) artık
+  // OracleCard içinde hedef/stop değerlerinin altında gösteriliyor.
 
   const handleDownload = () => {
     downloadCsv(
@@ -76,6 +85,28 @@ export default function OraclePage() {
         <KPI label="Nötr (izle)" value={neutral} tone="neutral" icon="●" />
         <KPI label="Ort. Alım Güveni" value={buyAll > 0 ? `%${(avgConf * 100).toFixed(0)}` : '—'} tone="accent" icon="◷" />
       </div>
+
+      {/* Sahte sıralama uyarısı — 07/2026 denetim bulgusu.
+          Kalibrasyon sonrası tüm AL sinyalleri aynı olasılığı taşıyorsa
+          "en iyi fırsat" sıralaması yanıltıcıdır; bunu gizlemek yerine söylüyoruz. */}
+      {rankingIsFlat && (
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', gap: 9, marginBottom: 'var(--space-3)',
+          padding: '10px 13px', borderRadius: 5, fontSize: 12.5, lineHeight: 1.55,
+          background: 'var(--warning-bg)', border: '1px solid var(--warning-border)',
+          color: 'var(--text-secondary)',
+        }}>
+          <span style={{ color: 'var(--warning)', fontWeight: 800 }}>!</span>
+          <span>
+            <b style={{ color: 'var(--warning)' }}>Bu liste sıralı değil.</b>{' '}
+            Model {buySignals.length} sembolde alım diyor ama hepsine{' '}
+            <b>aynı olasılığı (%{(buySignals[0].confidence * 100).toFixed(0)})</b> veriyor —
+            aralarında hangisinin daha iyi olduğunu ayıramıyor. Kartların sırası rastgeledir,
+            üsttekiler daha iyi değildir. Ayrıştırma, haber/rejim bilgisini kullanan
+            meta-model olgunlaşınca gelecek.
+          </span>
+        </div>
+      )}
 
       {sorted.length === 0 ? (
         <EmptyState
