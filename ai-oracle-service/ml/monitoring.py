@@ -37,7 +37,13 @@ from ml.config import (
 )
 
 MIN_LIVE_ROWS  = 200    # PSI için asgari canlı satır
-MIN_EVAL_ROWS  = 30     # kalibrasyon raporu için asgari değerlendirilmiş tahmin
+
+# Kalibrasyon (ECE) için asgari değerlendirilmiş tahmin.
+# 07/2026 bulgusu: eşik 30'du ve n=38'de "KALİBRASYON SAPMIŞ (ECE 0.151)" alarmı
+# verdi. Oysa 5 bin'e bölününce bin başına ~7 örnek düşüyordu; n=8'de oranın
+# standart hatası ~0.17 — gözlenen ±0.16-0.22 sapmalar tamamen yazı-tura gürültüsü.
+# Anlamlı ECE için bin başına ~30 örnek gerekir → 5 bin × 30 = 150.
+MIN_EVAL_ROWS  = 150
 
 # 07/2026 bulgusu — SATIR SAYISI YANILTICI: aynı günün 50 sembolü bağımsız gözlem
 # değildir. Piyasa-geneli özellikler (usdtry_ret5 gibi) tüm sembollerde AYNI değeri
