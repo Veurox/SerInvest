@@ -344,6 +344,151 @@ def _admin_make_app():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    # ── GET /admin/prediction-calendar ────────────────────────────────────────
+    @app.get("/admin/prediction-calendar")
+    def admin_prediction_calendar():
+        """
+        Tahmin yaşam döngüsü — GÜN bazında özet (UI takvimi + olgunlaşma hattı).
+
+        Her tahmin günü bir "kohort": o gün kurulan bahisler EVAL_MIN_AGE_DAYS
+        takvim günü sonra topluca yargılanır. Bu endpoint her kohort için
+        olgunlaşma yüzdesini, hüküm tarihini ve (olgunsa) isabet dökümünü verir.
+        """
+        import csv as csv_mod
+        import datetime as dt
+        from ml.config import EVAL_MIN_AGE_DAYS
+
+        if not PREDICTION_LOG.exists():
+            return jsonify({"days": [], "summary": {}, "horizon_days": EVAL_MIN_AGE_DAYS})
+
+        try:
+            today = dt.date.today()
+            days: dict[str, dict] = {}
+
+            with open(PREDICTION_LOG, "r", encoding="utf-8") as f:
+                for r in csv_mod.DictReader(f):
+                    d = (r.get("timestamp") or "")[:10]
+                    if len(d) != 10:
+                        continue
+                    c = days.setdefault(d, {
+                        "date": d, "total": 0, "buy": 0,
+                        "evaluated": 0, "up": 0, "down": 0, "neutral": 0,
+                        "buy_correct": 0, "buy_decided": 0, "returns": [],
+                        "_ts": None,
+                    })
+                    c["total"] += 1
+                    # Kohortun EN GEÇ tahmini — olgunluk onunla ölçülür (muhafazakâr).
+                    # evaluate_ml satır bazında tam ZAMAN farkına bakar; takvim de
+                    # aynı formülü kullanmalı yoksa UI "olgun" derken motor atlar.
+                    full_ts = (r.get("timestamp") or "").strip()
+                    if full_ts and (c["_ts"] is None or full_ts > c["_ts"]):
+                        c["_ts"] = full_ts
+                    is_buy = (r.get("rec_dir") or "").strip() == "BUY"
+                    if is_buy:
+                        c["buy"] += 1
+                    ev = (r.get("eval") or "").strip()
+                    if not ev:
+                        continue
+                    parts = ev.split("|")
+                    outcome = parts[0].strip()
+                    c["evaluated"] += 1
+                    if outcome == "UP":
+                        c["up"] += 1
+                    elif outcome == "DOWN":
+                        c["down"] += 1
+                    else:
+                        c["neutral"] += 1
+                    # AL sinyalinin kesin hükmü (NEUTRAL kararsız sayılır)
+                    if is_buy and outcome in ("UP", "DOWN"):
+                        c["buy_decided"] += 1
+                        if outcome == "UP":
+                            c["buy_correct"] += 1
+                    if len(parts) > 1:
+                        try:
+                            c["returns"].append(float(parts[1]))
+                        except Exception:
+                            pass
+
+            now = dt.datetime.utcnow()
+            span = dt.timedelta(days=EVAL_MIN_AGE_DAYS)
+            out = []
+            for d in sorted(days):
+                c = days[d]
+                raw_ts = c.pop("_ts") or f"{d}T00:00:00"
+                try:
+                    made_dt = dt.datetime.fromisoformat(raw_ts)
+                except Exception:
+                    made_dt = dt.datetime.fromisoformat(f"{d}T00:00:00")
+                verdict_dt = made_dt + span
+                # evaluate_ml ile AYNI ifade: (now - ts).days >= EVAL_MIN_AGE_DAYS
+                age_days = (now - made_dt).days
+                matured  = age_days >= EVAL_MIN_AGE_DAYS
+                secs_left = max(0.0, (verdict_dt - now).total_seconds())
+                rets = c.pop("returns")
+                c.update({
+                    "verdict_date":  verdict_dt.date().isoformat(),
+                    "verdict_at":    verdict_dt.isoformat(timespec="minutes"),
+                    "age_days":      age_days,
+                    "days_left":     0 if matured else max(1, int(-(-secs_left // 86400))),  # yukarı yuvarla
+                    "hours_left":    0 if matured else round(secs_left / 3600, 1),
+                    "matured":       matured,
+                    "progress":      round(min(1.0, (now - made_dt) / span), 3),
+                    "pending":       c["total"] - c["evaluated"],
+                    "hit_rate":      round(c["buy_correct"] / c["buy_decided"], 4) if c["buy_decided"] else None,
+                    "avg_return":    round(sum(rets) / len(rets), 4) if rets else None,
+                })
+                out.append(c)
+
+            total     = sum(c["total"] for c in out)
+            evaluated = sum(c["evaluated"] for c in out)
+            decided   = sum(c["buy_decided"] for c in out)
+            correct   = sum(c["buy_correct"] for c in out)
+            # "Fırında" = henüz olgunlaşmamış kohortlardaki tahminler
+            ripening  = sum(c["total"] for c in out if not c["matured"])
+            # Bir sonraki hasat: olgunlaşmamışların en yakın hüküm tarihi
+            upcoming  = sorted((c for c in out if not c["matured"]), key=lambda c: c["verdict_at"])
+            return jsonify({
+                "horizon_days": EVAL_MIN_AGE_DAYS,
+                "today":        today.isoformat(),
+                "days":         out,
+                "summary": {
+                    "total":          total,
+                    "evaluated":      evaluated,
+                    "pending":        total - evaluated,
+                    "ripening":       ripening,
+                    "matured_total":  sum(c["total"] for c in out if c["matured"]),
+                    "buy_decided":    decided,
+                    "buy_correct":    correct,
+                    "hit_rate":       round(correct / decided, 4) if decided else None,
+                    "next_verdict":   upcoming[0]["verdict_date"] if upcoming else None,
+                    "next_verdict_n": upcoming[0]["total"] if upcoming else 0,
+                },
+            })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── POST /admin/evaluate-now ──────────────────────────────────────────────
+    @app.post("/admin/evaluate-now")
+    def admin_evaluate_now():
+        """
+        Olgunlaşmış tahminleri 19:00 zamanlamasını beklemeden yargılar.
+        evaluate_ml kendi yaş kontrolünü yapar — olgunlaşmamışa dokunmaz.
+        """
+        if _TRAINING_STATUS["running"]:
+            return jsonify({"error": "Başka bir işlem zaten çalışıyor"}), 409
+
+        def _run():
+            _set_status(True, "değerlendirme")
+            try:
+                ml_live.evaluate_ml()
+            except Exception as e:
+                print(f"[AdminEvaluate] Hata: {e}")
+            finally:
+                _set_status(False, None)
+
+        threading.Thread(target=_run, daemon=True).start()
+        return jsonify({"ok": True, "message": "Değerlendirme başlatıldı (olgun tahminler yargılanıyor)"})
+
     # ── GET /admin/training-info ──────────────────────────────────────────────
     @app.get("/admin/training-info")
     def admin_training_info():

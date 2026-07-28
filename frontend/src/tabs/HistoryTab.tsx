@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { ADMIN, adminFetch } from '../lib/api'
 import { EmptyState, PageHeader, KPI, Icon } from '../components/ui'
-import { AccuracyHeatmap } from '../components/finance'
+import { AccuracyHeatmap, PredictionLifecycle } from '../components/finance'
 import type { PredRow, PredSummary } from '../lib/types'
 import { downloadCsv } from '../lib/format'
 
@@ -17,6 +17,7 @@ export function HistoryTab() {
   const [loading, setLoading] = useState(false)
   const [filterSym, setFilterSym] = useState<string>('')
   const [filterRec, setFilterRec] = useState<string>('')   // BUY / SELL / NEUTRAL / ''
+  const [filterDay, setFilterDay] = useState<string>('')   // takvimden seçilen gün (YYYY-MM-DD)
   const [sortKey, setSortKey]   = useState<SortKey>('timestamp')
   const [sortDir, setSortDir]   = useState<SortDir>('desc')
   const [error, setError]     = useState('')
@@ -63,6 +64,7 @@ export function HistoryTab() {
     if (!data?.rows) return []
     let rows = data.rows
     if (filterRec) rows = rows.filter(r => r.predicted === filterRec)
+    if (filterDay) rows = rows.filter(r => r.timestamp.slice(0, 10) === filterDay)
     // sembol filter zaten backend'de uygulandı (filterSym → fetchData)
 
     const dir = sortDir === 'asc' ? 1 : -1
@@ -203,6 +205,29 @@ export function HistoryTab() {
               sub={data.summary.neutral_outcomes != null ? `${data.summary.neutral_outcomes} kararsız sonuç` : undefined}
               tone="accent" icon="▲" />
           </div>
+
+          {/* Yaşam döngüsü: boru hattı + olgunlaşma hattı + ay takvimi.
+              Takvimden gün seçilince aşağıdaki tablo o güne filtrelenir. */}
+          <div style={{ marginBottom: 'var(--space-4)' }}>
+            <PredictionLifecycle onPickDay={d => setFilterDay(p => (p === d ? '' : d))} />
+          </div>
+
+          {/* Takvim gün filtresi aktifse görünür rozet — "tablo neden kısaldı?" */}
+          {filterDay && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8, marginBottom: 'var(--space-3)',
+              padding: '6px 11px', borderRadius: 4, fontSize: 12.5,
+              background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)',
+            }}>
+              <span>Takvimden seçildi: <b>{filterDay}</b> — tablo bu güne filtrelendi</span>
+              <button onClick={() => setFilterDay('')}
+                style={{ marginLeft: 'auto', fontSize: 12, cursor: 'pointer', borderRadius: 3,
+                         border: '1px solid var(--accent-border)', background: 'transparent',
+                         color: 'var(--accent)', padding: '2px 9px' }}>
+                Filtreyi kaldır ✕
+              </button>
+            </div>
+          )}
 
           {/* Heatmap (sembol × gün doğruluk grid'i) */}
           {data.rows.length > 0 && (

@@ -26,6 +26,7 @@ import yfinance as yf
 from ml.config import (
     BUY_THRESHOLD,
     CHAMPION_FILE,
+    EVAL_MIN_AGE_DAYS,
     FEATURE_NAMES,
     HISTORY_PERIOD,
     HORIZON,
@@ -658,7 +659,7 @@ def evaluate_ml():
     if not PREDICTION_LOG.exists():
         return
     now = datetime.datetime.utcnow()
-    MIN_AGE_DAYS = int(round(HORIZON * 1.6)) + 4   # ~10 işlem günü dolsun
+    MIN_AGE_DAYS = EVAL_MIN_AGE_DAYS               # ml/config.py — UI ile aynı sabit
 
     with open(PREDICTION_LOG, "r", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))

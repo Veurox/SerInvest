@@ -31,6 +31,12 @@ ATR_CAP   = 0.050       # max %5
 # geçmişse yönlü etiketlenir, yoksa NÖTR (eğitimden çıkar).
 TIME_BARRIER_MIN_MOVE = 0.020   # ±%2
 
+# ── Değerlendirme Olgunluk Eşiği ─────────────────────────────────────────────
+# Bir tahmin ancak 10 İŞLEM günlük triple-barrier penceresi kapandıktan sonra
+# yargılanabilir. Takvim gününe çevirim: hafta sonu payı (×1.6) + tatil tamponu.
+# UI "olgunlaşma hattı" da bu sabiti kullanır → tek doğruluk kaynağı.
+EVAL_MIN_AGE_DAYS = int(round(HORIZON * 1.6)) + 4      # 10 işlem günü ≈ 20 takvim günü
+
 # ── Tahmin Eşiği ─────────────────────────────────────────────────────────────
 # P(yukarı) bu eşiği geçerse AL; geçemezse NÖTR. "Az ama isabetli" için yüksek.
 # Faz 3 doğrulamasında precision/coverage dengesine göre kalibre edilecek.
