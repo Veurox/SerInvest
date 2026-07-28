@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { ADMIN, adminFetch } from '../lib/api'
 import { EmptyState, PageHeader, KPI, Icon } from '../components/ui'
-import { AccuracyHeatmap, PredictionLifecycle } from '../components/finance'
+import { AccuracyHeatmap, PredictionLifecycle, PredictionResults } from '../components/finance'
 import type { PredRow, PredSummary } from '../lib/types'
 import { downloadCsv } from '../lib/format'
 
@@ -210,6 +210,11 @@ export function HistoryTab() {
               Takvimden gün seçilince aşağıdaki tablo o güne filtrelenir. */}
           <div style={{ marginBottom: 'var(--space-4)' }}>
             <PredictionLifecycle onPickDay={d => setFilterDay(p => (p === d ? '' : d))} />
+          </div>
+
+          {/* Sonuçlanan tahminler — "hangisi ne oldu, 10 gün sonra ne değerdi" */}
+          <div style={{ marginBottom: 'var(--space-4)' }}>
+            <PredictionResults rows={data.rows} />
           </div>
 
           {/* Takvim gün filtresi aktifse görünür rozet — "tablo neden kısaldı?" */}

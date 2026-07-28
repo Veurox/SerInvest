@@ -44,7 +44,10 @@ namespace MarketSentinel.Api.Controllers
             try
             {
                 var client  = _httpFactory.CreateClient("oracle-admin");
-                var url     = $"{_oracleAdminUrl}/admin/{path}";
+                // Query string AYNEN iletilmeli: ?limit=, ?symbol=, ?refresh= gibi
+                // parametreler düşerse endpoint varsayılanlarına döner ve UI filtreleri
+                // sessizce çalışmaz (07/2026 bulgusu: sembol filtresi + limit=500 kayıptı).
+                var url     = $"{_oracleAdminUrl}/admin/{path}{Request.QueryString}";
                 var req     = new HttpRequestMessage(method, url);
                 if (body != null)
                     req.Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");

@@ -110,6 +110,10 @@ export interface WFSummary {
 export interface PredRow {
   timestamp: string; symbol: string; predicted: string; confidence: number
   close: number; evaluated: boolean; actual: string; return: string; correct: boolean | null
+  // Sonuç tablosu alanları (07/2026): "10 gün sonra ne oldu?"
+  target?: number | null; stop?: number | null
+  exit_price?: number | null      // 10 işlem günü sonundaki fiyat
+  outcome?: string                // UP | DOWN | NEUTRAL
 }
 
 export interface PredSummary {

@@ -293,16 +293,28 @@ def _admin_make_app():
                     evaluated = bool(ev)
                     directional = predicted == "BUY" and actual in ("BUY", "SELL")
                     correct = (predicted == actual) if (evaluated and directional) else None
+                    # "10 gün sonra ne oldu?" — giriş, bariyerler ve çıkış fiyatı
+                    entry = round(float(r.get("close", 0) or 0), 2)
+                    try:
+                        ret_f = float(ret_str) if ret_str else None
+                    except Exception:
+                        ret_f = None
+                    exit_px = round(entry * (1 + ret_f), 2) if (ret_f is not None and entry) else None
                     rows.append({
                         "timestamp":  r.get("timestamp", "")[:10],
                         "symbol":     r.get("symbol", ""),
                         "predicted":  predicted,
                         "confidence": round(float(r.get("p_up", 0) or 0), 3),
-                        "close":      round(float(r.get("close", 0) or 0), 2),
+                        "close":      entry,
                         "evaluated":  evaluated,
                         "actual":     actual,
                         "return":     ret_str,
                         "correct":    correct,
+                        # Faz UI (07/2026): sonuç tablosu için
+                        "target":     round(float(r.get("target", 0) or 0), 2) or None,
+                        "stop":       round(float(r.get("stop", 0) or 0), 2) or None,
+                        "exit_price": exit_px,          # 10 işlem günü sonundaki fiyat
+                        "outcome":    (parts[0].strip() if parts else ""),   # UP / DOWN / NEUTRAL
                     })
 
             evaluated_rows = [r for r in rows if r["evaluated"]]
