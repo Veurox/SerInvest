@@ -83,15 +83,28 @@ a { color: inherit; text-decoration: none; }
   50%       { opacity: .3; }
 }
 
-/* Geniş monitörlerde içerik kısıtlanmaz (07/2026 kullanıcı kararı — eski tavan 1400px'ti) */
-.main { padding: 1.5rem 2rem; max-width: none; margin: 0 auto; width: 100%; }
+/* Geniş monitörlerde içerik kısıtlanmaz (07/2026 kullanıcı kararı — eski tavan 1400px'ti).
+   flex:1 + min-width:0 — .app-body bir flex satırı; `width:100%` verilince main
+   konteynerin TAMAMINI istiyor, yan panel eklenince sayfa yatay taşıyordu
+   (07/2026: 1280px ekranda scrollWidth 1564). min-width:0 flex öğesinin
+   içeriğinden küçülmesine izin verir (varsayılan min-width:auto engelliyordu). */
+.main { padding: 1.5rem 2rem; max-width: none; flex: 1 1 0%; min-width: 0; }
 
 /* ── Tabs ────────────────────────────────────────────────────────────────── */
+/* Sekmeler dar ekranda (laptop 1280px + açık izleme paneli) sığmıyordu ve
+   TÜM SAYFAYI yatay kaydırılabilir yapıyordu (07/2026 bulgusu: scrollWidth
+   1650 > 1280). Artık şerit kendi içinde kayar, sayfa taşmaz. */
 .tabs {
   display: flex; gap: .5rem;
   border-bottom: 1px solid var(--border);
   margin-bottom: 1.5rem;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
 }
+.tabs::-webkit-scrollbar { height: 3px; }
+.tabs::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+.tabs > * { flex: 0 0 auto; }   /* sekmeler daralıp yazıları kırılmasın */
 
 .tab-btn {
   padding: .5rem 1.25rem;

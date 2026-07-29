@@ -50,6 +50,21 @@ const trDate = (iso?: string | null) =>
   !iso ? '—' : new Date(iso.length <= 10 ? iso + 'T00:00:00' : iso)
     .toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
 
+/**
+ * Pencere genişliğini izler. Grafik yükseklikleri buna bağlanır: 1920px'e yayılan
+ * 190px'lik bir grafik aşırı basık görünür (07/2026 bulgusu — tasarım dar
+ * viewport'ta doğrulanıp geniş ekranda bozuluyordu).
+ */
+function useViewportWidth(): number {
+  const [w, setW] = useState(typeof window !== 'undefined' ? window.innerWidth : 1280)
+  useEffect(() => {
+    const onResize = () => setW(window.innerWidth)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  return w
+}
+
 // ── Künye satırı ─────────────────────────────────────────────────────────────
 function Spec({ k, v, hint }: { k: string; v: React.ReactNode; hint?: string }) {
   return (
@@ -111,6 +126,8 @@ function BarrierDiagram({ tp, sl, horizon }: { tp: number; sl: number; horizon: 
 export function ModelStory() {
   const [d, setD] = useState<Story | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const vw = useViewportWidth()
+  const chartH = vw >= 1700 ? 280 : vw >= 1300 ? 235 : 195
 
   useEffect(() => {
     adminFetch(`${ADMIN}/model-story`)
@@ -147,10 +164,14 @@ export function ModelStory() {
                       color: 'var(--text-muted)', marginBottom: 10 }}>
           Aktif modelin künyesi
         </div>
-        {/* alignItems:start — aksi halde satırlar en uzun sütuna göre gerilir */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-                      gap: 18, alignItems: 'start' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 18px', alignContent: 'start' }}>
+        {/* Geniş ekran disiplini (07/2026): şema SABİT sütunda (max 360px) durur,
+            künye kalan alanı auto-fit ile DOLDURUR. Eskiden ikisi de 1fr'di →
+            1920px'de şema 755px boşlukta yüzüyor, künye satırları yayılıyordu.
+            alignItems:start — satırlar en uzun sütuna gerilmesin. */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(280px, 360px)',
+                      gap: 20, alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))',
+                        gap: '0 16px', alignContent: 'start' }}>
             <Spec k="ALGORİTMA" v="LightGBM" hint="Karar ağaçlarını sırayla ekleyerek öğrenen gradient boosting" />
             <Spec k="BÜYÜKLÜK" v={`${id.n_trees} ağaç · derinlik ${id.max_depth}`} />
             <Spec k="GÖSTERGE" v={`${id.n_features} teknik`} hint={id.feature_kind} />
@@ -232,7 +253,7 @@ export function ModelStory() {
           Her çubuk bir dönem: modelin AL isabeti ile “hepsini alsaydık” tabanı arasındaki <b>fark</b>.
           Sıfırın üstü = model değer katmış. Çubukların savrulması, tek dönemin şansa bağlı olduğunu gösterir.
         </div>
-        <ResponsiveContainer width="100%" height={190}>
+        <ResponsiveContainer width="100%" height={chartH}>
           <BarChart data={folds} margin={{ top: 6, right: 6, bottom: 4, left: -18 }}>
             <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'var(--text-muted)' }}
@@ -283,7 +304,7 @@ export function ModelStory() {
             Mavi çizginin <b>düz</b> olması kritik: model ham 0.60 ile 0.90 arasında fark üretemiyor,
             bu yüzden hepsine aynı olasılığı veriyor — sıralama yapamamasının sebebi bu.
           </div>
-          <ResponsiveContainer width="100%" height={185}>
+          <ResponsiveContainer width="100%" height={chartH - 20}>
             <LineChart data={calPts} margin={{ top: 6, right: 10, bottom: 4, left: -20 }}>
               <CartesianGrid stroke="var(--border-subtle)" />
               <XAxis dataKey="x" tick={{ fontSize: 9.5, fill: 'var(--text-muted)' }}
