@@ -356,6 +356,92 @@ def _admin_make_app():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    # ── GET /admin/model-story ────────────────────────────────────────────────
+    @app.get("/admin/model-story")
+    def admin_model_story():
+        """
+        Modelin "hayat hikâyesi" — UI'daki görsel anlatım için tek çağrı:
+          • künye        : ne tür model, neyle eğitildi, hangi bariyerler
+          • sınav        : walk-forward fold'ları (tutarlılık grafiği)
+          • kalibrasyon  : güvenilirlik eğrisi (ham p → gerçekte ne çıktı)
+          • terfi geçmişi: şampiyon-rakip denemeleri ve kararları
+        """
+        import json as _json
+        from ml.config import (CALIBRATOR_META_FILE, LGBM_PARAMS, PROMOTION_LOG,
+                               META_FILE, MIN_TRAIN_ROWS, HISTORY_PERIOD)
+        out = {}
+        try:
+            meta = _load_json(META_FILE) or {}
+            wf   = _load_json(VALIDATION_SUMMARY) or {}
+            cal  = _load_json(CALIBRATOR_META_FILE) or {}
+
+            out["identity"] = {
+                "algorithm":    "LightGBM (gradient boosting)",
+                "n_trees":      LGBM_PARAMS.get("n_estimators"),
+                "max_depth":    LGBM_PARAMS.get("max_depth"),
+                "learning_rate": LGBM_PARAMS.get("learning_rate"),
+                "n_features":   len(FEATURE_NAMES),
+                "feature_kind": "saf teknik (haber/temel/makro YOK)",
+                "trained_at":   meta.get("trained_at"),
+                "n_rows":       meta.get("n_rows"),
+                "date_min":     meta.get("date_min"),
+                "date_max":     meta.get("date_max"),
+                "up_pct":       meta.get("up_pct"),
+                "horizon":      meta.get("horizon"),
+                "tp_atr_mult":  meta.get("tp_atr_mult"),
+                "sl_atr_mult":  meta.get("sl_atr_mult"),
+                "buy_threshold": meta.get("buy_threshold"),
+                "xsec_rank":    meta.get("xsec_rank"),
+                "history_period": HISTORY_PERIOD,
+                "min_train_rows": MIN_TRAIN_ROWS,
+            }
+            out["exam"] = {
+                "completed_at": wf.get("computed_at"),
+                "n_folds":      wf.get("n_folds"),
+                "n_oos":        wf.get("n_oos"),
+                "auc":          wf.get("auc"),
+                "buy_precision": wf.get("buy_precision"),
+                "base_rate":    wf.get("base_rate"),
+                "lift":         wf.get("lift"),
+                "mean_fold_lift": wf.get("mean_fold_lift"),
+                "breakeven_precision": wf.get("breakeven_precision"),
+                "expected_R_per_trade": wf.get("expected_R_per_trade"),
+                "profitable":   wf.get("profitable"),
+                "folds":        wf.get("steps") or [],
+            }
+            out["calibration"] = {
+                "fitted_at":   cal.get("fitted_at"),
+                "n_oos":       cal.get("n_oos"),
+                "method":      cal.get("method"),
+                "reliability": cal.get("reliability") or [],
+            }
+            # Terfi geçmişi — son 10 deneme
+            hist = []
+            try:
+                if PROMOTION_LOG.exists():
+                    for line in PROMOTION_LOG.read_text(encoding="utf-8").splitlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            r = _json.loads(line)
+                        except Exception:
+                            continue
+                        hist.append({
+                            "checked_at": r.get("checked_at"),
+                            "decision":   r.get("decision"),
+                            "reason":     r.get("reason"),
+                            "windows_won": r.get("challenger_wins"),
+                            "windows_total": r.get("comparable_windows"),
+                            "pooled_precision": r.get("pooled_precision") or r.get("challenger_precision"),
+                        })
+            except Exception:
+                pass
+            out["promotions"] = hist[-10:]
+            return jsonify(out)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     # ── GET /admin/prediction-calendar ────────────────────────────────────────
     @app.get("/admin/prediction-calendar")
     def admin_prediction_calendar():

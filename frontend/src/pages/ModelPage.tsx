@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ADMIN, API, adminFetch } from '../lib/api'
 import { PageHeader, Icon } from '../components/ui'
+import { ModelStory } from '../components/finance'
 import { useToast } from '../components/ui/Toast'
 import type { SysLog, TrainingInfo, AdminStatus } from '../lib/types'
 
@@ -176,7 +177,12 @@ export default function ModelPage() {
         </div>
       </div>
 
-      {/* ── 3. KATLANIR: son olaylar ────────────────────────────────────── */}
+      {/* ── 3. MODELİN HİKÂYESİ (görsel) ────────────────────────────────── */}
+      <div style={{ marginBottom: 'var(--space-3)' }}>
+        <ModelStory />
+      </div>
+
+      {/* ── 4. KATLANIR: son olaylar ────────────────────────────────────── */}
       <Fold title="Son olaylar" hint={`· ${logs.length} kayıt`}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 10 }}>
           {(allLogs ? logs : logs.slice(0, 10)).map((l, i) => (
