@@ -19,8 +19,10 @@ interface CalSummary {
   next_verdict: string | null; next_verdict_n: number
 }
 interface DriftResp {
-  drift?: { status: string; message?: string }
-  calibration?: { status: string; message?: string }
+  drift?: { status: string; message?: string
+            n_live?: number; n_live_days?: number; min_rows?: number; min_days?: number }
+  calibration?: { status: string; message?: string
+                  n_evaluated?: number; min_required?: number }
 }
 
 // ── Katlanır bölüm ───────────────────────────────────────────────────────────
@@ -138,8 +140,24 @@ export default function ModelPage() {
             </li>
           )}
           <li>
-            Sağlık: veri kayması <b>{drift?.drift?.status === 'OK' ? 'normal' : drift?.drift?.status === 'DRIFT' ? 'UYARI' : 'ölçüm için veri birikiyor'}</b>,
-            {' '}kalibrasyon <b>{drift?.calibration?.status === 'OK' ? 'normal' : drift?.calibration?.status === 'MISCALIBRATED' ? 'SAPMIŞ' : 'ölçüm için veri birikiyor'}</b>.
+            Sağlık: veri kayması{' '}
+            <b>{drift?.drift?.status === 'OK' ? 'normal'
+              : drift?.drift?.status === 'DRIFT' ? 'UYARI'
+              : 'henüz ölçülemiyor'}</b>
+            {drift?.drift?.status === 'COLLECTING' && drift.drift.min_days != null && (
+              <span style={{ color: 'var(--text-muted)' }}>
+                {' '}({drift.drift.n_live_days ?? 0}/{drift.drift.min_days} bağımsız gün toplandı)
+              </span>
+            )},{' '}
+            kalibrasyon{' '}
+            <b>{drift?.calibration?.status === 'OK' ? 'normal'
+              : drift?.calibration?.status === 'MISCALIBRATED' ? 'SAPMIŞ'
+              : 'henüz ölçülemiyor'}</b>
+            {drift?.calibration?.status === 'COLLECTING' && drift.calibration.min_required != null && (
+              <span style={{ color: 'var(--text-muted)' }}>
+                {' '}({drift.calibration.n_evaluated ?? 0}/{drift.calibration.min_required} sonuçlanmış tahmin)
+              </span>
+            )}.
           </li>
           <li>
             <b>{status?.n_symbols ?? '—'}</b> sembol analiz ediliyor;

@@ -118,6 +118,9 @@ def compute_drift() -> dict:
         "status": "NO_DATA", "features": [], "top_drifted": [],
         "n_live": 0, "window_days": DRIFT_WINDOW_DAYS,
         "thresholds": {"watch": PSI_WATCH, "alert": PSI_ALERT},
+        # UI eşikleri SABİT YAZMASIN diye gönderiliyor (07/2026: arayüzde "600/200"
+        # yazıyordu ama asıl engel gün şartıydı → tamamlanmış gibi görünüyordu).
+        "min_rows": MIN_LIVE_ROWS, "min_days": MIN_LIVE_DAYS,
     }
     try:
         if not TRAIN_CACHE.exists() or not FEATURE_LOG_FILE.exists():
@@ -198,6 +201,7 @@ def calibration_report(n_bins: int = 5) -> dict:
         "computed_at": datetime.datetime.utcnow().isoformat(),
         "status": "NO_DATA", "n_evaluated": 0, "bins": [],
         "brier": None, "ece": None,
+        "min_required": MIN_EVAL_ROWS,   # UI sabit yazmasın (bkz. compute_drift notu)
     }
     try:
         if not PREDICTION_LOG.exists():

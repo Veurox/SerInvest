@@ -26,6 +26,9 @@ interface DriftPayload {
     status: string
     message?: string
     n_live?: number
+    n_live_days?: number        // bağımsız gün sayısı (asıl bağlayıcı kısıt)
+    min_rows?: number
+    min_days?: number
     top_drifted?: Array<{ feature: string; psi: number; status: string }>
   }
   calibration?: { status: string; message?: string; ece?: number | null }
@@ -84,10 +87,17 @@ export function DriftBadge({
   const isZScore = data.metric === 'z_score'
   // Z-score formatı: "1.42σ" — yorumlanabilir (1σ = normal varyasyon, 2σ = anlamlı kayma)
   // Eski rölatif formatı (%) hâlâ destekleniyor (geriye uyum için)
+  // COLLECTING'te BAĞLAYICI kısıt gösterilir: satır kapısı dolmuş olsa da gün
+  // kapısı dolmadıysa gün yazılır (07/2026: "600/200" tamamlanmış izlenimi veriyordu).
+  const dInfo = data.drift
   const scoreTxt = data.score != null
     ? (isZScore ? `${data.score.toFixed(2)}σ` : `${(data.score * 100).toFixed(1)}%`)
-    : status === 'COLLECTING' && data.drift?.n_live != null
-      ? `${data.drift.n_live}/200`
+    : status === 'COLLECTING' && dInfo
+      ? (dInfo.min_days != null && (dInfo.n_live_days ?? 0) < dInfo.min_days
+          ? `${dInfo.n_live_days ?? 0}/${dInfo.min_days} gün`
+          : dInfo.min_rows != null && (dInfo.n_live ?? 0) < dInfo.min_rows
+            ? `${dInfo.n_live ?? 0}/${dInfo.min_rows} satır`
+            : '…')
       : '—'
 
   // Faz 4 PSI raporundaki top_drifted'ı eski görünüm formatına köprüle
