@@ -79,46 +79,56 @@ function Spec({ k, v, hint }: { k: string; v: React.ReactNode; hint?: string }) 
 // DİKKAT: SVG'yi width:100% ile bırakma — konteyner genişse viewBox ölçeklenir
 // ve 9px yazılar ekranda 30px olur (07/2026 bulgusu). maxWidth ile sabitlenir.
 function BarrierDiagram({ tp, sl, horizon }: { tp: number; sl: number; horizon: number }) {
-  const W = 320, H = 128
-  const padL = 34, padR = 62, padT = 16, padB = 16
-  const x0 = padL, x1 = W - padR              // fiyat yolu alanı
-  const tpY = padT, slY = H - padB            // bariyerler kenarlarda
+  // viewBox ÖLÇEĞİ = okunabilirlik. Küçük viewBox + büyük maxWidth → yazılar şişer;
+  // büyük viewBox + küçük maxWidth → yazılar okunmaz. 400×176 / 10-11px yazı,
+  // maxWidth 440 ile ~1.1x ölçekte ekranda ~11-12px'e denk gelir.
+  const W = 400, H = 176
+  const x0 = 46, x1 = W - 96                  // fiyat yolu alanı (sağda etiket boşluğu)
+  const tpY = 26, slY = H - 30
   const mid = tpY + (slY - tpY) * (sl / (tp + sl))   // giriş, TP:SL oranına göre
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H}
-         style={{ width: '100%', maxWidth: W, height: 'auto', display: 'block' }}
+    <svg viewBox={`0 0 ${W} ${H}`}
+         style={{ width: '100%', maxWidth: 440, height: 'auto', display: 'block' }}
          role="img" aria-label={`Triple-barrier: hedef +${tp}×ATR, stop −${sl}×ATR, ${horizon} gün süre`}>
       {/* Hedef bariyeri */}
-      <line x1={x0} y1={tpY} x2={x1} y2={tpY} stroke="var(--profit)" strokeWidth="1.5" />
-      <text x={x1 + 5} y={tpY + 3} fontSize="7.5" fontWeight="700" fill="var(--profit)">
-        HEDEF +{tp}×ATR
+      <line x1={x0} y1={tpY} x2={x1} y2={tpY} stroke="var(--profit)" strokeWidth="2" />
+      <text x={x1 + 7} y={tpY + 4} fontSize="10.5" fontWeight="700" fill="var(--profit)">
+        HEDEF
+      </text>
+      <text x={x1 + 7} y={tpY + 16} fontSize="9.5" fill="var(--profit)" opacity="0.85">
+        +{tp}×ATR
       </text>
 
       {/* Stop bariyeri */}
-      <line x1={x0} y1={slY} x2={x1} y2={slY} stroke="var(--loss)" strokeWidth="1.5" />
-      <text x={x1 + 5} y={slY + 3} fontSize="7.5" fontWeight="700" fill="var(--loss)">
-        STOP −{sl}×ATR
+      <line x1={x0} y1={slY} x2={x1} y2={slY} stroke="var(--loss)" strokeWidth="2" />
+      <text x={x1 + 7} y={slY + 4} fontSize="10.5" fontWeight="700" fill="var(--loss)">
+        STOP
+      </text>
+      <text x={x1 + 7} y={slY + 16} fontSize="9.5" fill="var(--loss)" opacity="0.85">
+        −{sl}×ATR
       </text>
 
       {/* Süre bariyeri */}
       <line x1={x1} y1={tpY} x2={x1} y2={slY} stroke="var(--text-disabled)"
-            strokeWidth="1.5" strokeDasharray="3 3" />
-      <text x={x1 + 5} y={mid - 1} fontSize="7" fill="var(--text-muted)">{horizon} gün</text>
-      <text x={x1 + 5} y={mid + 7} fontSize="7" fill="var(--text-muted)">süre dolar</text>
+            strokeWidth="2" strokeDasharray="4 4" />
+      <text x={x1 + 7} y={mid} fontSize="10" fontWeight="600" fill="var(--text-secondary)">
+        {horizon} gün
+      </text>
+      <text x={x1 + 7} y={mid + 12} fontSize="9.5" fill="var(--text-muted)">süre dolar</text>
 
       {/* Giriş seviyesi */}
       <line x1={x0} y1={mid} x2={x1} y2={mid} stroke="var(--border-strong)"
-            strokeWidth="0.75" strokeDasharray="2 3" />
-      <text x={4} y={mid + 2.5} fontSize="7.5" fill="var(--text-secondary)">giriş</text>
+            strokeWidth="1" strokeDasharray="3 4" />
+      <text x={4} y={mid + 3.5} fontSize="10" fill="var(--text-secondary)">giriş</text>
 
       {/* Örnek fiyat yolu — hedefe değerek biter */}
-      <path d={`M${x0} ${mid} L${x0 + 42} ${mid - 9} L${x0 + 78} ${mid + 7}
-                L${x0 + 118} ${mid - 16} L${x0 + 160} ${tpY + 5} L${x0 + 186} ${tpY}`}
-            fill="none" stroke="var(--info)" strokeWidth="1.75" strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={x0} cy={mid} r="2.75" fill="var(--info)" />
-      <circle cx={x0 + 186} cy={tpY} r="3.25" fill="var(--profit)"
-              stroke="var(--bg-surface)" strokeWidth="1.25" />
+      <path d={`M${x0} ${mid} L${x0 + 52} ${mid - 13} L${x0 + 96} ${mid + 10}
+                L${x0 + 146} ${mid - 22} L${x0 + 198} ${tpY + 7} L${x0 + 230} ${tpY}`}
+            fill="none" stroke="var(--info)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={x0} cy={mid} r="3.75" fill="var(--info)" />
+      <circle cx={x0 + 230} cy={tpY} r="4.5" fill="var(--profit)"
+              stroke="var(--bg-surface)" strokeWidth="1.75" />
     </svg>
   )
 }
@@ -168,10 +178,12 @@ export function ModelStory() {
             künye kalan alanı auto-fit ile DOLDURUR. Eskiden ikisi de 1fr'di →
             1920px'de şema 755px boşlukta yüzüyor, künye satırları yayılıyordu.
             alignItems:start — satırlar en uzun sütuna gerilmesin. */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(280px, 360px)',
-                      gap: 20, alignItems: 'start' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))',
-                        gap: '0 16px', alignContent: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(300px, 440px)',
+                      gap: 24, alignItems: 'start' }}>
+          {/* minmax(240px,·) → geniş ekranda 4 sütun × 2 satır. Daha dar minmax
+              (145px) 8 alanı tek satıra diziyor, altında koca boşluk kalıyordu. */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                        gap: '0 18px', alignContent: 'start' }}>
             <Spec k="ALGORİTMA" v="LightGBM" hint="Karar ağaçlarını sırayla ekleyerek öğrenen gradient boosting" />
             <Spec k="BÜYÜKLÜK" v={`${id.n_trees} ağaç · derinlik ${id.max_depth}`} />
             <Spec k="GÖSTERGE" v={`${id.n_features} teknik`} hint={id.feature_kind} />
