@@ -119,6 +119,35 @@ Canlı denetimde 4 gerçek sorun bulundu ve düzeltildi:
    "13 DRIFT" yanlış alarmı). Düzeltme: `MIN_LIVE_DAYS=20` gün kapısı + piyasa-geneli
    özellikleri günlük seriye indirgeyip kıyaslama.
 
+## Terfi Terazisi Hatası (2026-07-30 — kritik)
+
+**Bulgu:** `promote_if_better` şampiyonu KENDİ EĞİTİM VERİSİNDE sınıyordu. Şampiyon
+2026-06-24'e kadar eğitilmiş, test pencereleri ise Şubat–Haziran 2026 → tamamı
+eğitim aralığının içinde. Kanıt: şampiyonun dürüst walk-forward AL isabeti %51.1
+iken terfi testinde %73/93/74 gösteriyordu. Rakip (gerçekten OOS) %31/71/35.
+20-40 puanlık bu handikapla rakip **yapısal olarak kazanamaz** → 2/2 deneme
+reddedilmiş, model 8 Temmuz'dan beri donuk. "Bilgisayarı açık tutuyorum ama model
+eğitilmiyor" şikâyetinin kökü buydu; öğrenme döngüsü kapalı devreydi.
+
+**Düzeltme:** Karşılaştırma yalnızca `champion_meta.date_max` SONRASINDAKİ
+tarihlerde yapılır — iki model de aynı pencerede out-of-sample. Taze veri
+`PROMOTE_MIN_FRESH_DAYS`(30) günden azsa hileli sonuç üretmek yerine "yetersiz"
+denir ve şampiyon korunur. Önbellek şampiyon kesimini geçmiyorsa veri otomatik
+tazelenir. Test (2026-07-30): taze veri 22/30 gün → dürüstçe atlandı.
+
+**Kalan metodolojik açıklar (henüz yapılmadı):**
+- **Uniqueness ağırlığı yok.** 10g ufuk + günlük gözlem → komşu etiketler fiyat
+  yolunun ~9/10'unu paylaşıyor. 31K satır ama etkin bağımsız örnek ~3K. Purge/
+  embargo eğitim↔test sızıntısını keser, eğitim-içi tekrarı kesmez. Çözüm:
+  average-uniqueness `sample_weight` + sequential bootstrap (López de Prado).
+- **Etiket melez.** Ölçüldü: etiketlerin yalnızca ~%25'i bariyer dokunuşu, ~%52'si
+  süre sonu sürüklenmesi. Model "3σ hareket olur mu" diye eğitilip "10 günde
+  nereye kaydı" diye notlandırılıyor. → (ufuk, TP, SL) taraması gerekli.
+- WF'de eğitilen 24 model atılıyor; ensemble varyansı düşürürdü.
+- Evren 50 yüksek korelasyonlu isim → kesitsel etkin genişlik düşük.
+- Özellikler trend-ağırlıklı (`above_ema200` %16) ama 10g ufukta kısa vadeli
+  geri dönüş baskın olabilir → özellik/ufuk uyumu sorgulanmalı.
+
 ## Operasyonel Notlar
 
 - RabbitMQ host portları **5673/15673** (coeng-rabbitmq 5672'yi tuttuğu için; iç ağ 5672 değişmedi).

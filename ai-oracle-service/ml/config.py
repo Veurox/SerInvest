@@ -104,6 +104,16 @@ PSI_ALERT  = 0.25           # >0.25 → DRIFT uyarısı (syslog WARN)
 # çoğunluğunda kazanmalı (her pencere için ayrı purged eğitim).
 PROMOTE_WINDOWS = 3         # bağımsız test penceresi sayısı (her biri test_window_days)
 
+# ── Terfi Terazisi (07/2026 düzeltmesi) ──────────────────────────────────────
+# ESKİ HATA: test pencereleri şampiyonun EĞİTİM ARALIĞININ İÇİNDEYDİ. Şampiyon
+# kendi ders kitabından sınava girip %73-93 gösteriyordu; dürüst OOS skoru ise
+# %51.1. Rakip out-of-sample olduğu için yapısal olarak kazanamıyordu → model
+# sonsuza kadar donuk kalıyordu (2/2 deneme reddedildi).
+# YENİ KURAL: karşılaştırma yalnızca şampiyonun HİÇ GÖRMEDİĞİ tarihlerde yapılır.
+# O kadar taze veri yoksa hileli sonuç üretmek yerine "yetersiz" denir.
+PROMOTE_MIN_FRESH_DAYS = 30   # şampiyon kesiminden sonra gereken asgari takvim günü
+PROMOTE_MIN_WINDOW_DAYS = 20  # bir test penceresinin asgari uzunluğu
+
 # ── Tek Model — LightGBM (SABİT hiperparametre + seed = kararlılık) ───────────
 # Rastgelelik tutarsızlık kaynağıdır → seed sabit, hiçbir auto-tuning yok.
 RANDOM_SEED = 42

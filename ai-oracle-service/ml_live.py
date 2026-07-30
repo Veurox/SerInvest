@@ -34,8 +34,10 @@ from ml.config import (
     ML_DIR,
     PREDICTION_LOG,
     PROMOTE_MIN_EDGE,
+    PROMOTE_MIN_FRESH_DAYS,
     PROMOTE_MIN_PRECISION,
     PROMOTE_MIN_SAMPLES,
+    PROMOTE_MIN_WINDOW_DAYS,
     PROMOTION_LOG,
     REGIME_EMA_SPAN,
     REGIME_FILTER,
@@ -848,40 +850,84 @@ def _al_precision_on(model, df: pd.DataFrame) -> tuple[float | None, int]:
 
 def promote_if_better(test_window_days: int = 45) -> dict:
     """
-    KORUMALI promosyon — Faz 4b: ÇOK-PENCERELİ purged karşılaştırma.
+    KORUMALI promosyon — DÜRÜST TERAZİ (07/2026 düzeltmesi).
 
-    Tek pencere terfisi rejim şansına açıktı (iyi bir ay = haksız terfi).
-    Artık son PROMOTE_WINDOWS bağımsız pencerenin HER BİRİ için rakip, o
-    pencereden öncesiyle (purge dahil) SIFIRDAN eğitilir ve şampiyonla
-    karşılaştırılır. Terfi şartları:
+    ═══ ESKİ HATA ═══
+    Test pencereleri şampiyonun EĞİTİM ARALIĞININ İÇİNDEYDİ (şampiyon
+    2026-06-24'e kadar eğitilmiş, pencereler Şubat–Haziran 2026). Şampiyon kendi
+    ders kitabından sınava girip %73-93 gösteriyordu; oysa dürüst walk-forward
+    skoru %51.1. Rakip out-of-sample olduğu için 20-40 puanlık bir handikapla
+    yarışıyor ve YAPISAL OLARAK kazanamıyordu → 2/2 deneme reddedildi, model
+    sonsuza kadar donuk kalacaktı. "Bilgisayarı açık tutmak modeli eğitmiyor"
+    şikâyetinin kökü buydu.
+
+    ═══ YENİ KURAL ═══
+    Karşılaştırma YALNIZCA şampiyonun HİÇ GÖRMEDİĞİ tarihlerde yapılır
+    (champion_meta.date_max sonrası). Böylece iki model de aynı pencerede
+    out-of-sample olur — elma elmaya. O kadar taze veri yoksa hileli bir sonuç
+    üretmek yerine dürüstçe "yetersiz" denir ve şampiyon korunur.
+
+    Terfi şartları (değişmedi):
       • Rakip pencerelerin ÇOĞUNLUĞUNDA şampiyonu PROMOTE_MIN_EDGE farkla geçer
       • Havuzlanmış AL örneği ≥ PROMOTE_MIN_SAMPLES
       • Havuzlanmış rakip precision ≥ PROMOTE_MIN_PRECISION
-    Şampiyonun penceredeki skoru iyimserdir (tüm veriyle eğitildi) — rakip bu
-    handikaba RAĞMEN kazanmalı. Terfide full veriyle yeniden eğitilir.
     """
     result = {"decision": "kept", "checked_at": now_iso()}
+
+    # ── Şampiyonun veri kesim tarihi — dürüst terazinin dayanağı ──────────────
+    cutoff_s = (champion_meta() or {}).get("date_max")
+    if not cutoff_s:
+        result.update(reason="şampiyon künyesinde date_max yok — dürüst karşılaştırma kurulamadı")
+        _log_promotion(result)
+        return result
+
     try:
         # Rank gün-içi hesaplandığı için cutoff bölmesinden ÖNCE uygulanması sızıntı yaratmaz.
         data = prepare_training(_load_training_data(rebuild=False))
+        # Önbellek şampiyonun kesimini geçmiyorsa şampiyonun görmediği TEK satır
+        # bile olmaz → taze veri indir (haftalık iş için kabul edilebilir maliyet).
+        if str(pd.to_datetime(data["date"]).max().date()) <= cutoff_s:
+            send_syslog("[ml v3] Terfi için taze veri indiriliyor "
+                        "(önbellek şampiyon kesimini geçmiyor)...", "INFO")
+            data = prepare_training(_load_training_data(rebuild=True))
     except Exception as e:
         result["error"] = f"veri yüklenemedi: {e}"
+        _log_promotion(result)
         return result
 
     data = data.sort_values("date").reset_index(drop=True)
     dates = pd.to_datetime(data["date"])
     max_d = dates.max()
+    cutoff = pd.Timestamp(cutoff_s)
     purge = pd.Timedelta(days=int(round(HORIZON * 1.6)) + 4)   # etiket sızıntı tamponu
+
+    # ── Taze (şampiyonun görmediği) aralık yeterli mi? ───────────────────────
+    fresh_days = int((max_d - cutoff).days)
+    result.update(champion_cutoff=cutoff_s, data_max=str(max_d.date()),
+                  fresh_days=fresh_days, min_fresh_days=PROMOTE_MIN_FRESH_DAYS,
+                  balance="honest_oos")
+    if fresh_days < PROMOTE_MIN_FRESH_DAYS:
+        result.update(reason=(f"şampiyonun görmediği veri {fresh_days} gün "
+                              f"(< {PROMOTE_MIN_FRESH_DAYS}) — dürüst karşılaştırma için yetersiz"))
+        send_syslog(f"[ml v3] Terfi atlandı: taze veri {fresh_days} gün, "
+                    f"en az {PROMOTE_MIN_FRESH_DAYS} gün gerekiyor (şampiyon korunuyor).", "INFO")
+        _log_promotion(result)
+        return result
+
+    # Taze aralığı en fazla PROMOTE_WINDOWS parçaya böl (her pencere ≥ asgari uzunluk)
+    n_win = max(1, min(PROMOTE_WINDOWS, fresh_days // PROMOTE_MIN_WINDOW_DAYS))
+    win_len = fresh_days / n_win
+    result["n_windows_planned"] = n_win
 
     champion = load_champion()
     windows = []
     chal_correct = chal_total = 0      # havuzlanmış rakip AL isabeti
     wins = comparable = 0
 
-    for k in range(PROMOTE_WINDOWS):
-        # Pencere k: [max_d − (k+1)·W , max_d − k·W]
-        w_end   = max_d - pd.Timedelta(days=k * test_window_days)
-        w_start = w_end - pd.Timedelta(days=test_window_days)
+    for k in range(n_win):
+        # Pencereler ŞAMPİYON KESİMİNDEN SONRA, kronolojik sırada
+        w_start = cutoff + pd.Timedelta(days=k * win_len)
+        w_end   = cutoff + pd.Timedelta(days=(k + 1) * win_len)
         test  = data[(dates > w_start) & (dates <= w_end)]
         train = data[dates <= w_start - purge]
         if len(train) < 2000 or len(test) < 100:
@@ -915,7 +961,7 @@ def promote_if_better(test_window_days: int = 45) -> dict:
 
     pooled_prec = (chal_correct / chal_total) if chal_total > 0 else None
     result.update(
-        windows=windows, n_windows=PROMOTE_WINDOWS, comparable_windows=comparable,
+        windows=windows, n_windows=n_win, comparable_windows=comparable,
         challenger_wins=wins,
         pooled_precision=round(pooled_prec, 4) if pooled_prec is not None else None,
         pooled_al_n=chal_total,
@@ -941,14 +987,15 @@ def promote_if_better(test_window_days: int = 45) -> dict:
                                                 "windows_won": f"{wins}/{comparable}"})
             result["decision"] = "promoted"
             send_syslog(
-                f"[ml v3] ✅ TERFİ (çok-pencere): Rakip {wins}/{comparable} pencerede kazandı, "
-                f"havuz precision {pooled_prec:.1%} (n={chal_total}) → yeni champion eğitildi.", "SUCCESS",
+                f"[ml v3] ✅ TERFİ (dürüst terazi): Rakip {wins}/{comparable} pencerede kazandı "
+                f"(şampiyonun görmediği {fresh_days} günlük veride), havuz precision "
+                f"{pooled_prec:.1%} (n={chal_total}) → yeni champion eğitildi.", "SUCCESS",
             )
         else:
             result.update(decision="kept", reason="yeni champion eğitilemedi")
     else:
         send_syslog(
-            f"[ml v3] Promosyon RET (çok-pencere): rakip {wins}/{comparable} pencerede kazandı "
+            f"[ml v3] Promosyon RET (dürüst terazi): rakip {wins}/{comparable} pencerede kazandı "
             f"(havuz {('%.1f%%' % (pooled_prec*100)) if pooled_prec is not None else '—'}, n={chal_total}) "
             f"— çoğunluk/eşik sağlanmadı → mevcut champion korunuyor.", "INFO",
         )
