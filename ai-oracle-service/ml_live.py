@@ -884,11 +884,17 @@ def promote_if_better(test_window_days: int = 45) -> dict:
     try:
         # Rank gün-içi hesaplandığı için cutoff bölmesinden ÖNCE uygulanması sızıntı yaratmaz.
         data = prepare_training(_load_training_data(rebuild=False))
-        # Önbellek şampiyonun kesimini geçmiyorsa şampiyonun görmediği TEK satır
-        # bile olmaz → taze veri indir (haftalık iş için kabul edilebilir maliyet).
-        if str(pd.to_datetime(data["date"]).max().date()) <= cutoff_s:
-            send_syslog("[ml v3] Terfi için taze veri indiriliyor "
-                        "(önbellek şampiyon kesimini geçmiyor)...", "INFO")
+        cache_max = pd.to_datetime(data["date"]).max().date()
+        # Etiket HORIZON işlem günü ileri baktığı için en yeni etiketlenebilir
+        # tarih ≈ bugün − ~16 takvim günü. Önbellek bunun gerisindeyse taze veri var.
+        expected_max = datetime.date.today() - datetime.timedelta(days=int(round(HORIZON * 1.6)))
+        stale_days = (expected_max - cache_max).days
+        # İKİ sebeple tazele: (a) önbellek şampiyon kesimini hiç geçmiyor,
+        # (b) önbellek bayat → fresh_days donar ve terfi ASLA mümkün olmaz
+        #     (07/2026: koşul yalnız (a) idi, fresh_days 22'de takılı kalıyordu).
+        if str(cache_max) <= cutoff_s or stale_days > 7:
+            send_syslog(f"[ml v3] Terfi için taze veri indiriliyor "
+                        f"(önbellek {cache_max}, ~{stale_days} gün bayat)...", "INFO")
             data = prepare_training(_load_training_data(rebuild=True))
     except Exception as e:
         result["error"] = f"veri yüklenemedi: {e}"
@@ -1002,6 +1008,48 @@ def promote_if_better(test_window_days: int = 45) -> dict:
 
     _log_promotion(result)
     return result
+
+
+def days_since_last_promotion_check() -> float | None:
+    """
+    Son terfi kontrolünün üstünden kaç gün geçti? Günlük yoksa None.
+    Boot telafisi için: `schedule` kaçan işi TELAFİ ETMEZ — bilgisayar Pazar
+    20:00'de kapalıysa haftalık terfi hiç çalışmaz ve kimse fark etmez
+    (08/2026: kullanıcı "Pazar açmayı unuttum, eğitildi mi?" diye sordu).
+    """
+    try:
+        if not PROMOTION_LOG.exists():
+            return None
+        last = None
+        for line in PROMOTION_LOG.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                ts = json.loads(line).get("checked_at")
+                if ts:
+                    last = ts
+            except Exception:
+                continue
+        if not last:
+            return None
+        return (datetime.datetime.utcnow() - datetime.datetime.fromisoformat(last)).total_seconds() / 86400.0
+    except Exception:
+        return None
+
+
+def promotion_catchup(max_age_days: float = 7.0) -> dict | None:
+    """
+    Kaçırılmış haftalık terfi kontrolünü telafi eder. Son kontrol
+    max_age_days'ten eskiyse promote_if_better çalıştırır, değilse dokunmaz.
+    """
+    age = days_since_last_promotion_check()
+    if age is not None and age < max_age_days:
+        print(f"[ml v3] Terfi kontrolü {age:.1f} gün önce yapılmış — telafi gerekmiyor.")
+        return None
+    send_syslog(f"[ml v3] Haftalık terfi kontrolü kaçmış "
+                f"({'hiç yapılmamış' if age is None else f'{age:.1f} gün önce'}) — telafi çalıştırılıyor.", "INFO")
+    return promote_if_better()
 
 
 def _log_promotion(result: dict):

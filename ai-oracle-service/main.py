@@ -40,6 +40,14 @@ import ml_live
 from admin_server import _start_admin_server
 
 
+def _safe(fn, label: str):
+    """Boot telafi işlerini sarmalar — biri patlarsa diğerleri ve döngü etkilenmesin."""
+    try:
+        fn()
+    except Exception as e:
+        print(f"[{label}] {e}")
+
+
 def main():
     print("SerInvest Yerel AI Oracle başlatılıyor (API'siz)...")
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -75,6 +83,14 @@ def main():
         ml_live.evaluate_ml()
     except Exception as e:
         print(f"[boot eval] {e}")
+
+    # 1b2. Kaçırılmış haftalık terfi telafisi (08/2026 bulgusu).
+    #      schedule kaçan işi telafi etmez: bilgisayar Pazar 20:00'de kapalıysa
+    #      haftalık terfi kontrolü hiç çalışmaz ve sessizce atlanır. Ağır iş
+    #      (veri indirme + rakip eğitimi) olduğu için ARKA PLANDA çalışır,
+    #      zamanlayıcının başlamasını geciktirmesin.
+    threading.Thread(target=lambda: _safe(ml_live.promotion_catchup, "boot promote"),
+                     daemon=True).start()
 
     # 1c. Faz 4 sağlık kontrolü — BOOT CATCH-UP (07/2026 bulgusu).
     #     schedule 19:20'de tetikler ama bilgisayar o saatte kapalıysa veya konteyner
