@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ADMIN, API, adminFetch } from '../lib/api'
 import { PageHeader, Icon } from '../components/ui'
-import { ModelStory } from '../components/finance'
+import { ModelStory, JobStatus } from '../components/finance'
 import { useToast } from '../components/ui/Toast'
 import type { SysLog, TrainingInfo, AdminStatus } from '../lib/types'
 
@@ -193,6 +193,11 @@ export default function ModelPage() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* ── 2b. ZAMANLANMIŞ İŞLER — "bugünkü değerlendirme yapıldı mı?" ──── */}
+      <div style={{ marginBottom: 'var(--space-3)' }}>
+        <JobStatus />
       </div>
 
       {/* ── 3. MODELİN HİKÂYESİ (görsel) ────────────────────────────────── */}

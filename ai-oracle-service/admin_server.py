@@ -356,6 +356,108 @@ def _admin_make_app():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    # ── GET /admin/jobs ───────────────────────────────────────────────────────
+    @app.get("/admin/jobs")
+    def admin_jobs():
+        """
+        Zamanlanmış işlerin durumu — "bugünkü değerlendirme yapıldı mı, Pazar
+        eğitimi çalıştı mı?" sorusunun tek bakışta cevabı.
+
+        Her iş için son çalışma zamanı, gecikme durumu ve bilgisayar kapalıyken
+        kaçarsa telafi edilip edilmediği. `schedule` kaçan işi telafi etmediği
+        için (08/2026 bulgusu) telafi açıkça belirtilir.
+        """
+        import csv as csv_mod
+        import datetime as dt
+        from ml.config import CALIBRATOR_META_FILE, DRIFT_REPORT_FILE, PROMOTION_LOG
+
+        now = dt.datetime.utcnow()
+
+        def _age_h(iso: str | None) -> float | None:
+            if not iso:
+                return None
+            try:
+                s = iso.replace("Z", "").strip()
+                return max(0.0, (now - dt.datetime.fromisoformat(s)).total_seconds() / 3600.0)
+            except Exception:
+                return None
+
+        # ── Son çalışma zamanlarını kaynaklarından oku ────────────────────────
+        last_analyze = None
+        try:
+            if PREDICTION_LOG.exists():
+                with open(PREDICTION_LOG, "r", encoding="utf-8") as f:
+                    for r in csv_mod.DictReader(f):
+                        ts = r.get("timestamp")
+                        if ts and (last_analyze is None or ts > last_analyze):
+                            last_analyze = ts
+        except Exception:
+            pass
+
+        stats = _load_json(ml_live.ML_STATS_FILE) or {}
+        drift = _load_json(DRIFT_REPORT_FILE) or {}
+        wf    = _load_json(VALIDATION_SUMMARY) or {}
+        cal   = _load_json(CALIBRATOR_META_FILE) or {}
+
+        last_promote = None
+        try:
+            if PROMOTION_LOG.exists():
+                for line in PROMOTION_LOG.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if line:
+                        try:
+                            v = json.loads(line).get("checked_at")
+                            if v:
+                                last_promote = v
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
+        # (id, ad, zamanlama, son çalışma, gecikme eşiği [saat], telafi, açıklama)
+        specs = [
+            ("analyze",  "Piyasa taraması", "her 30 dakika",
+             last_analyze, 4, True,
+             "Tüm sembolleri tarar, tahmin üretir"),
+            ("evaluate", "Günlük değerlendirme", "her gün 19:00",
+             stats.get("last_eval"), 36, True,
+             "Olgunlaşan tahminlerin sonucunu hesaplar (10 işlem günü sonra)"),
+            ("health",   "Sağlık kontrolü", "her gün 19:20",
+             drift.get("computed_at"), 36, True,
+             "Veri kayması (PSI) + kalibrasyon sapması ölçümü"),
+            ("promote",  "Haftalık eğitim (terfi)", "her Pazar 20:00",
+             last_promote, 8 * 24, True,
+             "Rakip model eğitilir; şampiyonu geçerse yerine geçer"),
+            ("validate", "Doğrulama + kalibrasyon", "elle",
+             wf.get("computed_at") or cal.get("fitted_at"), None, False,
+             "Walk-forward sınavı ve kalibratör tazeleme (Doğrulama çalıştır)"),
+        ]
+
+        jobs = []
+        for jid, name, sched, last, overdue_h, catchup, desc in specs:
+            age = _age_h(last)
+            if age is None:
+                status = "never"
+            elif overdue_h is None:
+                status = "manual"
+            elif age > overdue_h:
+                status = "overdue"
+            else:
+                status = "ok"
+            jobs.append({
+                "id": jid, "name": name, "schedule": sched, "description": desc,
+                "last_run": last, "age_hours": round(age, 2) if age is not None else None,
+                "overdue_after_hours": overdue_h, "status": status, "catchup": catchup,
+            })
+
+        return jsonify({
+            "now": now.isoformat(),
+            "jobs": jobs,
+            "note": ("Bilgisayar kapalıyken kaçan işler, program açıldığında "
+                     "otomatik telafi edilir (piyasa taraması, değerlendirme, "
+                     "sağlık kontrolü ve haftalık eğitim)."),
+        })
+
     # ── GET /admin/model-story ────────────────────────────────────────────────
     @app.get("/admin/model-story")
     def admin_model_story():
