@@ -1,11 +1,13 @@
-# SerInvest — TradingView Sınıfı Arayüz: ULTRAPLAN
+# SerInvest — TradingView Görünümlü Arayüz: ULTRAPLAN
 
-> Tarih: 2026-08-03 · Hedef: mevcut "sayfa yığını" arayüzü, TradingView'in
-> **grafik-merkezli çalışma alanı** modeline taşımak; üstüne bu projeye özgü
-> **ML Model** katmanını eklemek.
+> Tarih: 2026-08-03 · Kapsam: **yalnızca arayüz tasarımı.**
+> TradingView'in *görünüşü ve çalışma mantığı* referans alınır; onlardan
+> kütüphane/API/servis **alınmaz**. Mevcut grafik altyapımız ve backend
+> olduğu gibi kalır.
 >
-> Bu belge bir **karar ve uygulama planıdır**; kod içermez, ama her kararın
-> gerekçesi ve dosya düzeyinde karşılığı yazılıdır.
+> Hedef: dağınık "sayfa yığını" hissini bırakıp, tek ekranda yoğun bilgi veren
+> **profesyonel terminal** görünümüne geçmek + bu projeye özgü ML bölümünü
+> arayüzün doğal parçası yapmak.
 
 ---
 
@@ -13,399 +15,237 @@
 
 | | |
 |---|---|
-| **Grafik motoru** | TradingView **Lightweight Charts v5.2** (Apache-2.0, ~45 KB) |
-| **Neden Advanced Charts değil** | Başvuru/onay gerektirir, ağırdır, kendi veri adaptörünü dayatır; bize gereken kontrolü elimizden alır |
-| **Kendimiz yazacaklarımız** | Göstergeler (indicators), çizim araçları, layout kaydetme — Lightweight Charts bunları **içermez** |
-| **Mimari değişim** | 11 sayfa → **4 çalışma alanı** (Grafik · Tarayıcı · Portföy · Model) |
-| **Toplam iş** | 6 faz, ~28 iş paketi |
-| **Bozulmayacak olan** | Backend API'leri, ML boru hattı, veri şeması — bu tamamen frontend işi |
+| **Kapsam** | Frontend görsel/etkileşim tasarımı |
+| **Dokunulmayacak** | Backend API'leri, ML boru hattı, veri şeması, grafik motoru |
+| **Yeni bağımlılık** | **Yok** (mevcut React + theme.css token sistemi yeterli) |
+| **Ana değişim** | 11 sayfa → **4 çalışma alanı**; sabit sayfa düzeni → **panelli terminal** |
+| **Yeniden yazılmayacak** | ModelStory, JobStatus, PredictionResults, NewsFeed, Watchlist, ChartPanel — hepsi taşınır |
+| **Fazlar** | 5 faz · 22 iş paketi |
 
 ---
 
-## 1. Araştırma Bulguları
+## 1. Referans: TradingView Neden "Profesyonel" Hissettiriyor?
 
-### 1.1 Grafik kütüphanesi seçimi
+Araştırmada çıkan tasarım ilkeleri — kopyalayacağımız şey bunlar:
 
-TradingView'in **iki** ayrı ürünü var; karıştırılıyor:
-
-| | Lightweight Charts | Advanced Charts (Charting Library) |
-|---|---|---|
-| Lisans | **Apache 2.0**, serbest | Ücretsiz ama **başvuru + onay** gerekir |
-| Boyut | ~45 KB | Birkaç MB |
-| Göstergeler | **YOK** — kendin yazarsın | 100+ hazır |
-| Çizim araçları | **YOK** | 80+ hazır |
-| Seri tipleri | Area, Bar, Baseline, **Candlestick**, Histogram, Line | aynısı + fazlası |
-| Panes (çoklu panel) | **VAR** (v4+) | VAR |
-| Price line / marker / crosshair | VAR | VAR |
-| Fiyat ölçeği modları | normal / **logaritmik** / **yüzde** | aynısı |
-| Performans | 50.000+ mum akıcı | daha ağır |
-| Veri kontrolü | **Sen verirsin**, adaptör yok | Kendi datafeed sözleşmesi |
-
-**Karar: Lightweight Charts v5.2.**
-Gerekçe: (a) onay süreci yok, (b) veri akışımız zaten kendi API'mizden geliyor —
-Advanced Charts'ın datafeed sözleşmesine uydurmak saf angarya olurdu, (c) 45 KB
-maliyetle profesyonel mum grafiği + crosshair + panes elde ediyoruz, (d) eksik
-kalan iki şeyi (gösterge, çizim) zaten kendi tarzımızda yazmak istiyoruz.
-
-**Lisans yükümlülüğü:** Apache-2.0 + NOTICE dosyası; ürün sayfasında
-tradingview.com'a bağlantı verilmesi bekleniyor. Kişisel kullanımda dahi
-uygulayacağız (footer'da tek satır).
-
-### 1.2 TradingView arayüz anatomisi (referans model)
-
-Dört araç çubuğu + merkez:
+### 1.1 Dört çerçeve + merkez
+Ekran sabit bir iskelete oturur; içerik değişir, iskelet değişmez.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ ÜST: sembol ara · zaman dilimi · grafik tipi · göstergeler · uyarı   │
-│      · karşılaştır · layout · geri/ileri                             │
-├──┬────────────────────────────────────────────────────┬──────────────┤
-│Ç │                                                    │ SAĞ WIDGET   │
-│İ │                                                    │ ┌──────────┐ │
-│Z │              ANA GRAFİK ALANI                      │ │İzleme    │ │
-│İ │           (mum + göstergeler + ML katmanı)         │ │Listesi   │ │
-│M │                                                    │ ├──────────┤ │
-│  │  ────────────────────────────────────────────      │ │Detaylar  │ │
-│A │              HACİM PANELİ                          │ ├──────────┤ │
-│R │  ────────────────────────────────────────────      │ │Haberler  │ │
-│A │              RSI / MACD PANELİ                     │ └──────────┘ │
-│Ç │                                                    │              │
-├──┴────────────────────────────────────────────────────┴──────────────┤
-│ ALT: 1D 5G 1A 3A 6A 1Y 5Y TÜMÜ · tarih aralığı · log/% · saat        │
+│ ÜST ARAÇ ÇUBUĞU   sembol · zaman · tip · göstergeler · layout        │
+├──┬────────────────────────────────────────────────┬──────────────────┤
+│S │                                                │ SAĞ PANEL        │
+│O │                                                │ ┌──────────────┐ │
+│L │            ANA İÇERİK (grafik)                 │ │ İzleme       │ │
+│  │                                                │ ├──────────────┤ │
+│A │                                                │ │ Detaylar     │ │
+│R │  ──────────────────────────────────────        │ ├──────────────┤ │
+│A │            YARDIMCI PANEL                      │ │ ML Modeli    │ │
+│Ç │                                                │ ├──────────────┤ │
+│  │                                                │ │ Haberler     │ │
+│L │                                                │ └──────────────┘ │
+├──┴────────────────────────────────────────────────┴──────────────────┤
+│ ALT ŞERİT   zaman aralığı · ölçek · durum · saat                     │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-Bizim uyarlamamızda **beşinci** bir eleman var: sağ widget bar'da ve grafik
-üstünde **ML katmanı** (tahmin, bariyerler, güven, meta sinyal).
+### 1.2 Kopyalanacak sekiz tasarım ilkesi
 
-### 1.3 Mevcut durumun envanteri
-
-| | Değer |
-|---|---|
-| Bileşen sayısı | 53 `.tsx` |
-| Toplam frontend kodu | ~12.000 satır |
-| Sayfa/sekme | 11 rota |
-| Grafik altyapısı | `ChartPanel.tsx` — **elle yazılmış SVG**, gerçek grafik kütüphanesi değil |
-| İkincil grafikler | Recharts (Terminal, Model sayfaları) |
-| Chart API | 7 zaman dilimi: `1H 1D 1W 1M 3M 1Y 5Y` → OHLCV JSON |
-| Sunucu göstergeleri | RSI, MACD(line/signal/hist), Bollinger(U/M/L), EMA 9/20/50/200 — **ama yalnız son değer**, seri değil |
-
-**Kritik boşluk:** Göstergeler yalnızca *anlık snapshot* olarak var; grafik için
-**seri** gerekiyor. Çözüm: OHLCV zaten geliyor → göstergeleri **istemcide**
-hesapla. Backend'e dokunmaya gerek yok, ağ trafiği artmaz.
+| # | İlke | Bizde şu an | Hedef |
+|---|---|---|---|
+| 1 | **Sabit iskelet, değişen içerik** | Her sayfa kendi düzenini kurar | Tek kabuk; çalışma alanları merkezde değişir |
+| 2 | **Yoğunluk** — piksel israfı yok | Geniş boşluklar, kartlar arası büyük gap | Satır 22-26px, dolgu 6-10px, gap 8px |
+| 3 | **Panel mantığı** — her şey daraltılıp genişletilebilir | Sabit bloklar | Sürüklenebilir genişlik, katlanabilir, kapatılabilir |
+| 4 | **Sayı disiplini** | Kısmen | Mono + `tabular-nums` **zorunlu**; hizalı ondalık |
+| 5 | **Renk = anlam** | Kısmen | Yeşil/kırmızı yalnız yön; vurgu tek accent; gerisi gri tonları |
+| 6 | **Sessiz kenarlık** | Bazı yerlerde ağır | 1px `--border-subtle`, köşe 3-4px (keskin) |
+| 7 | **Klavye öncelikli** | Ctrl+P var | Sembol ara, zaman dilimi, panel aç/kapa hepsi kısayollu |
+| 8 | **Durum her zaman görünür** | Dağınık | Alt şeritte: bağlantı, son güncelleme, piyasa açık/kapalı, model durumu |
 
 ---
 
-## 2. Hedef Bilgi Mimarisi: 11 sayfa → 4 çalışma alanı
+## 2. Bilgi Mimarisi: 11 sayfa → 4 çalışma alanı
 
-TradingView'de "grafik" uygulamanın kendisidir; geri kalan her şey panel veya
-ikincil ekrandır. Aynısını yapıyoruz.
+TradingView'de "grafik" uygulamanın kendisidir; gerisi paneldir. Aynısını yapıyoruz.
 
-| Yeni çalışma alanı | Ne kapsıyor | Hangi eski sayfalar buraya gömülüyor |
+| Çalışma alanı | İçerik | Hangi sayfalar burada eriyor |
 |---|---|---|
-| **1. Grafik** (ana) | Mum grafiği + göstergeler + çizim + ML katmanı + sağ widget bar | Terminal, Piyasa Genel, Değerlendir, (Haberler → sağ panel) |
-| **2. Tarayıcı** (Screener) | Sütunlu/sıralanabilir/filtrelenebilir sembol tablosu + kayıtlı filtreler | AI Tavsiye, Dip Radarı, (Fırsat Radarı zaten kalktı), Temel Analiz |
-| **3. Portföy** | Gerçek portföy + model portföyü sekmeli | Portföyüm, Model Portföyü |
-| **4. Model** (bize özgü) | Künye, eğitim hikâyesi, sınav grafikleri, tahmin yaşam döngüsü, işler | Model, Tahmin Geçmişi |
+| **1 · Grafik** | Ana grafik + yardımcı panel + sağ panel yığını | Terminal, Piyasa Genel, Değerlendir, Haberler |
+| **2 · Tarayıcı** | Sütunlu, sıralanabilir, filtrelenebilir sembol tablosu | AI Tavsiye, Dip Radarı, Temel Analiz |
+| **3 · Portföy** | Gerçek portföy / Model portföyü (sekmeli) | Portföyüm, Model Portföyü |
+| **4 · Model** | Künye, eğitim hikâyesi, sınav, tahmin döngüsü, işler | Model, Tahmin Geçmişi |
 
-Navigasyon: üstte **4 sekme**, 11 değil.
-
----
-
-## 3. Özellik Envanteri — TradingView'de ne var, biz ne yapıyoruz
-
-Öncelik: **P0** = onsuz "TradingView gibi" denemez · **P1** = güçlü katkı ·
-**P2** = cila · **SKIP** = bilinçli dışarıda
-
-### 3.1 Grafik çekirdeği
-
-| Özellik | Öncelik | Karar |
-|---|---|---|
-| Mum / çubuk / çizgi / alan / baseline | **P0** | Lightweight Charts yerleşik |
-| Heikin Ashi, Hollow candle | P1 | OHLCV'den türet, seri olarak besle |
-| Logaritmik / yüzde ölçek | **P0** | Yerleşik (`priceScale.mode`) |
-| Crosshair + OHLC veri kutusu | **P0** | Yerleşik crosshair + kendi "data window" bileşenimiz |
-| Zoom / pan / fitContent | **P0** | Yerleşik |
-| Çoklu pane (hacim, RSI, MACD ayrı) | **P0** | v5 `panes` desteği |
-| Sembol karşılaştırma (overlay) | P1 | İkinci seri + yüzde ölçek |
-| Otomatik ölçek / kilitli ölçek | P1 | Yerleşik |
-| Saat dilimi | P2 | Yerleşik (Europe/Istanbul) |
-
-### 3.2 Göstergeler (kendimiz yazacağız — kütüphanede yok)
-
-| Gösterge | Öncelik | Pane |
-|---|---|---|
-| EMA 9/20/50/200, SMA | **P0** | ana |
-| Bollinger Bantları | **P0** | ana |
-| Hacim (renkli histogram) | **P0** | ayrı |
-| RSI (+ 30/70 çizgileri) | **P0** | ayrı |
-| MACD (line/signal/hist) | **P0** | ayrı |
-| ATR | P1 | ayrı |
-| VWAP | P1 | ana |
-| Stochastic, ADX, OBV | P2 | ayrı |
-| Gösterge ayar diyaloğu (periyot/renk) | P1 | — |
-| Gösterge şablonları (kaydet/yükle) | P2 | — |
-
-> Tasarım notu: göstergeler saf fonksiyon olarak `lib/indicators/` altında
-> yazılacak (girdi: OHLCV dizisi → çıktı: seri). Böylece hem grafikte hem
-> tarayıcıda hem testte aynı kod kullanılır. **Backend'deki ML özellik
-> hesabıyla karıştırılmayacak** — o ayrı ve dokunulmaz.
-
-### 3.3 Çizim araçları (kütüphanede yok — custom series/primitive olarak)
-
-| Araç | Öncelik |
-|---|---|
-| Trend çizgisi, yatay çizgi, dikey çizgi | **P0** |
-| Yatay ışın, kanal | P1 |
-| Fibonacci geri çekilme | P1 |
-| Dikdörtgen / bölge vurgulama | P1 |
-| Metin notu, ok/işaret | P1 |
-| Ölçüm aracı (fiyat/zaman/%) | P1 |
-| Çizimlerin sembol bazlı kalıcılığı (localStorage) | **P0** |
-| Fibonacci uzantı, Gann, Elliott | SKIP | aşırı; kişisel kullanımda gereksiz |
-
-### 3.4 Sağ widget bar
-
-| Widget | Öncelik | Not |
-|---|---|---|
-| İzleme listesi (çoklu liste, sıralama, sürükle) | **P0** | mevcut `WatchlistSidebar` yeniden kullanılabilir |
-| Detaylar (fiyat, hacim, F/K, PD/DD, 52H) | **P0** | mevcut veri var |
-| Haberler (sembole filtreli) | **P0** | mevcut `NewsFeed` + Faz 3 olay tipolojisi |
-| **ML Paneli** (bize özgü) | **P0** | tahmin, güven, bariyer, meta durum |
-| Hesap/pozisyon özeti | P1 | portföy verisi mevcut |
-
-### 3.5 Üst araç çubuğu
-
-| Eleman | Öncelik |
-|---|---|
-| Sembol arama (fuzzy, klavye) | **P0** |
-| Zaman dilimi seçici | **P0** |
-| Grafik tipi seçici | **P0** |
-| Göstergeler menüsü | **P0** |
-| Karşılaştırma ekle | P1 |
-| Layout kaydet/yükle | P1 |
-| Uyarılar (fiyat alarmı) | P1 |
-| Geri/ileri (çizim undo) | P1 |
-| Ekran görüntüsü / PNG dışa aktar | P2 |
-| Replay (geçmişi oynat) | P2 |
-
-### 3.6 Bilinçli DIŞARIDA bırakılanlar
-
-- Gerçek zamanlı WebSocket akışı — veri kaynağımız yfinance, 15 dk gecikmeli
-- Emir iletimi / broker entegrasyonu — sistem long-only kâğıt üstünde
-- Sosyal akış, fikir paylaşımı, Pine Script
-- Çoklu grafik ızgarası (2x2, 3x1) — tek grafik + karşılaştırma yeterli
+Navigasyon: üstte **4 sekme**. Eski rotalar çalışmaya devam eder (yer imi kırılmaz).
 
 ---
 
-## 4. Tasarım Dili
+## 3. Bileşen Tasarım Şartnamesi
 
-Mevcut `theme.css` token sistemi **korunacak** (hex yasak, token zorunlu).
-Üzerine "terminal yoğunluğu" katmanı gelir.
+### 3.1 Üst araç çubuğu (`TopBar`)
+Yükseklik 40px, tek satır, sola hizalı.
 
-| Boyut | Karar |
+| Bölge | Eleman |
 |---|---|
-| Varsayılan tema | **Dark** (mevcut token seti hazır) |
-| Yoğunluk | Kompakt: satır yüksekliği 22-26px, panel dolgusu 6-10px |
-| Tipografi | Arayüz: sistem sans · **Sayılar: mono + `tabular-nums`** (zorunlu) |
-| Renk semantiği | Yeşil/kırmızı yalnız yön için; neon yok, `--profit`/`--loss` |
-| Kenarlık | 1px, `--border-subtle`; köşe yarıçapı 3-4px (keskin) |
-| Grafik renkleri | Mum: profit/loss token · Göstergeler: `--info`, `--accent`, `--warning` |
-| Boş alan | Geniş ekranda **doldurulur**, ortalanmaz (kullanıcı kararı 07/2026) |
-| Ölçeklendirme | **1280 / 1920 / 2560'ta doğrulama zorunlu** — dar viewport'ta test edip geniş ekranda bozulma yaşandı (07/2026 dersi) |
+| Sol | Logo (kompakt) · **sembol arama** (fuzzy, `/` kısayolu) |
+| Orta | Zaman dilimi düğmeleri · grafik tipi · gösterge menüsü |
+| Sağ | Çalışma alanı sekmeleri · tema · komut paleti (`Ctrl+P`) |
+
+Tasarım: düğmeler 26px yüksek, arka plan yok, yalnız aktif olan `--accent-bg`.
+
+### 3.2 Sol araç şeridi (`SideRail`)
+Genişlik 40px, yalnız ikon. Grafik çalışma alanında görünür.
+İçerik: imleç · trend çizgisi · yatay çizgi · dikdörtgen · metin · ölçüm · sil.
+
+> Not: Bu fazda **görsel şerit** kurulur; çizim işlevi Faz E'de gelir.
+> Şeridin varlığı bile "profesyonel araç" algısını taşır.
+
+### 3.3 Sağ panel yığını (`RightDock`)
+Genişlik 300-380px, sürüklenerek ayarlanır, `localStorage`'da saklanır.
+Widget'lar katlanabilir, sırası sürüklenerek değişir.
+
+| Widget | Kaynak |
+|---|---|
+| İzleme Listesi | mevcut `WatchlistSidebar` (taşınır) |
+| Detaylar | fiyat, hacim, değişim, F/K, PD/DD, 52H aralığı |
+| **ML Modeli** | tahmin, kalibre güven, hedef/stop, boyut, sürücüler |
+| Haberler | mevcut `NewsFeed` + olay tipolojisi rozetleri |
+
+### 3.4 Alt durum şeridi (`StatusBar`)
+Yükseklik 24px, 11px yazı.
+`● Piyasa Açık 18:32` · `Son veri 2 dk önce` · `Model: güncel` · `600/200 tahmin` · saat
+
+### 3.5 Ana içerik (grafik alanı)
+- Mevcut `ChartPanel` **korunur**, kabuğu değişir (çerçeve, başlık, ölçek düğmeleri dışarı alınır)
+- Üstünde ince bir "sembol künyesi" satırı: `THYAO · 316,75 ▼ −0,24% · Hac 14,6M`
+- Altında yardımcı panel yuvası (hacim/RSI için — ileride)
+
+### 3.6 Tarayıcı (`Screener`)
+- Sanal kaydırmalı tablo (50+ satır akıcı)
+- Sütun başlığından sıralama, sütun seçici
+- Üstte filtre çipleri: `AL sinyali` · `RSI<30` · `Dip skoru ≥3` · `F/K<10`
+- Satıra tıkla → Grafik çalışma alanına o sembolle geç
 
 ---
 
-## 5. Teknik Mimari
+## 4. Görsel Dil (theme.css üzerine)
 
-### 5.1 Yeni dizin yapısı
-
-```
-frontend/src/
-  chart/                        ← YENİ: grafik motoru katmanı
-    ChartHost.tsx               Lightweight Charts yaşam döngüsü (create/resize/destroy)
-    useChart.ts                 chart örneği + pane yönetimi hook'u
-    series/
-      priceSeries.ts            mum/çubuk/çizgi/alan/baseline/heikin-ashi
-      volumeSeries.ts
-      overlaySeries.ts          EMA/BB/VWAP ana pane'e
-      paneSeries.ts             RSI/MACD/ATR ayrı pane'e
-    drawings/
-      DrawingLayer.tsx          çizim primitive'leri (canvas overlay)
-      tools/                    trend, yatay, fib, dikdörtgen, metin, ölçüm
-      store.ts                  sembol bazlı kalıcılık (localStorage)
-    ml/
-      MlOverlay.tsx             hedef/stop bariyerleri, giriş işareti, tahmin bandı
-  lib/indicators/               ← YENİ: saf fonksiyonlar
-    ema.ts sma.ts rsi.ts macd.ts bollinger.ts atr.ts vwap.ts stochastic.ts
-    index.ts                    kayıt defteri (ad → hesaplayıcı + varsayılan ayar)
-  workspace/                    ← YENİ: 4 çalışma alanı
-    ChartWorkspace.tsx
-    ScreenerWorkspace.tsx
-    PortfolioWorkspace.tsx
-    ModelWorkspace.tsx
-  panels/                       ← sağ widget bar
-    WatchlistPanel.tsx DetailsPanel.tsx NewsPanel.tsx MlPanel.tsx
-  toolbar/
-    TopToolbar.tsx SymbolSearch.tsx TimeframePicker.tsx
-    ChartTypePicker.tsx IndicatorMenu.tsx DrawingToolbar.tsx
-```
-
-### 5.2 Durum yönetimi
-
-Mevcut yapı `useOutletContext` ile paylaşılan veri kullanıyor — **korunacak**.
-Grafik durumu (sembol, tf, göstergeler, çizimler, layout) için tek bir
-`workspaceStore` (Zustand veya basit Context+reducer; ekstra bağımlılık
-istenmezse Context yeterli).
-
-Kalıcılık: `localStorage`
-- `si_ws_layout` — aktif çalışma alanı, panel genişlikleri, açık widget'lar
-- `si_chart_{symbol}` — çizimler
-- `si_indicators` — aktif gösterge seti + ayarları
-- `si_watchlists` — mevcut (dokunulmaz)
-
-### 5.3 Veri akışı (backend'e dokunulmaz)
-
-```
-core-api /api/market/{sym}/chart?tf=  → OHLCV
-      ↓
-  lib/indicators/*  (istemcide hesap)
-      ↓
-  chart/series/*    → Lightweight Charts panes
-      ↑
-core-api /api/oracle/overview         → ML tahmin (hedef/stop/güven)
-core-api /api/signals/*               → haber + olay tipolojisi
-oracle   /admin/*                     → model durumu, işler, hikâye
-```
-
-**Tek backend eklemesi (opsiyonel, P1):** chart endpoint'ine `&indicators=1`
-parametresi — istemci hesabı yavaş kalırsa. Şimdilik gerek yok.
+| Boyut | Kural |
+|---|---|
+| Tema | Dark varsayılan; light korunur (token sistemi hazır) |
+| Yazı — arayüz | 12-13px sistem sans |
+| Yazı — sayı | **mono + `tabular-nums`**, ondalık hizalı |
+| Başlık | 10-11px, `letter-spacing .08em`, UPPERCASE, `--text-muted` |
+| Satır yüksekliği | Tablolarda 24px, listelerde 26px |
+| Dolgu | Panel 8-10px, hücre 4-6px |
+| Kenarlık | 1px `--border-subtle`; köşe 3-4px |
+| Renk | Yön: `--profit`/`--loss` · Vurgu: `--accent` (tek) · Gerisi gri |
+| Hareket | 120-160ms; sayı değişiminde flash yok (titreme yapar) |
+| Geniş ekran | İçerik **doldurulur**, ortalanmaz; 1280/1920/2560 doğrulaması zorunlu |
 
 ---
 
-## 6. ML Katmanı — Bu Projenin Farkı
+## 5. Fazlar
 
-TradingView'de olmayan, bize özgü olan kısım. **Grafiğin içine gömülür**,
-ayrı sayfaya sürgün edilmez.
+### Faz 1 — Kabuk (`AppShell`)
+- 1.1 `AppShell` iskeleti: TopBar + SideRail + içerik + RightDock + StatusBar
+- 1.2 Panel genişliği sürükleme + `localStorage` kalıcılık
+- 1.3 4 çalışma alanı sekmesi + rota yönlendirmeleri
+- 1.4 Yoğunluk geçişi: global spacing/typography token ayarı
+- **Çıktı:** uygulama artık "terminal" gibi duruyor, içerik henüz eski
 
-### 6.1 Grafik üstü ML katmanı (`MlOverlay`)
+### Faz 2 — Sağ panel yığını
+- 2.1 `RightDock` + katlanabilir/sıralanabilir widget çerçevesi
+- 2.2 İzleme listesi taşınır
+- 2.3 Detaylar widget'ı (yeni)
+- 2.4 **ML Modeli widget'ı** (yeni — projenin farkı)
+- 2.5 Haberler widget'ı taşınır
+- **Çıktı:** tek ekranda sembol + fiyat + model + haber
 
-| Eleman | Görsel |
-|---|---|
-| Tahmin anı | Dikey işaret + "8 Tem, AL, %53" etiketi |
-| Hedef bariyeri | Yeşil yatay çizgi + `+3×ATR` etiketi |
-| Stop bariyeri | Kırmızı yatay çizgi + `−2×ATR` |
-| Süre bariyeri | Kesikli dikey çizgi (10 işlem günü sonrası) |
-| Sonuçlanmış tahminler | Geçmişte: ✓ hedefe ulaştı / ✕ stopa takıldı işaretleri |
-| Rejim bandı | RISK_OFF dönemleri arka planda soluk kırmızı şerit |
+### Faz 3 — Grafik alanı kabuğu
+- 3.1 Sembol künyesi satırı
+- 3.2 Zaman dilimi / grafik tipi / ölçek düğmeleri üst çubuğa taşınır
+- 3.3 `ChartPanel` çerçevesizleştirilir (kabuk artık dışarıda)
+- 3.4 Sol araç şeridi (görsel; işlev Faz 5)
+- **Çıktı:** grafik ekranı TradingView düzeninde
 
-Bu, "modelin ne dediğini ve ne olduğunu" grafikte doğrudan gösterir —
-tablolara bakmaya gerek kalmaz.
+### Faz 4 — Tarayıcı + Portföy + Model çalışma alanları
+- 4.1 `Screener` sanal tablo + sütun seçici + filtre çipleri
+- 4.2 AI Tavsiye / Dip Radarı / Temel Analiz içerikleri filtre olarak erir
+- 4.3 Portföy: gerçek + model sekmeli tek ekran
+- 4.4 Model: mevcut bileşenler yeni kabuğa taşınır (yeniden yazım yok)
+- **Çıktı:** 11 sayfa → 4 çalışma alanı tamam
 
-### 6.2 Sağ panel: ML widget'ı
+### Faz 5 — Etkileşim cilası
+- 5.1 Klavye kısayolları (`/` ara, `1-4` alan, `\` panel, `Ctrl+P` palet)
+- 5.2 Sol şerit çizim araçları işlevsel (trend/yatay/dikdörtgen/metin)
+- 5.3 Fiyat alarmı
+- 5.4 Erişilebilirlik + 1280/1920/2560 son denetim
 
+---
+
+## 6. ML Bölümü — Bu Projenin Farkı
+
+TradingView'de olmayan kısım. İki yerde görünür:
+
+**A) Sağ panelde widget** (her zaman görünür, sembole bağlı)
 ```
-┌─ MODEL · THYAO ──────────────┐
-│ ALIM        kalibre güven %53│
-│ ▓▓▓▓▓░░░░░                   │
-│ Hedef  361.20   +9.8%        │
-│ Stop   318.40   −6.5%        │
-│ Boyut  %5.5   R:R 1.50       │
-│ ─────────────────────────────│
-│ Sürücüler                    │
-│ ▲ EMA200 üstü  ▲ EMA hizası  │
-│ ▼ Belirgin risk yok          │
-│ ─────────────────────────────│
-│ ⚠ Bu liste sıralı değil      │
-│   (tüm sinyaller aynı güven) │
-└──────────────────────────────┘
+┌ MODEL · THYAO ───────────────┐
+│ ALIM         kalibre güven %53│
+│ ▓▓▓▓▓░░░░░                    │
+│ Hedef 361,20  +9,8%           │
+│ Stop  318,40  −6,5%           │
+│ Boyut %5,5    R:R 1,50        │
+│ ▲ EMA200 üstü ▲ EMA hizalanma │
+│ ⚠ Sıralama yok (tüm sinyaller │
+│   aynı güvende)               │
+└───────────────────────────────┘
 ```
 
-### 6.3 Model çalışma alanı (mevcut içerik korunur, kabuğu değişir)
-Künye · eğitim yolculuğu · sınav grafiği · kalibrasyon eğrisi · terfi geçmişi ·
+**B) Model çalışma alanı** — mevcut içerik yeni kabukta:
+künye · eğitim yolculuğu · sınav grafiği · kalibrasyon eğrisi · terfi geçmişi ·
 zamanlanmış işler · tahmin yaşam döngüsü · sonuçlanan tahminler.
-Bunlar **zaten yazıldı** — yeni kabuğa taşınacak, yeniden yazılmayacak.
 
 ---
 
-## 7. Uygulama Fazları
-
-### Faz A — Grafik çekirdeği (temel; buna her şey bağlı)
-- A1. `lightweight-charts` bağımlılığı + lisans NOTICE
-- A2. `ChartHost` + `useChart` (yaşam döngüsü, resize gözlemcisi, tema token köprüsü)
-- A3. Mum/çizgi/alan serisi + zaman dilimi değiştirme
-- A4. Hacim pane'i
-- A5. Crosshair + OHLC veri kutusu (sol üst)
-- A6. Log/yüzde ölçek, fitContent, zoom kontrolleri
-- **Çıktı:** çalışan profesyonel mum grafiği; `ChartPanel.tsx`'in yerini alır
-
-### Faz B — Göstergeler
-- B1. `lib/indicators/` saf fonksiyonlar + birim testleri
-- B2. Overlay göstergeler (EMA/SMA/BB/VWAP)
-- B3. Pane göstergeler (RSI/MACD/ATR)
-- B4. Gösterge menüsü + ayar diyaloğu + aktif gösterge rozetleri
-- B5. localStorage kalıcılık
-- **Çıktı:** TradingView'deki gibi gösterge ekleyip çıkarma
-
-### Faz C — Çalışma alanı kabuğu
-- C1. `TopToolbar` (sembol arama, tf, tip, göstergeler, layout)
-- C2. Sağ widget bar (izleme/detay/haber/ML) — sürüklenebilir genişlik
-- C3. Alt zaman aralığı çubuğu
-- C4. 4 çalışma alanına geçiş + rota yönlendirmeleri (eski rotalar korunur)
-- **Çıktı:** TradingView düzeni tamam
-
-### Faz D — ML katmanı
-- D1. `MlOverlay` (bariyerler, tahmin işaretleri, rejim bandı)
-- D2. `MlPanel` sağ bar widget'ı
-- D3. Sonuçlanmış tahminlerin grafik üstünde işaretlenmesi
-- **Çıktı:** projenin farkı görünür hale gelir
-
-### Faz E — Çizim araçları
-- E1. `DrawingLayer` altyapısı (canvas overlay + hit-test)
-- E2. Trend/yatay/dikey çizgi
-- E3. Fibonacci, dikdörtgen, metin, ölçüm
-- E4. Sembol bazlı kalıcılık + undo/redo
-- **Çıktı:** grafik üstünde analiz yapılabilir
-
-### Faz F — Tarayıcı (Screener) ve cila
-- F1. Sütunlu sanal tablo (50+ satır akıcı)
-- F2. Filtre kurucu + kayıtlı filtreler
-- F3. Uyarılar (fiyat alarmı, tarayıcı koşulu)
-- F4. Klavye kısayolları haritası, PNG dışa aktarma
-- F5. 1280/1920/2560 ölçek denetimi + erişilebilirlik geçişi
-
----
-
-## 8. Riskler ve Önlemler
+## 7. Riskler
 
 | Risk | Önlem |
 |---|---|
-| **Kapsam patlaması** — TradingView 10 yıllık ürün | Faz A-D "kullanılabilir ürün" sınırı; E-F opsiyonel |
-| Çizim araçları en pahalı kısım | Faz E'ye ertelendi; P0 sadece 3 temel araç |
-| Mevcut 12.000 satır kodun çöpe gitmesi | Bileşenler **taşınacak**, yeniden yazılmayacak (ModelStory, JobStatus, PredictionResults, NewsFeed, Watchlist hepsi kalır) |
-| Gösterge hesabının ML özellikleriyle karışması | `lib/indicators/` yalnız **görsel**; backend ML özellikleri ayrı ve dokunulmaz |
-| Geniş ekranda bozulma (yaşandı) | Her fazın kabul kriterinde 1280/1920/2560 doğrulaması |
-| Performans (50 sembol × 250 bar × 6 gösterge) | Göstergeler memoize; Lightweight Charts zaten 50k mum kaldırıyor |
-| Lisans | Apache-2.0 NOTICE + footer'da tradingview.com bağlantısı |
+| Mevcut kodun çöpe gitmesi | Bileşenler **taşınır**, yeniden yazılmaz |
+| Kapsam büyümesi | Faz 1-3 "kullanılabilir" sınırı; 4-5 sonra |
+| Geniş ekranda bozulma (yaşandı) | Her fazın kabul kriterinde 1280/1920/2560 |
+| Yoğunluk artınca okunabilirlik düşmesi | Min yazı 11px; ölçüm DOM'dan yapılır, göz kararı değil |
+| Eski yer imlerinin kırılması | Eski rotalar korunur, yönlendirilir |
 
 ---
 
-## 9. Kabul Kriterleri (her faz için geçerli)
+## 8. Kabul Kriterleri (her faz)
 
 1. `tsc -b` temiz
-2. **1280 · 1920 · 2560** genişliklerde yatay taşma yok, metin okunur (≥11px)
+2. **1280 · 1920 · 2560**'da yatay taşma yok, metin ≥11px okunur
 3. Dark + light temada token uyumlu
 4. Konsol hatası yok
-5. Mevcut backend API'lerine hiçbir kırıcı değişiklik yok
-6. Eski rotalar (`/terminal`, `/oracle`, `/history` …) çalışmaya devam eder
+5. Backend'e sıfır değişiklik
+6. Eski rotalar çalışır
 
 ---
 
-## 10. Kaynaklar
+## 9. Açık Karar: Grafik motoru
 
-- [Lightweight Charts — GitHub](https://github.com/tradingview/lightweight-charts) (Apache-2.0, v5.2)
-- [Lightweight Charts — Dokümantasyon](https://tradingview.github.io/lightweight-charts/docs)
-- [Ürün karşılaştırması — TradingView](https://www.tradingview.com/charting-library-docs/latest/getting_started/product-comparison/)
-- [Advanced Charts — TradingView](https://www.tradingview.com/advanced-charts/)
-- [UI elemanları / araç çubukları — TradingView Docs](https://www.tradingview.com/charting-library-docs/latest/ui_elements/Toolbars/)
-- [Lightweight Charts vs Chart.js vs TradingView (2026)](https://www.index.dev/skill-vs-skill/tradingview-vs-lightweight-charts-vs-chartjs)
+Bu plan **mevcut grafiği koruyor** (`ChartPanel`, elle yazılmış SVG).
+Sonradan mum grafiği/crosshair/çoklu panel istenirse iki seçenek olur:
+
+- **A)** Mevcut SVG'yi geliştirmek — bağımlılık yok, iş yükü yüksek
+- **B)** Açık kaynak bir finans grafik kütüphanesi eklemek — iş yükü düşük
+
+Bu karar **şimdi verilmiyor**; tasarım fazları grafiğin içinden bağımsız
+ilerleyecek şekilde kurgulandı.
+
+---
+
+## 10. Kaynak
+
+- [TradingView — UI elemanları / araç çubukları](https://www.tradingview.com/charting-library-docs/latest/ui_elements/Toolbars/)
+- [TradingView — Supercharts kullanım rehberi](https://www.tradingview.com/support/solutions/43000746464-getting-started-with-supercharts/)
+- [TradingView — Layout ve çalışma alanı mantığı](https://www.tradingview.com/support/solutions/43000692404-layouts-charts-drawings-indicators-and-their-interaction/)
