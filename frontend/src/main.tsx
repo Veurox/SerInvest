@@ -5,6 +5,7 @@ import './theme.css'      // Önce token'lar — sonraki tüm CSS bunları kulla
 import './index.css'
 import './components/dashboard/dashboard.css'
 import './components/watchlist/watchlist.css'
+import './shell/shell.css'
 import './components/terminal/terminal.css'
 import App from './App.tsx'
 import { ToastProvider } from './components/ui/Toast'

@@ -29,12 +29,14 @@ const GROUPS: { type: string; label: string }[] = [
 ]
 
 export function WatchlistSidebar({
-  assets, onSelect, activeSymbol, onCollapse,
+  assets, onSelect, activeSymbol, onCollapse, embedded = false,
 }: {
   assets: PriceData[]
   onSelect: (symbol: string) => void
   activeSymbol: string | null
   onCollapse: () => void
+  /** Sağ panel yığınının içinde mi? (sticky/sabit genişlik/kenarlık kapanır) */
+  embedded?: boolean
 }) {
   const { lists, createList, renameList, deleteList, toggleSymbol, reorderSymbols } = useWatchlists()
 
@@ -151,7 +153,7 @@ export function WatchlistSidebar({
   }
 
   return (
-    <aside className="wl-sidebar">
+    <aside className={`wl-sidebar${embedded ? ' wl-sidebar--embedded' : ''}`}>
       {/* Başlık */}
       <div className="wl-head" style={{ position: 'relative' }}>
         <button className="title-btn" onClick={() => setMenuOpen(o => !o)}>

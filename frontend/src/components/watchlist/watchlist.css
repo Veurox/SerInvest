@@ -21,6 +21,16 @@
 }
 .wl-sidebar.collapsed { display: none; }
 
+/* Sağ panel yığınına gömülü hali (ULTRAPLAN Faz 1): kabuk konumlandırmayı
+   üstlenir — sticky, sabit genişlik ve sağ kenarlık burada iptal olur. */
+.wl-sidebar--embedded {
+  position: static;
+  top: auto;
+  height: auto;
+  width: auto;
+  border-right: none;
+}
+
 .wl-head {
   display: flex; align-items: center; gap: var(--space-2);
   padding: var(--space-2) var(--space-3);

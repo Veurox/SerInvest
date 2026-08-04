@@ -1,0 +1,198 @@
+/* =============================================================================
+   SerInvest — Uygulama Kabuğu (AppShell)
+   docs/UI_ULTRAPLAN.md Faz 1: sabit iskelet, değişen içerik.
+
+   İskelet:  [üst çubuk] · [şerit | içerik | sağ panel] · [durum şeridi]
+   Hepsi theme.css token'larını kullanır; hex yasak.
+   ============================================================================= */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;              /* mobil tarayıcı adres çubuğu payı */
+  overflow: hidden;            /* kaydırma İÇERİDE olur, sayfada değil */
+}
+
+/* Gövde: şerit + içerik + sağ panel */
+.shell__body {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;               /* flex çocuğunun taşmasını engeller */
+  /* Eski .app-body kuralı align-items:flex-start veriyordu; o zaman çocuklar
+     tam yüksekliğe uzamıyor ve orta sütun içerik boyuna şişip kaydırma
+     zincirini kırıyordu (ölçüldü: center 6759px). stretch şart. */
+  align-items: stretch;
+}
+
+/* Orta sütun: sekmeler SABİT kalır, yalnız içerik kayar */
+.shell__center {
+  flex: 1 1 0%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Kaydırılan tek alan */
+.shell__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ── Sol araç şeridi ──────────────────────────────────────────────────────── */
+.rail {
+  flex: 0 0 42px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 0;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+.rail__btn {
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.rail__btn:hover { background: var(--bg-glass); color: var(--text-secondary); }
+.rail__btn.is-active {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+.rail__btn:disabled { opacity: .35; cursor: default; }
+.rail__sep {
+  width: 20px; height: 1px;
+  background: var(--border-subtle);
+  margin: 5px 0;
+}
+
+/* ── Sağ panel yığını ─────────────────────────────────────────────────────── */
+.dock {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.dock__resizer {
+  flex: 0 0 5px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background .12s;
+}
+.dock__resizer:hover,
+.dock__resizer.is-dragging { background: var(--accent-border); }
+
+/* Panel içindeki katlanır widget */
+.dockw { border-bottom: 1px solid var(--border-subtle); }
+.dockw__head {
+  width: 100%;
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px;
+  background: var(--bg-surface-2);
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 10px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase;
+  text-align: left;
+}
+.dockw__head:hover { color: var(--text-secondary); }
+.dockw__caret { transition: transform .15s; display: inline-block; }
+.dockw__caret.is-open { transform: rotate(90deg); }
+.dockw__body { padding: 8px 10px; }
+.dockw__body--flush { padding: 0; }
+
+/* ── Alt durum şeridi ─────────────────────────────────────────────────────── */
+.statusbar {
+  flex: 0 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 12px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-surface-2);
+  font-size: 10.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.statusbar::-webkit-scrollbar { display: none; }
+.statusbar__item { display: inline-flex; align-items: center; gap: 5px; }
+.statusbar__dot { width: 6px; height: 6px; border-radius: 50%; }
+.statusbar__spacer { margin-left: auto; }
+
+/* ── Çalışma alanı sekmeleri (birincil) ───────────────────────────────────── */
+.ws-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: 0 0 auto;
+}
+.ws-tabs::-webkit-scrollbar { display: none; }
+.ws-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px;
+  border: none; background: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  transition: color .12s, border-color .12s;
+}
+.ws-tab:hover { color: var(--text-secondary); }
+.ws-tab.is-active { color: var(--text-primary); border-bottom-color: var(--accent); }
+
+/* İkincil (bölüm) sekmeleri — henüz birleşmemiş sayfalara erişim */
+.ws-subtabs {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface-2);
+  flex: 0 0 auto;
+}
+.ws-subtab {
+  padding: 3px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11.5px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.ws-subtab:hover { color: var(--text-secondary); background: var(--bg-glass); }
+.ws-subtab.is-active {
+  color: var(--accent);
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  font-weight: 700;
+}
+
+/* ── Yoğunluk katmanı ─────────────────────────────────────────────────────── */
+/* Kabuk içindeki sayfa gövdesi: eski geniş dolgular daraltılır. */
+.shell .main { padding: 12px 14px; }
+
+@media (max-width: 900px) {
+  .rail { display: none; }
+  .dock { display: none; }
+}

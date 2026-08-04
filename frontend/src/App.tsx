@@ -4,9 +4,9 @@
 // Ortak veri (assets/oracle/news/fundamentals/status) <Outlet context> ile geçer.
 // =============================================================================
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate } from 'react-router-dom'
 import { CommandPalette, Icon } from './components/ui'
-import type { Command, IconName } from './components/ui'
+import type { Command } from './components/ui'
 import { MacroTicker, DriftBadge } from './components/finance'
 import { WatchlistSidebar } from './components/watchlist/WatchlistSidebar'
 import { SymbolDrawer } from './components/watchlist/SymbolDrawer'
@@ -15,6 +15,11 @@ import type {
   SystemStatus, PriceData, NewsSignal, OracleAnalysis, FundamentalData,
 } from './lib/types'
 import { StatusBanner } from './components/common/StatusBanner'
+// ── Uygulama kabuğu (ULTRAPLAN Faz 1) ───────────────────────────────────────
+import { SideRail } from './shell/SideRail'
+import { WorkspaceTabs } from './shell/WorkspaceTabs'
+import { RightDock, DockWidget } from './shell/RightDock'
+import { StatusBar } from './shell/StatusBar'
 import { Logo } from './components/common/Logo'
 import { isMarketOpen } from './lib/format'
 
@@ -235,13 +240,9 @@ export default function App() {
 
   const shared: SharedData = { assets, oracle, news, fundamentals, sysStatus, openChart: setChartSymbol }
 
-  // NavLink ortak className üreteci
-  const navClass = ({ isActive }: { isActive: boolean }) =>
-    `tab-btn${isActive ? ' active' : ''}`
-
   return (
-    <>
-      <header className="app-header">
+    <div className="shell">
+      <header className="app-header shell__top">
         <Logo />
 
         {/* Makro ticker — her sayfada sürekli görünür */}
@@ -349,65 +350,62 @@ export default function App() {
         commands={commands}
       />
 
-      <div className="app-body">
+      <div className="shell__body app-body">
+        {/* Sol araç şeridi — çalışma alanı geçişi + panel kontrolü */}
+        <SideRail
+          dockOpen={sidebarOpen}
+          onToggleDock={() => setSidebarOpen(o => !o)}
+          onOpenPalette={() => setPaletteOpen(true)}
+        />
+        {/* Orta sütun: sekmeler sabit, yalnız içerik kayar */}
+        <div className="shell__center">
+          <WorkspaceTabs badges={{
+            oracle: oracle.length, news: news.length, fundamentals: fundamentals.length,
+          }} />
+
+          <main className="main shell__main">
+            {loading && (
+              <div className="loading"><div className="spinner" /><span>{startupMsg}</span></div>
+            )}
+
+            {!loading && (
+              <>
+                <StatusBanner
+                  status={sysStatus}
+                  assetsReady={assets.length > 0}
+                  oracleReady={oracle.length > 0}
+                  newsReady={news.length > 0}
+                />
+                {/* Aktif route içeriği — ortak veri context ile geçer */}
+                <Outlet context={shared} />
+              </>
+            )}
+          </main>
+        </div>
+
+        {/* Sağ panel yığını — Faz 2'de ML ve Haberler widget'ları eklenecek */}
         {sidebarOpen && (
-          <WatchlistSidebar
-            assets={assets}
-            onSelect={setChartSymbol}
-            activeSymbol={chartSymbol}
-            onCollapse={() => setSidebarOpen(false)}
-          />
+          <RightDock>
+            <DockWidget id="watchlist" title="İzleme Listesi" flush>
+              <WatchlistSidebar
+                assets={assets}
+                onSelect={setChartSymbol}
+                activeSymbol={chartSymbol}
+                onCollapse={() => setSidebarOpen(false)}
+                embedded
+              />
+            </DockWidget>
+          </RightDock>
         )}
-        <main className="main">
-        <nav className="tabs">
-          {([
-            { to: '/',              end: true, icon: 'overview',    label: 'Piyasa Genel' },
-            { to: '/terminal',      icon: 'mlops',                 label: 'Terminal' },
-            { to: '/model-portfoy', icon: 'bot',                   label: 'Model Portföyü' },
-            { to: '/oracle',        icon: 'sparkle',               label: 'AI Tavsiye',     badge: oracle.length },
-            { to: '/portfolio',     icon: 'briefcase',             label: 'Portföyüm' },
-            { to: '/history',       icon: 'history',               label: 'Tahmin Geçmişi' },
-            { to: '/news',          icon: 'news',                  label: 'Haberler',       badge: news.length },
-            { to: '/fundamental',   icon: 'fundamental',           label: 'Temel Analiz',   badge: fundamentals.length },
-            { to: '/dip-radar',     icon: 'trending-down',         label: 'Dip Radarı' },
-            { to: '/degerlendirme', icon: 'search',                label: 'Değerlendir' },
-            // ML Ops + Yönetim tek sayfada birleşti (07/2026 sadeleştirme)
-            { to: '/model',         icon: 'settings',              label: 'Model' },
-          ] as { to: string; end?: boolean; icon: IconName; label: string; badge?: number }[]).map(n => (
-            <NavLink key={n.to} to={n.to} end={n.end} className={navClass}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <Icon name={n.icon} size={15} />
-                {n.label}{n.badge ? ` (${n.badge})` : ''}
-              </span>
-            </NavLink>
-          ))}
-        </nav>
-
-        {loading && (
-          <div className="loading"><div className="spinner" /><span>{startupMsg}</span></div>
-        )}
-
-        {!loading && (
-          <>
-            <StatusBanner
-              status={sysStatus}
-              assetsReady={assets.length > 0}
-              oracleReady={oracle.length > 0}
-              newsReady={news.length > 0}
-            />
-            {/* Aktif route içeriği — ortak veri context ile geçer */}
-            <Outlet context={shared} />
-          </>
-        )}
-        </main>
       </div>
 
-      {/* Panel gizliyken yeniden açma sekmesi */}
-      {!sidebarOpen && (
-        <button className="wl-reopen" onClick={() => setSidebarOpen(true)} title="İzleme listesini aç">
-          İzleme
-        </button>
-      )}
+      <StatusBar
+        status={sysStatus}
+        assetCount={assets.length}
+        oracleCount={oracle.length}
+        newsCount={news.length}
+        lastUpdate={lastUpdate}
+      />
 
       {/* Sembol grafik + değerler drawer'ı */}
       {chartSymbol && (
@@ -420,6 +418,6 @@ export default function App() {
           onClose={() => setChartSymbol(null)}
         />
       )}
-    </>
+    </div>
   )
 }
