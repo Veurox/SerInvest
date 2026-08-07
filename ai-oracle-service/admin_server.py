@@ -229,6 +229,71 @@ def _admin_make_app():
         threading.Thread(target=_run, daemon=True).start()
         return jsonify({"ok": True, "message": "Korumalı şampiyon-rakip değerlendirmesi başlatıldı"})
 
+    # ── GET /admin/model-evidence ─────────────────────────────────────────────
+    @app.get("/admin/model-evidence")
+    def admin_model_evidence():
+        """
+        Modelin ÖLÇÜLMÜŞ tahmin gücü — docs/MODEL_KANIT.md'nin makine hâli.
+
+        Neden var: arayüz 50 hissenin 49'una "GÜÇLÜ ALIM · %53 güven" yazıyordu.
+        Ölçüm bu iddiayı desteklemiyor (gün-içi Spearman t = -0.78, 485 OOS günü).
+        Bu uç nokta, gösterilen her sinyalin yanında "bunun kanıtı ne?" sorusunun
+        cevabını verir. Kanıt yoksa arayüz sinyali kenar gibi sunmamalıdır.
+
+        Deneyler çevrimdışıdır ve dosya yoksa uç nokta sessizce "ölçülmedi" der.
+        """
+        from ml.config import ML_DIR
+
+        def _read(name):
+            f = ML_DIR / name
+            if not f.exists():
+                return None
+            try:
+                return json.loads(f.read_text(encoding="utf-8"))
+            except Exception:
+                return None
+
+        rank = _read("experiment_ranking.json")
+        lowvol = _read("experiment_lowvol.json")
+
+        out = {"measured": False}
+
+        if rank:
+            sel = (rank.get("selectivity_within_day") or {}).get("spearman_by_day") or {}
+            t = sel.get("t")
+            out.update({
+                "measured": True,
+                "n_oos": rank.get("n_oos"),
+                "n_days": rank.get("n_days"),
+                "date_range": rank.get("date_range"),
+                "ranking": {
+                    "spearman": sel.get("mean"),
+                    "t": t,
+                    # Kanıt eşiği t=2. Altındaysa sıralama "gösterilebilir ama
+                    # güvenilmez" olarak işaretlenir — arayüz buna göre yazar.
+                    "proven": bool(t is not None and abs(t) >= 2.0),
+                },
+                "strategies": rank.get("strategies"),
+            })
+
+        if lowvol and lowvol.get("results"):
+            res = {r["strategy"]: r for r in lowvol["results"] if "sharpe" in r}
+            base = next((v for k, v in res.items() if k.startswith("eşit")), None)
+            best = next((v for k, v in res.items() if "en düşük oynaklık %20" in k), None)
+            if base and best:
+                n = base.get("n_periods") or 0
+                se = (2 / n) ** 0.5 if n else None
+                out["risk_filter"] = {
+                    "baseline_sharpe": base.get("sharpe"),
+                    "lowvol_sharpe": best.get("sharpe"),
+                    "n_periods": n,
+                    "sharpe_se": round(se, 2) if se else None,
+                    "proven": bool(se and best.get("sharpe") and base.get("sharpe")
+                                   and (best["sharpe"] - base["sharpe"]) >= 2 * se),
+                }
+
+        return jsonify(out)
+
     # ── GET /admin/model-versions ─────────────────────────────────────────────
     @app.get("/admin/model-versions")
     def admin_model_versions():

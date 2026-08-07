@@ -10,6 +10,7 @@ import { fmt, parseArr, recColor } from '../lib/format'
 import { COMPANY_NAMES } from '../lib/companies'
 import { CompanyLogo } from '../components/common/CompanyLogo'
 import { PageHeader, KPI, Icon } from '../components/ui'
+import { EvidenceBanner } from '../components/finance'
 import type { OracleAnalysis } from '../lib/types'
 import type { SharedData } from '../App'
 
@@ -77,6 +78,8 @@ export default function RadarPage() {
           </div>
         }
       />
+
+      <EvidenceBanner />
 
       <div className="kpi-strip">
         <KPI label="Güçlü Alım" value={strongBuy} tone={strongBuy > 0 ? 'profit' : 'neutral'} icon={<Icon name="trending-up" size={14} />} />

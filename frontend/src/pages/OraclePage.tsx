@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { PageHeader, KPI, EmptyState, Icon } from '../components/ui'
 import { OracleCard } from '../components/market/OracleCard'
+import { EvidenceBanner } from '../components/finance'
 import type { SharedData } from '../App'
 import { downloadCsv, fmt } from '../lib/format'
 
@@ -78,6 +79,8 @@ export default function OraclePage() {
           </div>
         }
       />
+
+      <EvidenceBanner />
 
       <div className="kpi-strip">
         <KPI label="Güçlü Alım" value={strongBuy} tone={strongBuy > 0 ? 'profit' : 'neutral'} icon={<Icon name="trending-up" size={14} />} />
