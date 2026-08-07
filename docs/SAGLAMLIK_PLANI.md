@@ -160,9 +160,9 @@ Bundan sonra her değişiklikte:
 | **A1** ✅ | `selftest.py` + I1–I10 değişmezleri | orta | Bu oturumdaki 9 sessiz hatanın 7'si otomatik yakalanır |
 | **A2** ✅ | `GET /admin/selftest` + StatusBar/Model sayfasında görünürlük | küçük | Sorunlar **sen fark etmeden önce** görünür |
 | **A3** ✅ | `GET /admin/config` + arayüzdeki elle yazılmış sabitlerin temizliği | küçük | K2 kökten biter |
-| **B1** | pytest iskeleti + `ml/labels`, `ml/calibration` testleri | orta | En kritik matematik kilitlenir |
-| **B2** | `monitoring`, `paper_trading`, `atomic`, `maturity` testleri | orta | Veri bütünlüğü kilitlenir |
-| **C1** | GitHub Actions: pytest + tsc + selftest | küçük | Regresyon push'ta yakalanır |
+| **B1** ✅ | pytest iskeleti + `ml/labels`, `ml/calibration` testleri | orta | En kritik matematik kilitlenir |
+| **B2** ✅ | `monitoring`, `paper_trading`, `atomic`, `maturity` testleri | orta | Veri bütünlüğü kilitlenir |
+| **C1** ✅ | GitHub Actions: pytest + tsc + selftest | küçük | Regresyon push'ta yakalanır |
 | **D1** | `champion.joblib` sürümleme + geri alma | küçük | ML Test Score "rollback" maddesi |
 | **D2** | Kapsam zarfı uyarısı (I5) → syslog + UI | küçük | Model davranış kayması sessiz kalmaz |
 
@@ -203,6 +203,42 @@ servis kapalıysa `DEFAULTS`). Elle yazılmış sabitler kaldırıldı:
 
 **Katman A sonrası durum:** 9 PASS · 1 WARN (`I5` kapsam zarfı — bilinen,
 § "Kapsam Patlaması"nda bilerek ertelendi) · 0 FAIL.
+
+---
+
+## 8.2 Katman B+C — test ağı ve CI (07.08.2026)
+
+`ai-oracle-service/tests/` · **95 test** · koşu süresi ~1 sn (disk/ağ yok).
+
+| Dosya | Neyi kilitler | Hangi geçmiş hatayı engeller |
+|---|---|---|
+| `test_labels.py` | Triple-barrier tanımı, bariyer sırası, ATR sınırlama, kuyruk `-1` | Eğitim/değerlendirme etiket ayrışması; look-ahead sızıntısı |
+| `test_calibration.py` | EV/başabaş tutarlılığı, kesirli Kelly, isotonic monotonluk/sınır | Sessizce 4× kaldıraç; az örnekle uydurulmuş kalibrasyon |
+| `test_atomic.py` | Hata anında hedef dosya bozulmaz, geçici dosya kalmaz | `predictions.csv`'de kırpılmış zaman damgası |
+| `test_maturity.py` | Takvim-günü bazı, yargı tarihi sabitliği | 22:08 tahmininin bir gün fazla beklemesi |
+| `test_paper_trading.py` | İşlem kimliği/idempotans, bariyer taraması, seans saatleri | BIMAS/EREGL mükerrer işlem; getirinin şişmesi |
+| `test_monitoring.py` | PSI özellikleri + örneklem yeterliliği eşikleri | 8 bağımsız günle verilen PSI yanlış alarmı |
+
+> **Testler gerçekten yakalıyor mu?** Geçen test tek başına bir şey kanıtlamaz.
+> Üç tarihsel hata koda geri sokularak (mutasyon) sınandı:
+>
+> | Mutasyon | Sonuç |
+> |---|---|
+> | Aynı gün TP+SL kuralı `DOWN` → `UP` | `test_same_day_both_is_conservative_down` **kırıldı** |
+> | Olgunluk saat bazına döndürüldü | `test_age_is_calendar_days_not_hours` + `test_matures_at_midnight_not_at_write_hour` **kırıldı** |
+> | Mükerrer işlem koruması kaldırıldı | `test_append_trade_is_idempotent` **kırıldı** |
+>
+> Mutasyonlar geri alındı; 95/95 geçiyor.
+
+**C1 · `.github/workflows/ci.yml`** — her push/PR'da iki iş:
+`python` (bağımlılıklar → pytest → **içe aktarma dumanı** → veri yokken selftest
+`FAIL` vermemeli) ve `frontend` (`npm ci` → `tsc --noEmit` → `npm run build`).
+
+İçe aktarma dumanı bilinçli bir seçim: sözdizimi/import hatası canlıda konteyneri
+**açılışta** öldürüyordu ve bunu ancak servis düşünce fark ediyorduk.
+
+Boş `ml_data/` ile selftest çıktısı doğrulandı: **2 PASS · 7 SKIP · 1 WARN** —
+temiz kurulumda yanlış alarm yok.
 
 ---
 

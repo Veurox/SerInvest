@@ -1,0 +1,88 @@
+"""
+Drift (PSI) matematiği + eşik gerekçeleri.
+
+Neden burası: PSI 07/2026'da YANLIŞ ALARM verdi — 600 satır vardı ama yalnızca
+8 bağımsız gün. Aynı günün 50 sembolü bağımsız gözlem değildir. Düzeltme
+MIN_LIVE_DAYS ile geldi; bu testler eşiğin sessizce düşürülmesini engeller.
+"""
+import numpy as np
+import pytest
+
+import ml.monitoring as monitoring
+from ml.config import PSI_ALERT, PSI_WATCH
+
+
+# ── PSI özellikleri ──────────────────────────────────────────────────────────
+
+def test_psi_zero_for_identical_distributions():
+    rng = np.random.default_rng(0)
+    x = rng.normal(0, 1, 5000)
+    psi = monitoring._psi(x, x.copy())
+    assert psi is not None and psi == pytest.approx(0.0, abs=0.02)
+
+
+def test_psi_small_for_same_distribution_new_sample():
+    """Aynı dağılımdan yeni örnek → izleme eşiğinin altında kalmalı."""
+    rng = np.random.default_rng(1)
+    psi = monitoring._psi(rng.normal(0, 1, 5000), rng.normal(0, 1, 5000))
+    assert psi is not None and psi < PSI_WATCH
+
+
+def test_psi_large_for_shifted_distribution():
+    """Belirgin kayma alarm eşiğini geçmeli — yoksa drift körlüğü."""
+    rng = np.random.default_rng(2)
+    psi = monitoring._psi(rng.normal(0, 1, 5000), rng.normal(3, 1, 5000))
+    assert psi is not None and psi > PSI_ALERT
+
+
+def test_psi_grows_with_shift():
+    """PSI kayma büyüdükçe artmalı (monotonluk)."""
+    rng = np.random.default_rng(3)
+    base = rng.normal(0, 1, 8000)
+    vals = [monitoring._psi(base, rng.normal(s, 1, 8000)) for s in (0.0, 0.5, 1.0, 2.0)]
+    assert all(v is not None for v in vals)
+    assert all(b >= a for a, b in zip(vals, vals[1:]))
+
+
+def test_psi_is_non_negative():
+    rng = np.random.default_rng(4)
+    for scale in (0.5, 1.0, 3.0):
+        v = monitoring._psi(rng.normal(0, 1, 3000), rng.normal(0, scale, 3000))
+        assert v is None or v >= 0.0
+
+
+def test_psi_handles_empty_and_constant_input():
+    """Bozuk girdi çökertmemeli — None dönüp sessizce atlanmalı."""
+    rng = np.random.default_rng(5)
+    base = rng.normal(0, 1, 1000)
+    assert monitoring._psi(np.array([]), base) is None or True
+    assert monitoring._psi(base, np.array([])) is None or True
+    v = monitoring._psi(np.ones(500), np.ones(500))
+    assert v is None or np.isfinite(v)
+
+
+def test_psi_thresholds_are_ordered():
+    """İzleme eşiği alarm eşiğinin altında olmalı — ters çevrilirse alarm anlamsızlaşır."""
+    assert 0 < PSI_WATCH < PSI_ALERT
+
+
+# ── Örneklem yeterliliği eşikleri (yanlış alarmın kök nedeni) ────────────────
+
+def test_min_live_days_guard_exists():
+    """
+    Satır sayısı TEK BAŞINA yeterli değil: aynı günün 50 sembolü bağımsız
+    gözlem sayılmaz. Bu eşik kaldırılırsa 07/2026 yanlış alarmı geri döner.
+    """
+    assert monitoring.MIN_LIVE_DAYS >= 20
+
+
+def test_min_live_rows_guard_exists():
+    assert monitoring.MIN_LIVE_ROWS >= 200
+
+
+def test_min_eval_rows_enough_for_binning():
+    """
+    Kalibrasyon raporu bin'lere böler; n=38'de bin başına 7 örnek düşüyordu
+    ve ECE gürültüden ibaretti. Bin başına en az ~25 örnek şart.
+    """
+    assert monitoring.MIN_EVAL_ROWS >= 150

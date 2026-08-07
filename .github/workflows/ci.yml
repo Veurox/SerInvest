@@ -1,0 +1,96 @@
+# =============================================================================
+# SerInvest — Sürekli Entegrasyon
+# docs/SAGLAMLIK_PLANI.md Katman 4.
+#
+# Kök neden K5: "hiçbir şey otomatik doğrulanmıyordu". Bir düzeltme başka bir
+# yeri sessizce bozduğunda bunu ancak haftalar sonra, canlıda fark ediyorduk.
+# Bu iş akışı her push ve PR'da matematiği ve tipleri sınar.
+#
+# Ağ/veri gerektiren şeyler burada ÇALIŞMAZ (yfinance, RabbitMQ, ml_data/).
+# Canlı veriye bakan kontroller `selftest.py` içinde, çalışan sistemde koşar.
+# =============================================================================
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python — testler
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-oracle-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'          # konteynerle aynı sürüm
+          cache: pip
+          cache-dependency-path: ai-oracle-service/requirements.txt
+
+      - name: Bağımlılıklar
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Testler (etiketleme, kalibrasyon, atomik yazım, olgunluk, kâğıt işlem)
+        run: python -m pytest
+
+      - name: İçe aktarma dumanı — modüller yüklenebiliyor mu
+        # Sözdizimi/import hatası canlıda konteyneri açılışta öldürür.
+        # Bu adım onu push anında yakalar.
+        run: |
+          python -c "import selftest, ml_live, admin_server, paper_trading, main"
+          python -c "import ml.labels, ml.calibration, ml.monitoring, ml.meta, ml.atomic"
+
+      - name: Veri dizini (konteynerdeki mutlak yol)
+        # ml/config.py yolları /app/models altında sabittir; runner'da bu yol
+        # yok. Boş oluşturuyoruz — "temiz kurulum" senaryosunu da sınamış oluruz.
+        run: sudo mkdir -p /app/models/ml_v3 && sudo chown -R "$USER" /app
+
+      - name: Değişmezler kendi kendine tutarlı mı
+        # Veri yokken selftest FAIL vermemeli — her kontrol kendi eksik-veri
+        # hâlini yönetebilmeli (aksi hâlde temiz kurulumda yanlış alarm çıkar).
+        # Doğrulandı (07.08.2026, boş dizinli konteyner): 2 PASS · 7 SKIP · 1 WARN.
+        run: |
+          python - <<'PY'
+          import selftest
+          out = selftest.run()
+          print(out["overall"], out["counts"])
+          for c in out["checks"]:
+              print(f"  {c['status']:4} {c['id']}: {c['detail'][:90]}")
+          assert out["overall"] != "FAIL", "veri yokken FAIL vermemeli"
+          PY
+
+  frontend:
+    name: Frontend — tipler
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Bağımlılıklar
+        run: npm ci
+
+      - name: Tip denetimi
+        run: npx tsc --noEmit -p tsconfig.app.json
+
+      - name: Derleme
+        run: npm run build
