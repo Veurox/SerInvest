@@ -163,8 +163,8 @@ Bundan sonra her değişiklikte:
 | **B1** ✅ | pytest iskeleti + `ml/labels`, `ml/calibration` testleri | orta | En kritik matematik kilitlenir |
 | **B2** ✅ | `monitoring`, `paper_trading`, `atomic`, `maturity` testleri | orta | Veri bütünlüğü kilitlenir |
 | **C1** ✅ | GitHub Actions: pytest + tsc + selftest | küçük | Regresyon push'ta yakalanır |
-| **D1** | `champion.joblib` sürümleme + geri alma | küçük | ML Test Score "rollback" maddesi |
-| **D2** | Kapsam zarfı uyarısı (I5) → syslog + UI | küçük | Model davranış kayması sessiz kalmaz |
+| **D1** ✅ | `champion.joblib` sürümleme + geri alma | küçük | ML Test Score "rollback" maddesi |
+| **D2** ✅ | Kapsam zarfı uyarısı (I5) → syslog + UI | küçük | Model davranış kayması sessiz kalmaz |
 
 **A1+A2+A3 tek oturumda bitebilir** ve tek başına örüntüyü kırar.
 
@@ -239,6 +239,44 @@ servis kapalıysa `DEFAULTS`). Elle yazılmış sabitler kaldırıldı:
 
 Boş `ml_data/` ile selftest çıktısı doğrulandı: **2 PASS · 7 SKIP · 1 WARN** —
 temiz kurulumda yanlış alarm yok.
+
+---
+
+## 8.3 Katman D — geri alınabilirlik (07.08.2026)
+
+**D1 · `ml/registry.py`.** `joblib.dump(model, CHAMPION_FILE)` şampiyonu
+**yedeksiz** üzerine yazıyordu. İki risk:
+
+1. *Geri dönüş yok.* Terfi eden rakip canlıda kötü çıkarsa eski şampiyon
+   kalıcı kayıp. 08/2026'da terfi terazisi bozukken sahte bir "şampiyon %73"
+   ölçümü vardı — o rakip terfi etseydi eskiye dönemezdik.
+2. *Yazım ortasında restart.* `joblib.dump` doğrudan hedefe yazar; yarım kalan
+   `.joblib` açılışta yüklenemez ve sistem **modelsiz** kalır — `ml/atomic.py`'nin
+   CSV/JSON için çözdüğü sorunun aynısı, ama modelde.
+
+Defter: `ml_v3/versions/<zaman>_<hash>/` + `versions/index.jsonl`, son 10 sürüm.
+`save_champion()` her yazımdan önce eskisini arşivler ve `dump_atomic` ile
+(geçici dosya → fsync → `os.replace`) takas eder. Açılışta `archive_current()`
+çağrılır: aynı hash iki kez arşivlenmediği için idempotanttır ve **temiz
+kurulumda bile daima bir dönüş noktası bulunur**.
+
+**Geri alma da geri alınabilir.** `rollback()` önce (a) hedef sürümün gerçekten
+yüklenebildiğini doğrular — bozuk arşiv canlıya alınmaz — sonra (b) mevcut
+şampiyonu arşivler, sonra (c) takas eder. Yanlış sürüme dönülse bile çıkış yolu
+vardır. `test_rollback_is_itself_reversible` bunu A→B→A→B ile sınar.
+
+Uç noktalar: `GET /admin/model-versions`, `POST /admin/model-rollback`
+(`version_id` + `confirm=true` zorunlu). Arayüz: Model sayfasında katlanır
+"Model sürümleri ve geri alma" paneli, iki adımlı onay.
+
+Canlıda doğrulandı: mevcut şampiyon (8 Tem 2026 eğitimi, 31.197 satır)
+`20260807-175904_618b12da5a26` olarak arşivlendi.
+
+**D2** Katman A ile birlikte tamamlandı: `I5` kapsam zarfı `WARN` üretir,
+`selftest.run()` bunu syslog'a yazar, `SelfTestPanel` gösterir ve `StatusBar`
+rozeti hangi sayfada olursan ol uyarır.
+
+**Toplam test: 112.**
 
 ---
 

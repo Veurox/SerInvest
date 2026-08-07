@@ -55,6 +55,7 @@ from ml.calibration import calibrate, expected_R, kelly_size, load_calibrator
 from ml.config import EV_FILTER, META_VETO_P, PROMOTE_WINDOWS
 import ml.meta as meta
 import ml.monitoring as monitoring
+import ml.registry as registry
 from ml.features import compute_features, fetch_context, xsec_rank_frame, xsec_rank_latest
 from ml.labels import clamp_atr_pct, triple_barrier_label
 from ml.model import feature_importance, train_model
@@ -155,7 +156,8 @@ def train_champion(rebuild_data: bool = False):
         send_syslog("[ml v3] Champion eğitilemedi (yetersiz/tek-sınıf veri).", "ERROR")
         return None
     ML_DIR.mkdir(parents=True, exist_ok=True)
-    joblib.dump(model, CHAMPION_FILE)
+    # Sürüm defteri: eskisini arşivle + atomik yaz (geri alınabilirlik, D1).
+    registry.save_champion(model, reason="yeniden eğitim")
     _write_meta(model, data)
     send_syslog(f"[ml v3] Champion eğitildi ve kaydedildi ({len(data):,} satır, 10g ufuk).", "SUCCESS")
     return model
@@ -1039,15 +1041,21 @@ def promote_if_better(test_window_days: int = 45) -> dict:
         # Rakibi TÜM veriyle yeniden eğit → yeni champion.
         new_champ = train_model(data[FEATURE_NAMES], data["label"].astype(int), enforce_min=True)
         if new_champ is not None:
-            joblib.dump(new_champ, CHAMPION_FILE)
+            # Terfi = şampiyonun değişmesi. Eski şampiyon ARŞİVLENİR: rakip
+            # canlıda kötü çıkarsa /admin/model-rollback ile geri dönülebilir.
+            archived = registry.save_champion(new_champ, reason="terfi")
             _write_meta(new_champ, data, extra={"promoted_from_challenger": True,
                                                 "challenger_oos_precision": round(pooled_prec, 4),
                                                 "windows_won": f"{wins}/{comparable}"})
             result["decision"] = "promoted"
+            if archived:
+                result["previous_version"] = archived["version_id"]
             send_syslog(
                 f"[ml v3] ✅ TERFİ (dürüst terazi): Rakip {wins}/{comparable} pencerede kazandı "
                 f"(şampiyonun görmediği {fresh_days} günlük veride), havuz precision "
-                f"{pooled_prec:.1%} (n={chal_total}) → yeni champion eğitildi.", "SUCCESS",
+                f"{pooled_prec:.1%} (n={chal_total}) → yeni champion eğitildi."
+                + (f" Eski şampiyon arşivlendi: {archived['version_id']}" if archived else ""),
+                "SUCCESS",
             )
         else:
             result.update(decision="kept", reason="yeni champion eğitilemedi")

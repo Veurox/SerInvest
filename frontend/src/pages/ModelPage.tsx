@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ADMIN, API, adminFetch } from '../lib/api'
 import { useConfig } from '../lib/useConfig'
 import { PageHeader, Icon } from '../components/ui'
-import { ModelStory, JobStatus, SelfTestPanel } from '../components/finance'
+import { ModelStory, JobStatus, SelfTestPanel, ModelVersions } from '../components/finance'
 import { useToast } from '../components/ui/Toast'
 import type { SysLog, TrainingInfo, AdminStatus } from '../lib/types'
 
@@ -202,6 +202,8 @@ export default function ModelPage() {
       <div style={{ marginBottom: 'var(--space-3)' }}>
         <SelfTestPanel />
       </div>
+
+      <ModelVersions />
 
       {/* ── 2b. ZAMANLANMIŞ İŞLER — "bugünkü değerlendirme yapıldı mı?" ──── */}
       <div style={{ marginBottom: 'var(--space-3)' }}>

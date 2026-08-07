@@ -229,6 +229,59 @@ def _admin_make_app():
         threading.Thread(target=_run, daemon=True).start()
         return jsonify({"ok": True, "message": "Korumalı şampiyon-rakip değerlendirmesi başlatıldı"})
 
+    # ── GET /admin/model-versions ─────────────────────────────────────────────
+    @app.get("/admin/model-versions")
+    def admin_model_versions():
+        """
+        Arşivlenmiş şampiyon sürümleri (D1). Her terfi/yeniden eğitim öncesi
+        eskisi arşivlenir; buradan hangi modele dönülebileceği görülür.
+        """
+        import ml.registry as registry
+        versions = registry.list_versions(limit=20)
+        current_hash = None
+        try:
+            if registry.CHAMPION_FILE.exists():
+                current_hash = registry._file_hash(registry.CHAMPION_FILE)
+        except Exception:
+            pass
+        return jsonify({
+            "versions": versions,
+            "current_hash": current_hash,
+            "keep": registry.KEEP_VERSIONS,
+        })
+
+    # ── POST /admin/model-rollback ────────────────────────────────────────────
+    @app.post("/admin/model-rollback")
+    def admin_model_rollback():
+        """
+        Arşivdeki bir sürümü canlıya alır.
+
+        Geri dönülemez bir işlem DEĞİLDİR: mevcut şampiyon önce arşivlenir.
+        Yine de canlı modeli değiştirdiği için `confirm=true` şarttır —
+        yanlışlıkla atılan bir istekle model değişmesin.
+        """
+        if _TRAINING_STATUS["running"]:
+            return jsonify({"error": "İşlem devam ediyor — bekleyin"}), 409
+
+        body = request.get_json(silent=True) or {}
+        version_id = (body.get("version_id") or request.args.get("version_id") or "").strip()
+        confirm    = body.get("confirm") is True or request.args.get("confirm") == "true"
+
+        if not version_id:
+            return jsonify({"error": "version_id gerekli"}), 400
+        if not confirm:
+            return jsonify({"error": "Onay gerekli — confirm=true gönderin"}), 400
+
+        import ml.registry as registry
+        res = registry.rollback(version_id)
+        if not res.get("ok"):
+            return jsonify({"error": res.get("error", "geri alınamadı")}), 400
+
+        _ADMIN_MODEL_HOLDER[0] = res["model"]
+        send_syslog(f"[Admin] ⏪ Model geri alındı → {version_id} (eski şampiyon arşivlendi).", "WARN")
+        return jsonify({"ok": True, "restored": version_id,
+                        "message": f"{version_id} sürümü canlıya alındı"})
+
     # ── POST /admin/reset-model ───────────────────────────────────────────────
     @app.post("/admin/reset-model")
     def admin_reset_model():

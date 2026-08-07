@@ -74,6 +74,12 @@ def main():
     if model_holder[0] is None:
         send_syslog("[UYARI] Champion eğitilemedi. Bir sonraki döngüde tekrar denenecek.", "ERROR")
 
+    # 0b. Sürüm defterine TEMEL kayıt (D1). Arşiv boşken terfi olursa geri
+    #     dönülecek nokta olmaz. archive_current aynı modeli iki kez almaz,
+    #     bu yüzden her açılışta çağrılması güvenlidir.
+    import ml.registry as registry
+    _safe(lambda: registry.archive_current("açılış — mevcut şampiyon"), "boot archive")
+
     # 1. İlk tarama (boot)
     send_syslog("İlk ml v3 analiz turu başlatılıyor (Boot Analysis)...", "INFO")
     ml_live.run_ml_cycle(model_holder)
