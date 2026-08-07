@@ -148,6 +148,44 @@ tazelenir. Test (2026-07-30): taze veri 22/30 gün → dürüstçe atlandı.
 - Özellikler trend-ağırlıklı (`above_ema200` %16) ama 10g ufukta kısa vadeli
   geri dönüş baskın olabilir → özellik/ufuk uyumu sorgulanmalı.
 
+## Kapsam Patlaması ve "%53 her yerde" (2026-08-07)
+
+Kullanıcı "AI öne çıkanlar hep %53, bir gariplik var" dedi. İnceleme sonuçları:
+
+**%53 hata DEĞİL.** Kalibratör doğrudan test edildi: 0.05→0.24, 0.15→0.30,
+0.25→0.45, 0.35→0.52, 0.42 üstü→0.5331 (düz). Tüm AL sinyalleri ham p ≥0.53
+olduğu için düz bölgeye düşüyor. Kalibratör doğru; düzlük veriden geliyor.
+
+**Düzeltilen 1 — kademe/güven çelişkisi.** "GÜÇLÜ ALIM" ham p ≥0.65'e bakıyordu;
+kalibrasyon o aralıkta ayrım olmadığını kanıtladığı için arayüzde
+"GÜÇLÜ ALIM %53" ile "NÖTR %53" yan yana çıkıyor, evrenin %88'i (44/50) "güçlü
+alım" etiketi taşıyordu. Kademe kalibre p'ye bağlandı → tümü dürüstçe "ALIM"
+(49 ALIM + 1 NÖTR). Kalibre p ayrışınca (meta-model) kademe kendiliğinden döner.
+
+**Düzeltilen 2 — log tarih bazı.** feature_log YEREL (TZ+03), predictions UTC
+tarih kullanıyordu; 00:00-03:00 TR arasında iki log farklı güne yazıyordu.
+Karşılaştırmayı bozuyor, drift monitörünün gün sayımını kaydırıyordu. UTC'de
+birleştirildi. (Piyasa bar tarihleri bilinçli olarak YEREL kalır.)
+
+**Asıl mesele — kapsam patlaması.** Canlıda AL kapsamı %98-100; walk-forward
+ortalaması %29, gördüğü en yüksek değer %79. Yani model **hiç doğrulanmadığı bir
+rejimde** çalışıyor. Kod hatası DEĞİL: bugünün loglanan ham özelliklerinden
+yeniden hesap, canlı tahminlerle 50/50 sembolde birebir aynı (fark −0.000).
+
+`ml/experiment_breadth.py` (çevrimdışı, canlıya dokunmaz) ile test edildi:
+- **Sızıntı hipotezi REDDEDİLDİ**: kapsam ile piyasa genişliği korelasyonu zayıf
+  (above_ema200 r=−0.20, ema_alignment r=+0.07). Model piyasa zamanlayıcı değil.
+- Kapsam 744 günde %0-%100 arası savruluyor (medyan %32; %90 üstü 58 gün,
+  %10 altı 196 gün) — seçicilik kararsız.
+- Kapsam-lift ilişkisi örneklem-İÇİNDE çok güçlü (+34.6p → +4.0p) ama
+  ÖRNEKLEM-DIŞI zayıf (+5.1p → +3.0p, r=−0.10). Yani in-sample tablo ezber.
+
+**Sonuç:** lift=0 bulgusu, kapsamın ~%100 olduğu bir dönemde ölçüldü — evrenin
+tamamını "seçersen" isabetin tabana eşit olmak ZORUNDA. Bu ölçüm modelin
+beceriksizliğini değil, o dönemde seçim yapmadığını gösteriyor. Gerçek OOS
+kenar ~+3-5 puan; küçük ama sıfır değil. Öncelik: kapsamı doğrulanmış aralığa
+(%20-35) geri getirmek — muhtemelen BUY_THRESHOLD'un rejime göre uyarlanması.
+
 ## Operasyonel Notlar
 
 - RabbitMQ host portları **5673/15673** (coeng-rabbitmq 5672'yi tuttuğu için; iç ağ 5672 değişmedi).

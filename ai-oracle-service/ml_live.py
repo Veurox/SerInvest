@@ -183,13 +183,21 @@ def _predict_p_up(model, feat: dict):
     return p, X
 
 
-def _rec_from_p(p: float) -> tuple[str, str]:
-    """P(yukarı) → (öneri, yön). Long-only: SELL yok."""
-    if p >= STRONG_BUY_P:
-        return "GÜÇLÜ ALIM", "BUY"
-    if p >= BUY_THRESHOLD:
-        return "ALIM", "BUY"
-    return "NÖTR", "NEUTRAL"
+def _rec_from_p(p: float, p_cal: float | None = None) -> tuple[str, str]:
+    """
+    P(yukarı) → (öneri, yön). Long-only: SELL yok.
+
+    AL/NÖTR kararı HAM p ile verilir — champion'ın doğrulanmış davranışı korunur.
+    Ama "GÜÇLÜ ALIM" kademesi KALİBRE p'ye bakar (08/2026 düzeltmesi):
+    eskiden ham p ≥ 0.65 idi; kalibrasyon o aralıkta ayrım OLMADIĞINI kanıtladığı
+    için arayüzde "GÜÇLÜ ALIM %53" ile "NÖTR %53" yan yana çıkıyordu ve evrenin
+    %88'i "güçlü alım" etiketi taşıyordu. Kalibre p ayrışmaya başlayınca
+    (meta-model) kademe kendiliğinden geri gelir.
+    """
+    if p < BUY_THRESHOLD:
+        return "NÖTR", "NEUTRAL"
+    strong_ref = p_cal if p_cal is not None else p
+    return ("GÜÇLÜ ALIM" if strong_ref >= STRONG_BUY_P else "ALIM"), "BUY"
 
 
 def _targets(close: float, atr_pct: float | None) -> tuple[float, float, float]:
@@ -309,11 +317,13 @@ def analyze_symbol(model, sym: str, yf_sym: str, snap: tuple,
     df, feat, close = snap
 
     p, X = _predict_p_up(model, model_feat if model_feat is not None else feat)
-    rec, rec_dir = _rec_from_p(p)
 
     # ── Faz 2: kalibre olasılık + beklenen değer (ATR birimi) ──────────────────
     p_cal = calibrate(p, cal)
     ev = expected_R(p_cal)
+
+    # Kademe kalibre p'ye bakar (kalibratör yoksa ham p'ye düşer)
+    rec, rec_dir = _rec_from_p(p, p_cal if cal is not None else None)
 
     # ── Rejim kapısı: düşen piyasada (XU100 < EMA200) yeni AL açılmaz ──────────
     gated = False
@@ -502,6 +512,8 @@ def run_ml_cycle(model_holder: list):
     paper_state    = paper_trading.load_state()
     paper_universe = set(paper_trading.get_universe())
     paper_mkt_open = paper_trading.is_market_open()
+    # YEREL tarih bilinçli: yfinance bar tarihleri borsa (TR) takvimindedir.
+    # Kayıt tarihleri (predictions/feature_log) ise UTC — ikisini karıştırma.
     today_str      = datetime.date.today().isoformat()
     paper_candidates: list[dict] = []   # AL adayları — döngü sonunda EV sırasıyla açılır
 

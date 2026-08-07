@@ -63,12 +63,15 @@ def log_features(raw_feats: dict) -> None:
     (aynı gün tekrar döngüde üzerine yazılır); FEATURE_LOG_MAX_DAYS kayan pencere.
     raw_feats: {sym: feat_dict} — fetch_snapshot'ın HAM çıktısı (rank ÖNCESİ).
     """
-    today = datetime.date.today().isoformat()
+    # UTC gün bazı — predictions.csv ile AYNI olmak ZORUNDA (08/2026 bulgusu:
+    # burası yerel (TZ+03), predictions UTC kullanıyordu; 00:00-03:00 TR arasında
+    # iki log FARKLI güne yazıyor, karşılaştırma ve gün sayımı bozuluyordu).
+    today = datetime.datetime.utcnow().date().isoformat()
     fields = ["date", "symbol"] + FEATURE_NAMES
 
     rows = []
     if FEATURE_LOG_FILE.exists():
-        cutoff = (datetime.date.today()
+        cutoff = (datetime.datetime.utcnow().date()
                   - datetime.timedelta(days=FEATURE_LOG_MAX_DAYS)).isoformat()
         with open(FEATURE_LOG_FILE, "r", encoding="utf-8") as f:
             rows = [r for r in csv.DictReader(f)
@@ -129,7 +132,7 @@ def compute_drift() -> dict:
             return report
 
         base = pd.read_csv(TRAIN_CACHE, usecols=lambda c: c in FEATURE_NAMES or c == "date")
-        cutoff = (datetime.date.today()
+        cutoff = (datetime.datetime.utcnow().date()   # UTC — feature_log ile aynı baz
                   - datetime.timedelta(days=DRIFT_WINDOW_DAYS)).isoformat()
         live = pd.read_csv(FEATURE_LOG_FILE)
         live = live[live["date"] >= cutoff]

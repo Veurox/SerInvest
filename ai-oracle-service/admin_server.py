@@ -562,7 +562,8 @@ def _admin_make_app():
             return jsonify({"days": [], "summary": {}, "horizon_days": EVAL_MIN_AGE_DAYS})
 
         try:
-            today = dt.date.today()
+            # UTC — predictions.csv zaman damgaları UTC (08/2026 baz birleştirme)
+            today = dt.datetime.utcnow().date()
             days: dict[str, dict] = {}
 
             with open(PREDICTION_LOG, "r", encoding="utf-8") as f:
