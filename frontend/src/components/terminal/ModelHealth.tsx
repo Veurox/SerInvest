@@ -4,6 +4,7 @@
 // =============================================================================
 import { useEffect, useState } from 'react'
 import { ADMIN, adminFetch } from '../../lib/api'
+import { useConfig } from '../../lib/useConfig'
 
 interface AdminStatus {
   model_loaded: boolean; model_age_hours: number | null
@@ -43,6 +44,7 @@ function driftProgress(d: DriftInfo): string {
 }
 
 export function ModelHealth() {
+  const cfg = useConfig()
   const [st, setSt] = useState<AdminStatus | null>(null)
   const [dr, setDr] = useState<DriftResp | null>(null)
 
@@ -100,7 +102,7 @@ export function ModelHealth() {
         </dl>
 
         <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border-subtle)', fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-          Öğrenme yalnızca korumalı promosyonla (Pazar 20:00, 3-pencere kuralı).
+          Öğrenme yalnızca korumalı promosyonla ({cfg.schedule.promote}, {cfg.promotion.windows}-pencere kuralı).
           Drift uyarısı otomatik retrain <b>tetiklemez</b>.
         </div>
       </div>

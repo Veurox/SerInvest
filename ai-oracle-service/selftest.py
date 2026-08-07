@@ -1,0 +1,392 @@
+"""
+SerInvest — Öz Denetim (Değişmezler)
+=====================================
+docs/SAGLAMLIK_PLANI.md Katman 1.
+
+NEDEN: 08/2026 denetiminde 23 kusurun 9'u "sessiz başarısızlık"tı — sistem hata
+vermiyor, sessizce yanlış davranıyordu (terfi terazisi bozuk olduğu için model
+bir ay donuk kaldı ve tek uyarı çıkmadı). Bu dosya, sistemde DOĞRU OLMASI
+GEREKEN ifadeleri çalıştırılabilir hale getirir.
+
+Her değişmez şunu döndürür:
+    {"id", "title", "status": PASS|WARN|FAIL|SKIP, "detail"}
+
+SKIP = henüz veri yok (hata değil). WARN = incelenmeli. FAIL = bozuk.
+
+Çalıştırma:
+    docker compose exec ai-oracle-service python -m selftest
+    GET /admin/selftest        (arayüzde görünür)
+    main.py boot'ta otomatik
+"""
+import csv
+import datetime
+import json
+import re
+from collections import Counter
+
+import numpy as np
+
+from ml.config import (
+    CALIB_REPORT_FILE,
+    DRIFT_REPORT_FILE,
+    JOB_OVERDUE_HOURS,
+    META_FILE,
+    ML_DIR,
+    PREDICTION_LOG,
+    PROMOTION_LOG,
+    FEATURE_LOG_FILE,
+    SELFTEST_FILE,
+    SELFTEST_SKEW_TOL,
+    STRONG_BUY_P,
+)
+
+TRADES_FILE = ML_DIR.parent / "paper_trades.csv"
+
+
+# ── Yardımcılar ──────────────────────────────────────────────────────────────
+def _ok(i, t, d=""):   return {"id": i, "title": t, "status": "PASS", "detail": d}
+def _warn(i, t, d):    return {"id": i, "title": t, "status": "WARN", "detail": d}
+def _fail(i, t, d):    return {"id": i, "title": t, "status": "FAIL", "detail": d}
+def _skip(i, t, d):    return {"id": i, "title": t, "status": "SKIP", "detail": d}
+
+
+def _read_csv(path) -> list[dict]:
+    if not path.exists():
+        return []
+    with open(path, "r", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def _json(path) -> dict:
+    try:
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except Exception:
+        return {}
+
+
+def _age_h(iso: str | None, now: datetime.datetime) -> float | None:
+    if not iso:
+        return None
+    try:
+        return max(0.0, (now - datetime.datetime.fromisoformat(
+            iso.replace("Z", "").strip())).total_seconds() / 3600.0)
+    except Exception:
+        return None
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  DEĞİŞMEZLER
+# ═════════════════════════════════════════════════════════════════════════════
+
+def i1_date_basis(now) -> dict:
+    """Loglar UTC gün bazında olmalı. Yerel (TZ+03) kullanılırsa gece yarısı
+    sonrası tarih UTC bugünü aşar → iki log farklı güne yazar (08/2026 hatası)."""
+    t = "I1 · Log tarih bazı (UTC)"
+    today = now.date().isoformat()
+    bad = []
+    for name, rows, key in (("predictions", _read_csv(PREDICTION_LOG), "timestamp"),
+                            ("feature_log", _read_csv(FEATURE_LOG_FILE), "date")):
+        if not rows:
+            continue
+        mx = max((r.get(key) or "")[:10] for r in rows)
+        if mx > today:
+            bad.append(f"{name} en yeni gün {mx} > UTC bugün {today}")
+    if not bad:
+        return _ok(t.split(" · ")[0], t, f"her iki log UTC bazında (bugün {today})")
+    return _fail("I1", t, "; ".join(bad))
+
+
+def i2_train_serve_skew(now) -> dict:
+    """Loglanan ham özelliklerden yeniden hesaplanan p, kayıtlı p_up ile
+    eşleşmeli. Eşleşmezse canlı çıkarım yolu eğitim yolundan sapmış demektir."""
+    t = "I2 · Eğitim/canlı tutarlılığı (train-serve skew)"
+    fl = _read_csv(FEATURE_LOG_FILE)
+    pr = _read_csv(PREDICTION_LOG)
+    if not fl or not pr:
+        return _skip("I2", t, "log henüz yok")
+    try:
+        import pandas as pd
+        import ml_live
+        from ml.features import xsec_rank_latest
+        from ml.config import FEATURE_NAMES, XSEC_RANK
+
+        model = ml_live.load_champion()
+        if model is None:
+            return _skip("I2", t, "champion yüklü değil")
+
+        day = max(r["date"] for r in fl)
+        feats = {r["symbol"]: {k: (float(r[k]) if r.get(k) not in (None, "") else np.nan)
+                               for k in FEATURE_NAMES}
+                 for r in fl if r["date"] == day}
+        live = {r["symbol"]: float(r["p_up"]) for r in pr
+                if (r.get("timestamp") or "")[:10] == day and r.get("p_up")}
+        common = sorted(set(feats) & set(live))
+        if len(common) < 5:
+            return _skip("I2", t, f"{day} için ortak sembol yetersiz ({len(common)})")
+
+        use = xsec_rank_latest({s: feats[s] for s in common}) if XSEC_RANK \
+            else {s: feats[s] for s in common}
+        X = pd.DataFrame([[use[s].get(c, 0.0) for c in FEATURE_NAMES] for s in common],
+                         columns=FEATURE_NAMES)
+        recomputed = model.predict_proba(X)[:, 1]
+        diffs = [abs(float(rp) - live[s]) for s, rp in zip(common, recomputed)]
+        worst = max(diffs)
+        if worst <= SELFTEST_SKEW_TOL:
+            return _ok("I2", t, f"{day}: {len(common)} sembol, maks fark {worst:.4f}")
+        n_bad = sum(1 for d in diffs if d > SELFTEST_SKEW_TOL)
+        return _fail("I2", t,
+                     f"{day}: {n_bad}/{len(common)} sembolde sapma, maks {worst:.4f} "
+                     f"(tolerans {SELFTEST_SKEW_TOL})")
+    except Exception as e:
+        return _warn("I2", t, f"kontrol edilemedi: {e}")
+
+
+def i3_tier_matches_confidence(now) -> dict:
+    """"GÜÇLÜ" etiketi kalibre güvenle çelişemez. 08/2026'da arayüzde
+    "GÜÇLÜ ALIM %53" ile "NÖTR %53" yan yana çıkıyordu."""
+    t = "I3 · Kademe ↔ güven tutarlılığı"
+    rows = _read_csv(PREDICTION_LOG)
+    if not rows:
+        return _skip("I3", t, "tahmin logu yok")
+    today = now.date().isoformat()
+    todays = [r for r in rows if (r.get("timestamp") or "")[:10] == today]
+    if not todays:
+        return _skip("I3", t, "bugüne ait tahmin yok")
+    bad = []
+    for r in todays:
+        if "GÜÇLÜ" in (r.get("rec") or ""):
+            try:
+                pc = float(r.get("p_cal") or 0)
+            except Exception:
+                continue
+            if pc < STRONG_BUY_P:
+                bad.append(f"{r.get('symbol')}({pc:.3f})")
+    if not bad:
+        return _ok("I3", t, f"{len(todays)} tahmin tutarlı (eşik {STRONG_BUY_P})")
+    return _fail("I3", t, f"{len(bad)} çelişki: {', '.join(bad[:5])}")
+
+
+def i4_thresholds_from_config(now) -> dict:
+    """Arayüzün gösterdiği eşikler raporda BULUNMALI — yoksa arayüz elle
+    yazmak zorunda kalır (08/2026: "77/30", "600/200" hataları)."""
+    t = "I4 · Eşikler config'ten yayınlanıyor"
+    d, c = _json(DRIFT_REPORT_FILE), _json(CALIB_REPORT_FILE)
+    missing = []
+    if d and ("min_rows" not in d or "min_days" not in d):
+        missing.append("drift_report.min_rows/min_days")
+    if c and "min_required" not in c:
+        missing.append("calibration_report.min_required")
+    if not d and not c:
+        return _skip("I4", t, "rapor henüz üretilmedi")
+    if not missing:
+        return _ok("I4", t, "drift ve kalibrasyon raporları eşiklerini yayınlıyor")
+    return _fail("I4", t, "eksik alan: " + ", ".join(missing))
+
+
+def i5_coverage_envelope(now) -> dict:
+    """Canlı AL kapsamı, walk-forward'da GÖRÜLMÜŞ aralıkta olmalı. Dışındaysa
+    model hiç doğrulanmadığı bir rejimde çalışıyor demektir."""
+    t = "I5 · AL kapsamı doğrulanmış zarfta"
+    rows = _read_csv(PREDICTION_LOG)
+    wf = _json(ML_DIR / "validation_summary.json")
+    steps = wf.get("steps") or []
+    if not rows or not steps:
+        return _skip("I5", t, "tahmin veya doğrulama verisi yok")
+    day = max((r.get("timestamp") or "")[:10] for r in rows)
+    todays = [r for r in rows if (r.get("timestamp") or "")[:10] == day]
+    if not todays:
+        return _skip("I5", t, "gün seçilemedi")
+    cov = sum(1 for r in todays if r.get("rec_dir") == "BUY") / len(todays)
+    covs = [s["buy_signals"] / s["n_test"] for s in steps
+            if s.get("n_test") and s.get("buy_signals") is not None]
+    if not covs:
+        return _skip("I5", t, "fold kapsamı hesaplanamadı")
+    lo, hi = min(covs), max(covs)
+    if lo <= cov <= hi:
+        return _ok("I5", t, f"{day}: kapsam %{cov*100:.0f} (zarf %{lo*100:.0f}-%{hi*100:.0f})")
+    return _warn("I5", t,
+                 f"{day}: kapsam %{cov*100:.0f}, doğrulanmış zarf %{lo*100:.0f}-%{hi*100:.0f} "
+                 f"DIŞINDA — model hiç sınanmadığı bir rejimde")
+
+
+def i6_calibrator_sane(now) -> dict:
+    """Kalibratör monoton ve [0,1] sınırlı olmalı."""
+    t = "I6 · Kalibratör tutarlı (monoton, sınırlı)"
+    try:
+        from ml.calibration import calibrate, load_calibrator
+        cal = load_calibrator()
+        if cal is None:
+            return _skip("I6", t, "kalibratör yok (kimlik fallback)")
+        grid = [i / 20 for i in range(21)]
+        vals = [calibrate(p, cal) for p in grid]
+        if any(v < 0 or v > 1 for v in vals):
+            return _fail("I6", t, "değerler [0,1] dışında")
+        drops = [(grid[i], vals[i - 1], vals[i]) for i in range(1, len(vals))
+                 if vals[i] < vals[i - 1] - 1e-9]
+        if drops:
+            return _fail("I6", t, f"monoton değil ({len(drops)} düşüş)")
+        return _ok("I6", t, f"monoton, aralık {min(vals):.3f}-{max(vals):.3f}")
+    except Exception as e:
+        return _warn("I6", t, f"kontrol edilemedi: {e}")
+
+
+def i7_prediction_schema(now) -> dict:
+    """predictions.csv şeması geçerli olmalı. 08/2026'da atomik olmayan yazım
+    yüzünden bir satırın timestamp'i "-07-08T19:..." şeklinde bozulmuştu."""
+    t = "I7 · Tahmin logu şeması"
+    rows = _read_csv(PREDICTION_LOG)
+    if not rows:
+        return _skip("I7", t, "log yok")
+    need = {"timestamp", "symbol", "p_up", "rec", "rec_dir", "close"}
+    missing = need - set(rows[0].keys())
+    if missing:
+        return _fail("I7", t, f"eksik kolon: {sorted(missing)}")
+    bad_ts = [r.get("symbol") for r in rows
+              if not re.match(r"^20\d\d-\d\d-\d\d", (r.get("timestamp") or ""))]
+    if bad_ts:
+        return _fail("I7", t, f"{len(bad_ts)} bozuk timestamp (ör. {bad_ts[:3]})")
+    return _ok("I7", t, f"{len(rows)} satır, kolonlar ve zaman damgaları geçerli")
+
+
+def i8_no_duplicates(now) -> dict:
+    """Gün başına sembol tekil; kapanan işlem tekil olmalı."""
+    t = "I8 · Mükerrer kayıt yok"
+    issues = []
+    pr = _read_csv(PREDICTION_LOG)
+    if pr:
+        c = Counter((r.get("symbol"), (r.get("timestamp") or "")[:10]) for r in pr)
+        d = [k for k, v in c.items() if v > 1]
+        if d:
+            issues.append(f"predictions: {len(d)} mükerrer (sembol,gün)")
+    fl = _read_csv(FEATURE_LOG_FILE)
+    if fl:
+        c = Counter((r.get("symbol"), r.get("date")) for r in fl)
+        d = [k for k, v in c.items() if v > 1]
+        if d:
+            issues.append(f"feature_log: {len(d)} mükerrer (sembol,gün)")
+    tr = _read_csv(TRADES_FILE)
+    if tr:
+        c = Counter((r.get("entry_date", "")[:19], r.get("symbol"), r.get("exit_date", "")[:19])
+                    for r in tr)
+        d = [k for k, v in c.items() if v > 1]
+        if d:
+            issues.append(f"paper_trades: {len(d)} mükerrer işlem")
+    if not issues:
+        return _ok("I8", t, "predictions, feature_log ve paper_trades temiz")
+    return _fail("I8", t, "; ".join(issues))
+
+
+def i9_promotion_balance(now) -> dict:
+    """Terfi karşılaştırması şampiyonun GÖRMEDİĞİ tarihlerde yapılmalı.
+    08/2026'da pencereler eğitim aralığının içindeydi → rakip yapısal olarak
+    kazanamıyor, öğrenme döngüsü kapalı kalıyordu."""
+    t = "I9 · Terfi terazisi dürüst (out-of-sample)"
+    if not PROMOTION_LOG.exists():
+        return _skip("I9", t, "terfi günlüğü yok")
+    last = None
+    for line in PROMOTION_LOG.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line:
+            try:
+                last = json.loads(line)
+            except Exception:
+                pass
+    if not last:
+        return _skip("I9", t, "kayıt okunamadı")
+    if last.get("balance") != "honest_oos":
+        return _fail("I9", t, "son terfi kontrolü ESKİ (in-sample) teraziyle yapılmış")
+    cutoff = (_json(META_FILE) or {}).get("date_max")
+    for w in (last.get("windows") or []):
+        start = (w.get("window") or "").split("→")[0]
+        if cutoff and start and start < cutoff:
+            return _fail("I9", t, f"pencere {start} şampiyon kesimi {cutoff} ÖNCESİNDE")
+    return _ok("I9", t, f"dürüst terazi (şampiyon kesimi {cutoff}, "
+                        f"taze veri {last.get('fresh_days','?')} gün)")
+
+
+def i10_jobs_not_overdue(now) -> dict:
+    """Zamanlanmış işler gecikmemeli. schedule kaçan işi telafi etmez —
+    bilgisayar kapalıysa iş sessizce atlanır."""
+    t = "I10 · Zamanlanmış işler güncel"
+    stats = _json(ML_DIR / "live_accuracy.json")
+    drift = _json(DRIFT_REPORT_FILE)
+    last_promote = None
+    if PROMOTION_LOG.exists():
+        for line in PROMOTION_LOG.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                try:
+                    last_promote = json.loads(line).get("checked_at") or last_promote
+                except Exception:
+                    pass
+    pr = _read_csv(PREDICTION_LOG)
+    last_analyze = max((r.get("timestamp") or "" for r in pr), default=None)
+
+    late = []
+    for key, iso in (("analyze", last_analyze), ("evaluate", stats.get("last_eval")),
+                     ("health", drift.get("computed_at")), ("promote", last_promote)):
+        age = _age_h(iso, now)
+        lim = JOB_OVERDUE_HOURS[key]
+        if age is None:
+            late.append(f"{key}: hiç çalışmamış")
+        elif age > lim:
+            late.append(f"{key}: {age/24:.1f} gün ({lim/24:.0f} gün sınırı)")
+    if not late:
+        return _ok("I10", t, "dört işin dördü de güncel")
+    return _warn("I10", t, "; ".join(late))
+
+
+CHECKS = [i1_date_basis, i2_train_serve_skew, i3_tier_matches_confidence,
+          i4_thresholds_from_config, i5_coverage_envelope, i6_calibrator_sane,
+          i7_prediction_schema, i8_no_duplicates, i9_promotion_balance,
+          i10_jobs_not_overdue]
+
+
+def run(send_syslog=None) -> dict:
+    """Tüm değişmezleri çalıştırır, sonucu diske yazar ve döndürür."""
+    now = datetime.datetime.utcnow()
+    results = []
+    for fn in CHECKS:
+        try:
+            results.append(fn(now))
+        except Exception as e:      # bir kontrol patlarsa diğerleri sürsün
+            results.append(_warn(fn.__name__, fn.__name__, f"kontrol hatası: {e}"))
+
+    counts = Counter(r["status"] for r in results)
+    overall = "FAIL" if counts["FAIL"] else "WARN" if counts["WARN"] else "PASS"
+    out = {
+        "computed_at": now.isoformat(),
+        "overall": overall,
+        "counts": dict(counts),
+        "checks": results,
+    }
+    try:
+        import ml.atomic as atomic
+        atomic.write_json(SELFTEST_FILE, out)
+    except Exception:
+        pass
+
+    if send_syslog:
+        try:
+            if overall == "FAIL":
+                bad = [r["id"] for r in results if r["status"] == "FAIL"]
+                send_syslog(f"[öz denetim] ✗ {len(bad)} DEĞİŞMEZ İHLALİ: {', '.join(bad)}", "ERROR")
+            elif overall == "WARN":
+                w = [r["id"] for r in results if r["status"] == "WARN"]
+                send_syslog(f"[öz denetim] ⚠ {len(w)} uyarı: {', '.join(w)}", "WARN")
+            else:
+                send_syslog(f"[öz denetim] ✓ {counts['PASS']} değişmez geçti.", "SUCCESS")
+        except Exception:
+            pass
+    return out
+
+
+if __name__ == "__main__":
+    r = run()
+    icon = {"PASS": "✓", "WARN": "⚠", "FAIL": "✗", "SKIP": "–"}
+    print("=" * 72)
+    print(f"ÖZ DENETİM — genel: {r['overall']}   {r['counts']}")
+    print("=" * 72)
+    for c in r["checks"]:
+        print(f"  {icon.get(c['status'],'?')} {c['title']}")
+        print(f"      {c['detail']}")
+    raise SystemExit(1 if r["overall"] == "FAIL" else 0)

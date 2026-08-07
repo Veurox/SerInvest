@@ -356,6 +356,68 @@ def _admin_make_app():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    # ── GET /admin/selftest ───────────────────────────────────────────────────
+    @app.get("/admin/selftest")
+    def admin_selftest():
+        """
+        Öz denetim — sistemdeki DEĞİŞMEZLER (docs/SAGLAMLIK_PLANI.md Katman 1).
+        Önbellekten okur; ?run=1 ile yeniden çalıştırır (~1-2 sn).
+        """
+        from ml.config import SELFTEST_FILE
+        if request.args.get("run") == "1":
+            import selftest
+            return jsonify(selftest.run())
+        cached = _load_json(SELFTEST_FILE)
+        if not cached:
+            import selftest
+            return jsonify(selftest.run())
+        return jsonify(cached)
+
+    # ── GET /admin/config ─────────────────────────────────────────────────────
+    @app.get("/admin/config")
+    def admin_config():
+        """
+        Arayüzün ihtiyaç duyduğu eşiklerin TEK KAYNAĞI.
+        Arayüzde elle yazılmış sayı YASAK (08/2026: "77/30" ve "600/200"
+        hataları, backend eşiği değişince güncellenmeyen sabitlerden doğdu).
+        """
+        from ml.config import (
+            BUY_THRESHOLD, EVAL_MIN_AGE_DAYS, HORIZON, JOB_OVERDUE_HOURS,
+            KELLY_FRACTION, META_MIN_AUC, META_VETO_P, MIN_META_SAMPLES,
+            PROMOTE_MIN_EDGE, PROMOTE_MIN_FRESH_DAYS, PROMOTE_MIN_PRECISION,
+            PROMOTE_MIN_SAMPLES, PROMOTE_WINDOWS, PSI_ALERT, PSI_WATCH,
+            SL_ATR_MULT, STRONG_BUY_P, TP_ATR_MULT, TRANSACTION_COST_PCT,
+        )
+        from config import CYCLE_MIN
+        import ml.monitoring as monitoring
+        return jsonify({
+            "model": {
+                "horizon_days": HORIZON, "buy_threshold": BUY_THRESHOLD,
+                "strong_buy_p": STRONG_BUY_P,
+                "tp_atr_mult": TP_ATR_MULT, "sl_atr_mult": SL_ATR_MULT,
+                "transaction_cost_pct": TRANSACTION_COST_PCT,
+                "kelly_fraction": KELLY_FRACTION,
+            },
+            "evaluation": {"min_age_days": EVAL_MIN_AGE_DAYS},
+            "drift":      {"min_rows": monitoring.MIN_LIVE_ROWS,
+                           "min_days": monitoring.MIN_LIVE_DAYS,
+                           "psi_watch": PSI_WATCH, "psi_alert": PSI_ALERT},
+            "calibration": {"min_required": monitoring.MIN_EVAL_ROWS},
+            "meta":       {"min_samples": MIN_META_SAMPLES,
+                           "min_auc": META_MIN_AUC, "veto_p": META_VETO_P},
+            "promotion":  {"min_edge": PROMOTE_MIN_EDGE,
+                           "min_samples": PROMOTE_MIN_SAMPLES,
+                           "min_precision": PROMOTE_MIN_PRECISION,
+                           "min_fresh_days": PROMOTE_MIN_FRESH_DAYS,
+                           "windows": PROMOTE_WINDOWS},
+            "jobs":       {"overdue_hours": JOB_OVERDUE_HOURS},
+            # Arayüzdeki "Pazar 20:00", "her 30 dk" gibi ifadeler buradan gelsin —
+            # main.py'deki schedule değişince metin yalan söylemesin.
+            "schedule":   {"cycle_min": CYCLE_MIN, "close_scan": "18:10",
+                           "evaluate": "19:00", "health": "19:20",
+                           "selftest": "19:25", "promote": "Pazar 20:00"},
+        })
+
     # ── GET /admin/jobs ───────────────────────────────────────────────────────
     @app.get("/admin/jobs")
     def admin_jobs():
@@ -369,7 +431,8 @@ def _admin_make_app():
         """
         import csv as csv_mod
         import datetime as dt
-        from ml.config import CALIBRATOR_META_FILE, DRIFT_REPORT_FILE, PROMOTION_LOG
+        from ml.config import (CALIBRATOR_META_FILE, DRIFT_REPORT_FILE,
+                               JOB_OVERDUE_HOURS, PROMOTION_LOG)
 
         now = dt.datetime.utcnow()
 
@@ -416,17 +479,19 @@ def _admin_make_app():
 
         # (id, ad, zamanlama, son çalışma, gecikme eşiği [saat], telafi, açıklama)
         specs = [
+            # Gecikme eşikleri ml/config.JOB_OVERDUE_HOURS'tan — selftest I10 ile
+            # AYNI kaynak. Elle yazılan eşik = 08/2026 "77/30" hatasının sınıfı.
             ("analyze",  "Piyasa taraması", "her 30 dakika",
-             last_analyze, 4, True,
+             last_analyze, JOB_OVERDUE_HOURS["analyze"], True,
              "Tüm sembolleri tarar, tahmin üretir"),
             ("evaluate", "Günlük değerlendirme", "her gün 19:00",
-             stats.get("last_eval"), 36, True,
+             stats.get("last_eval"), JOB_OVERDUE_HOURS["evaluate"], True,
              "Olgunlaşan tahminlerin sonucunu hesaplar (10 işlem günü sonra)"),
             ("health",   "Sağlık kontrolü", "her gün 19:20",
-             drift.get("computed_at"), 36, True,
+             drift.get("computed_at"), JOB_OVERDUE_HOURS["health"], True,
              "Veri kayması (PSI) + kalibrasyon sapması ölçümü"),
             ("promote",  "Haftalık eğitim (terfi)", "her Pazar 20:00",
-             last_promote, 8 * 24, True,
+             last_promote, JOB_OVERDUE_HOURS["promote"], True,
              "Rakip model eğitilir; şampiyonu geçerse yerine geçer"),
             ("validate", "Doğrulama + kalibrasyon", "elle",
              wf.get("computed_at") or cal.get("fitted_at"), None, False,

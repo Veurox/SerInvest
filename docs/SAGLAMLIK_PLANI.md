@@ -157,9 +157,9 @@ Bundan sonra her değişiklikte:
 
 | Adım | İş | Süre | Kazanım |
 |---|---|---|---|
-| **A1** | `selftest.py` + I1–I10 değişmezleri | orta | Bu oturumdaki 9 sessiz hatanın 7'si otomatik yakalanır |
-| **A2** | `GET /admin/selftest` + StatusBar/Model sayfasında görünürlük | küçük | Sorunlar **sen fark etmeden önce** görünür |
-| **A3** | `GET /admin/config` + arayüzdeki elle yazılmış sabitlerin temizliği | küçük | K2 kökten biter |
+| **A1** ✅ | `selftest.py` + I1–I10 değişmezleri | orta | Bu oturumdaki 9 sessiz hatanın 7'si otomatik yakalanır |
+| **A2** ✅ | `GET /admin/selftest` + StatusBar/Model sayfasında görünürlük | küçük | Sorunlar **sen fark etmeden önce** görünür |
+| **A3** ✅ | `GET /admin/config` + arayüzdeki elle yazılmış sabitlerin temizliği | küçük | K2 kökten biter |
 | **B1** | pytest iskeleti + `ml/labels`, `ml/calibration` testleri | orta | En kritik matematik kilitlenir |
 | **B2** | `monitoring`, `paper_trading`, `atomic`, `maturity` testleri | orta | Veri bütünlüğü kilitlenir |
 | **C1** | GitHub Actions: pytest + tsc + selftest | küçük | Regresyon push'ta yakalanır |
@@ -167,6 +167,42 @@ Bundan sonra her değişiklikte:
 | **D2** | Kapsam zarfı uyarısı (I5) → syslog + UI | küçük | Model davranış kayması sessiz kalmaz |
 
 **A1+A2+A3 tek oturumda bitebilir** ve tek başına örüntüyü kırar.
+
+---
+
+## 8.1 Katman A — uygulama sonucu (07.08.2026)
+
+**A1 · `ai-oracle-service/selftest.py`** — I1–I10 değişmezleri. Her açılışta ve
+her gün 19:25'te çalışır; sonucu `ml_data/selftest.json`'a atomik yazar.
+
+İlk çalıştırma **gerçek bir hata buldu**: `I8 · Mükerrer kayıt yok` →
+predictions.csv'de ZOREN 2026-07-09 iki kez, aynı zaman damgasıyla.
+
+> **Kök neden.** `_log_prediction` tüm dosyayı oku-değiştir-yaz yapıyordu ve
+> **kilit yoktu**. `/admin/analyze-now` döngüyü ayrı bir thread'de başlatıyor;
+> zamanlanmış döngüyle çakışınca iki thread aynı dosyayı okuyup üzerine yazdı.
+> Bu, "İsabet oranı" paydasını sessizce şişiren bir hataydı.
+>
+> **Düzeltme.** `ml_live.py`: `_LOG_LOCK` (RLock, yazımlar) + `_CYCLE_LOCK`
+> (aynı anda tek analiz döngüsü; ikinci çağrı bekletilmez, atlanır).
+> Ayrıca `_log_prediction_locked` ve `ml/meta.py::_log_meta_row_locked` artık
+> **kendi kendini onarır**: yazarken `(sembol, gün)` tekrarını düşürür.
+> Sonraki döngüde I8 kendiliğinden PASS'e döndü.
+
+**A2 · Görünürlük** — `GET /admin/selftest` (önbellekli, `?run=1` yeniden çalıştırır).
+`SelfTestPanel` Model sayfasında 10 değişmezi tek tek gösterir; `StatusBar`'a
+yalnızca **ihlal/uyarı varsa** çıkan bir rozet eklendi (temizken şeridi meşgul etmez).
+
+**A3 · Tek kaynak** — `GET /admin/config` bütün eşikleri yayınlar
+(model, değerlendirme, drift, kalibrasyon, meta, terfi, işler, **zamanlama**).
+Arayüzde `lib/useConfig.ts` (modül düzeyi önbellek, tek istek, kısmi birleştirme,
+servis kapalıysa `DEFAULTS`). Elle yazılmış sabitler kaldırıldı:
+`ModelStory` (tarama/değerlendirme saati, terfi penceresi),
+`TerminalChart` (TP/SL çarpanları, ufuk), `ModelHealth` ve `ModelPage`
+(terfi günü + pencere sayısı).
+
+**Katman A sonrası durum:** 9 PASS · 1 WARN (`I5` kapsam zarfı — bilinen,
+§ "Kapsam Patlaması"nda bilerek ertelendi) · 0 FAIL.
 
 ---
 

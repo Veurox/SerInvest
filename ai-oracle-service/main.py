@@ -92,6 +92,12 @@ def main():
     threading.Thread(target=lambda: _safe(ml_live.promotion_catchup, "boot promote"),
                      daemon=True).start()
 
+    # 1b3. ÖZ DENETİM — değişmezler (docs/SAGLAMLIK_PLANI.md Katman 1).
+    #      Sessiz başarısızlıkları yakalar: train/serve sapması, tarih bazı,
+    #      kademe-güven çelişkisi, mükerrer kayıt, kapsam zarfı, terfi terazisi.
+    import selftest
+    _safe(lambda: selftest.run(send_syslog=send_syslog), "boot selftest")
+
     # 1c. Faz 4 sağlık kontrolü — BOOT CATCH-UP (07/2026 bulgusu).
     #     schedule 19:20'de tetikler ama bilgisayar o saatte kapalıysa veya konteyner
     #     sonra başlarsa o gün HİÇ çalışmıyordu → drift_report 15 gün bayat kalmıştı.
@@ -115,6 +121,9 @@ def main():
     #     Değerlendirmeden SONRA (19:20) — taze eval verisiyle çalışsın.
     #     (Boot'ta da bir kez çalışır — yukarıda 1c; kaçan günler bayat kalmasın.)
     schedule.every().day.at("19:20").do(monitoring.run_daily_checks, send_syslog=send_syslog)
+
+    # 4c. Öz denetim — sağlık kontrolünden sonra (taze raporlarla sınasın)
+    schedule.every().day.at("19:25").do(selftest.run, send_syslog=send_syslog)
 
     # 5. KORUMALI öğrenme — haftada bir şampiyon-rakip. Körü körüne retrain YOK:
     #    rakip yalnız bağımsız pencerede şampiyonu net geçerse terfi eder.

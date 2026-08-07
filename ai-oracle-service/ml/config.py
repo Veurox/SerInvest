@@ -114,6 +114,22 @@ PROMOTE_WINDOWS = 3         # bağımsız test penceresi sayısı (her biri test
 PROMOTE_MIN_FRESH_DAYS = 30   # şampiyon kesiminden sonra gereken asgari takvim günü
 PROMOTE_MIN_WINDOW_DAYS = 20  # bir test penceresinin asgari uzunluğu
 
+# ── Zamanlanmış İş Gecikme Eşikleri (saat) ──────────────────────────────────
+# TEK KAYNAK: /admin/jobs, selftest ve arayüz aynı buradan okur. Elle yazılan
+# eşik = 08/2026'daki "77/30" ve "600/200" hatalarının kaynağıydı.
+JOB_OVERDUE_HOURS = {
+    "analyze":  4,        # piyasa taraması — 30 dk'da bir
+    "evaluate": 36,       # günlük değerlendirme — 19:00
+    "health":   36,       # sağlık kontrolü — 19:20
+    "promote":  8 * 24,   # haftalık terfi — Pazar 20:00
+}
+
+# ── Öz Denetim (selftest) ────────────────────────────────────────────────────
+SELFTEST_FILE = ML_DIR / "selftest.json"
+# I2 train/serve skew toleransı: aynı özelliklerden yeniden hesaplanan p ile
+# kayıtlı p arasındaki kabul edilebilir maksimum fark.
+SELFTEST_SKEW_TOL = 0.01
+
 # ── Tek Model — LightGBM (SABİT hiperparametre + seed = kararlılık) ───────────
 # Rastgelelik tutarsızlık kaynağıdır → seed sabit, hiçbir auto-tuning yok.
 RANDOM_SEED = 42

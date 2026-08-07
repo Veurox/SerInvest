@@ -9,6 +9,7 @@ import {
   CartesianGrid, Tooltip, ReferenceLine,
 } from 'recharts'
 import { API } from '../../lib/api'
+import { useConfig } from '../../lib/useConfig'
 import type { OracleAnalysis } from '../../lib/types'
 
 interface ChartPoint { t: number; c: number }
@@ -27,6 +28,7 @@ const px = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFra
 const dt = (t: number) => new Date(t).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })
 
 export function TerminalChart({ symbol, analysis }: Props) {
+  const cfg = useConfig()
   const [tf, setTf] = useState<TF>('3M')
   const [points, setPoints] = useState<ChartPoint[]>([])
   const [loading, setLoading] = useState(false)
@@ -165,9 +167,9 @@ export function TerminalChart({ symbol, analysis }: Props) {
       <div style={{ padding: '5px 10px', borderTop: '1px solid var(--border-subtle)',
                     fontSize: 10, color: 'var(--text-muted)', display: 'flex', gap: 14 }}>
         <span><span className="t-dot" style={{ background: 'var(--info)' }} /> Kapanış</span>
-        {target != null && <span className="t-up">— — Hedef (TP = 3×ATR)</span>}
-        {stopPx != null && <span className="t-down">— — Stop (SL = 2×ATR)</span>}
-        <span style={{ marginLeft: 'auto' }}>10g triple-barrier · eğitimle aynı tanım</span>
+        {target != null && <span className="t-up">— — Hedef (TP = {cfg.model.tp_atr_mult}×ATR)</span>}
+        {stopPx != null && <span className="t-down">— — Stop (SL = {cfg.model.sl_atr_mult}×ATR)</span>}
+        <span style={{ marginLeft: 'auto' }}>{cfg.model.horizon_days}g triple-barrier · eğitimle aynı tanım</span>
       </div>
     </section>
   )

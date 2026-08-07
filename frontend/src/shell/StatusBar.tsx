@@ -4,8 +4,43 @@
 // (piyasa açık mı, veri ne kadar taze, model ne durumda) tek şeritte toplanır.
 // =============================================================================
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { SystemStatus } from '../lib/types'
 import { isMarketOpen } from '../lib/format'
+import { ADMIN, adminFetch } from '../lib/api'
+
+// ── Öz denetim rozeti ────────────────────────────────────────────────────────
+// docs/SAGLAMLIK_PLANI.md K1: "sessiz başarısızlık" örüntüsünü kırar.
+// Bir değişmez ihlal edilirse kullanıcı hangi sayfada olursa olsun görür.
+function SelfTestChip() {
+  const [d, setD] = useState<{ overall: string; counts: Record<string, number> } | null>(null)
+
+  useEffect(() => {
+    const load = () => adminFetch(`${ADMIN}/selftest`)
+      .then(r => r.ok ? r.json() : null)
+      .then(j => j && !j.error && setD(j))
+      .catch(() => {})
+    load()
+    const t = setInterval(load, 300_000)
+    return () => clearInterval(t)
+  }, [])
+
+  if (!d) return null
+  const fails = d.counts?.FAIL ?? 0
+  const warns = d.counts?.WARN ?? 0
+  if (!fails && !warns) return null   // her şey yolundaysa şeridi meşgul etme
+
+  return (
+    <Link to="/model" className="statusbar__item"
+          title="Öz denetim ayrıntıları — Model sayfası"
+          style={{ color: fails ? 'var(--loss)' : 'var(--warning)',
+                   fontWeight: 700, textDecoration: 'none' }}>
+      <span className="statusbar__dot"
+            style={{ background: fails ? 'var(--loss)' : 'var(--warning)' }} />
+      {fails ? `${fails} değişmez ihlali` : `${warns} denetim uyarısı`}
+    </Link>
+  )
+}
 
 interface Props {
   status: SystemStatus | null
@@ -50,6 +85,8 @@ export function StatusBar({ status, assetCount, oracleCount, newsCount, lastUpda
           Son veri {lastUpdate}
         </span>
       )}
+
+      <SelfTestChip />
 
       <span className="statusbar__spacer" />
 

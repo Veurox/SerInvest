@@ -20,6 +20,7 @@ Haber yokluğu = sıfır özellik (nötr), asla hata: haber API'si düşükse bi
 sistem etkilenmeden çalışır (fail-open).
 """
 import csv
+import threading
 import datetime
 
 import joblib
@@ -105,20 +106,34 @@ def build_features(sym: str, p_up: float, atr_pct: float,
     }
 
 
+_LOG_LOCK = threading.RLock()   # oku-değiştir-yaz yarışını engeller (bkz. ml_live)
+
+
 def log_meta_row(sym: str, feats: dict) -> None:
     """
     Meta-özellikleri loglar. PREDICTION_LOG ile aynı disiplin: aynı (sembol, gün)
     için son satır geçerli (üzerine yazılır) → eğitim join'i 1:1 kalır.
+    Kilit zorunlu: eşzamanlı döngüler mükerrer satır üretiyordu (08/2026).
     """
+    with _LOG_LOCK:
+        _log_meta_row_locked(sym, feats)
+
+
+def _log_meta_row_locked(sym: str, feats: dict) -> None:
     today = datetime.datetime.utcnow().date().isoformat()
     new_row = {"timestamp": datetime.datetime.utcnow().isoformat(), "symbol": sym}
     new_row.update({k: feats.get(k, 0) for k in META_FEATURES})
 
     rows, found = [], False
+    seen: set[tuple[str, str]] = set()      # geçmişten kalan ikizleri erit
     if META_LOG_FILE.exists():
         with open(META_LOG_FILE, "r", encoding="utf-8") as f:
             for r in csv.DictReader(f):
-                if r.get("symbol") == sym and r.get("timestamp", "")[:10] == today:
+                key = (r.get("symbol", ""), (r.get("timestamp") or "")[:10])
+                if key in seen:
+                    continue
+                seen.add(key)
+                if key == (sym, today):
                     rows.append(new_row); found = True
                 else:
                     rows.append(r)

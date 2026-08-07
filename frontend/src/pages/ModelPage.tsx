@@ -8,8 +8,9 @@
 // =============================================================================
 import { useCallback, useEffect, useState } from 'react'
 import { ADMIN, API, adminFetch } from '../lib/api'
+import { useConfig } from '../lib/useConfig'
 import { PageHeader, Icon } from '../components/ui'
-import { ModelStory, JobStatus } from '../components/finance'
+import { ModelStory, JobStatus, SelfTestPanel } from '../components/finance'
 import { useToast } from '../components/ui/Toast'
 import type { SysLog, TrainingInfo, AdminStatus } from '../lib/types'
 
@@ -53,6 +54,7 @@ const trDate = (iso?: string | null) =>
 
 export default function ModelPage() {
   const toast = useToast()
+  const cfg = useConfig()
   const [info, setInfo]   = useState<TrainingInfo | null>(null)
   const [status, setStatus] = useState<AdminStatus | null>(null)
   const [cal, setCal]     = useState<CalSummary | null>(null)
@@ -121,7 +123,8 @@ export default function ModelPage() {
           <li>
             Model <b style={{ color: 'var(--text-primary)' }}>{trDate(trained)}</b> tarihinde eğitildi
             {ageDays != null && <> (<b>{ageDays} gün</b> önce)</>} ve <b>o günden beri değişmedi</b>.
-            {' '}Model yalnızca Pazar 20:00 korumalı terfide, rakip 3 bağımsız pencerede kazanırsa değişir.
+            {' '}Model yalnızca {cfg.schedule.promote} korumalı terfide, rakip {cfg.promotion.windows} bağımsız
+            pencerede kazanırsa değişir.
           </li>
           {cal && (
             <li>
@@ -193,6 +196,11 @@ export default function ModelPage() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* ── 2a. ÖZ DENETİM — değişmezler (sessiz hatalar burada görünür) ── */}
+      <div style={{ marginBottom: 'var(--space-3)' }}>
+        <SelfTestPanel />
       </div>
 
       {/* ── 2b. ZAMANLANMIŞ İŞLER — "bugünkü değerlendirme yapıldı mı?" ──── */}

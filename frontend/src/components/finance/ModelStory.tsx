@@ -13,6 +13,7 @@ import {
   Tooltip, ReferenceLine, LineChart, Line, Legend,
 } from 'recharts'
 import { ADMIN, adminFetch } from '../../lib/api'
+import { useConfig } from '../../lib/useConfig'
 
 interface Fold {
   fold: number; test: string; n_train: number; n_test: number
@@ -137,6 +138,7 @@ export function ModelStory() {
   const [d, setD] = useState<Story | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const vw = useViewportWidth()
+  const cfg = useConfig()
   const chartH = vw >= 1700 ? 280 : vw >= 1300 ? 235 : 195
 
   useEffect(() => {
@@ -224,7 +226,7 @@ export function ModelStory() {
             { n: 3, t: 'Eğitildi', d: `LightGBM ${id.n_trees} ağaç · ${trDate(id.trained_at)}`, ok: true },
             { n: 4, t: 'Sınava girdi', d: `${ex.n_folds} dönem · ${(ex.n_oos ?? 0).toLocaleString('tr-TR')} tahmin`, ok: true },
             { n: 5, t: 'Kalibre edildi', d: `${d.calibration.method ?? 'isotonic'} · ${(d.calibration.n_oos ?? 0).toLocaleString('tr-TR')} örnek`, ok: !!d.calibration.fitted_at },
-            { n: 6, t: 'Canlıya alındı', d: 'Her 30 dk tarama · 19:00 değerlendirme', ok: true },
+            { n: 6, t: 'Canlıya alındı', d: `Her ${cfg.schedule.cycle_min} dk tarama · ${cfg.schedule.evaluate} değerlendirme`, ok: true },
             { n: 7, t: 'Terfi denemesi', d: d.promotions.length
                 ? `${d.promotions.length} deneme · ${d.promotions.filter(p => p.decision === 'promoted').length} terfi`
                 : 'henüz yok', ok: d.promotions.length > 0, muted: true },
@@ -379,8 +381,9 @@ export function ModelStory() {
             })}
           </div>
           <div style={{ marginTop: 8, fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-            Model kendi kendine değişmez. Her Pazar 20:00'de bir <b>rakip</b> eğitilir; ancak son 3 bağımsız
-            dönemin <b>çoğunda</b> şampiyonu geçerse yerine geçer. Geçemezse mevcut model korunur.
+            Model kendi kendine değişmez. Her {cfg.schedule.promote}'de bir <b>rakip</b> eğitilir; ancak
+            son {cfg.promotion.windows} bağımsız dönemin <b>çoğunda</b> şampiyonu geçerse yerine geçer.
+            Geçemezse mevcut model korunur.
           </div>
         </div>
       )}

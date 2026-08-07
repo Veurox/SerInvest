@@ -15,6 +15,7 @@ Akış: champion → her BIST-50 sembolü için P(yukarı) → AL/NÖTR → publ
 import csv
 import datetime
 import json
+import threading
 import time
 
 import joblib
@@ -66,6 +67,13 @@ from infra import send_syslog
 # ── Sabitler ─────────────────────────────────────────────────────────────────
 ML_STATS_FILE = ML_DIR / "live_accuracy.json"   # 10g canlı doğruluk özeti
 MAX_POSITION_PCT = 0.10 # tek pozisyon tavanı
+
+# ── Eşzamanlılık koruması (08/2026 — selftest I8 mükerrer kayıt yakaladı) ────
+# `analyze-now` admin endpoint'i ayrı bir thread'de run_ml_cycle çağırıyor;
+# zamanlanmış döngüyle çakışabiliyor. Log yazımları tüm dosyayı oku-değiştir-yaz
+# yaptığı için kilitsiz iki yazar birbirini eziyor ve satır ikizleniyordu.
+_LOG_LOCK   = threading.RLock()   # log dosyalarına yazım
+_CYCLE_LOCK = threading.Lock()    # aynı anda tek analiz döngüsü
 
 # Açıklamalar için Türkçe özellik etiketleri (21 saf teknik)
 FEAT_TR = {
@@ -462,7 +470,22 @@ def _publish(msg: dict) -> bool:
 
 
 def run_ml_cycle(model_holder: list):
-    """BIST-50 evrenini champion ile tarar, publish + log + paper trade yapar."""
+    """
+    BIST-50 evrenini champion ile tarar, publish + log + paper trade yapar.
+
+    Aynı anda YALNIZ BİR döngü çalışır: `analyze-now` ile zamanlanmış tur
+    çakışırsa ikincisi atlanır (08/2026 — çakışma mükerrer log üretiyordu).
+    """
+    if not _CYCLE_LOCK.acquire(blocking=False):
+        print("[ml cycle] Başka bir döngü çalışıyor — bu tur atlandı.")
+        return
+    try:
+        _run_ml_cycle_locked(model_holder)
+    finally:
+        _CYCLE_LOCK.release()
+
+
+def _run_ml_cycle_locked(model_holder: list):
     if not infra._ensure_channel():
         print("[ml cycle] RabbitMQ yok, atlanıyor.")
         return
@@ -635,7 +658,19 @@ _LOG_FIELDS = ["timestamp", "symbol", "yf_sym", "p_up", "p_cal", "ev",
 
 
 def _log_prediction(log: dict):
-    """Tahmini PREDICTION_LOG'a yazar. Aynı (sembol, gün) varsa üzerine yazar."""
+    """
+    Tahmini PREDICTION_LOG'a yazar. Aynı (sembol, gün) varsa üzerine yazar.
+
+    KİLİT ZORUNLU (08/2026 bulgusu — selftest I8 yakaladı): burası tüm dosyayı
+    oku-değiştir-yaz yapıyor. `analyze-now` ayrı bir thread'de çalıştığı için
+    zamanlanmış döngüyle çakışabiliyor; kilitsiz iki yazar birbirinin
+    değişikliğini kaybediyor ve mükerrer satır doğuruyordu (ZOREN 2026-07-09).
+    """
+    with _LOG_LOCK:
+        _log_prediction_locked(log)
+
+
+def _log_prediction_locked(log: dict):
     today = datetime.datetime.utcnow().date().isoformat()
     new_row = {
         "timestamp": datetime.datetime.utcnow().isoformat(),
@@ -646,10 +681,15 @@ def _log_prediction(log: dict):
         "atr_pct": log["atr_pct"], "eval": "",
     }
     rows, found = [], False
+    seen: set[tuple[str, str]] = set()      # (sembol, gün) — mükerrerleri eritir
     if PREDICTION_LOG.exists():
         with open(PREDICTION_LOG, "r", encoding="utf-8") as f:
             for r in csv.DictReader(f):
-                if r.get("symbol") == log["symbol"] and r.get("timestamp", "")[:10] == today:
+                key = (r.get("symbol", ""), (r.get("timestamp") or "")[:10])
+                if key in seen:
+                    continue                # geçmişten kalan ikizi at (kendi kendini onarır)
+                seen.add(key)
+                if key == (log["symbol"], today):
                     new_row["eval"] = r.get("eval", "")   # mevcut değerlendirmeyi koru
                     rows.append(new_row); found = True
                 else:
