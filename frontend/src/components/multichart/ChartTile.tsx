@@ -92,10 +92,14 @@ export function ChartTile({
   }, [isBuy, analysis?.shortTermTarget, analysis?.shortTermStop])
 
   // Kullanıcının seçtiği tip AYNEN uygulanır.
-  // 08/2026: burada "6+ hücrede otomatik çizgiye düş" kuralı vardı; kullanıcı
-  // Mum seçtiği hâlde 8'li düzende çizgi çiziliyordu. Açık bir seçimi sessizce
-  // ezmek yanlış — dar hücrede ince mum çizmek borsa terminallerinin normali.
-  // `compact` yalnızca EKSENLERİ gizler (yer meselesi), seriyi değiştirmez.
+  // 08/2026 dersi (iki kez tekrarlandı): kararı hücre SAYISINA göre vermek
+  // yanlış. Önce "6+ hücrede mum okunmaz" diye çizgiye düşürülüyordu — ölçüldü,
+  // 8 hücrede bar aralığı 6px, mum rahat okunuyor. Sonra aynı kuralla eksenler
+  // gizlendi — 400x495'lik hücrede eksen rahat sığar ve eksensiz grafik hangi
+  // fiyatta/tarihte olduğunu söylemez.
+  //
+  // Artık yalnız ETİKETLER seyreltilir: 6+ hücrede AI hedef/stop çizgilerinin
+  // "HEDEF/STOP" yazıları gizlenir (çizgi kalır), çünkü asıl yer darlığı orada.
   const compact = density >= 6
 
   return (
@@ -167,7 +171,8 @@ export function ChartTile({
             bars={bars}
             kind={kind}
             compact={compact}
-            showVolume={density <= 4}
+            showAxes                      /* her yoğunlukta açık — yön duygusu */
+            showVolume={density <= 6}
             overlays={overlays}
             precision={dec}
             onCrosshair={setHover}

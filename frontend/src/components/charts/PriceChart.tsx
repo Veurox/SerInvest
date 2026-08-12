@@ -38,8 +38,13 @@ interface Props {
   bars: Bar[]
   /** 'candle' = mum, 'line' = kapanış çizgisi (dar hücrede daha okunur). */
   kind?: 'candle' | 'line'
-  /** Dar hücre: eksenler seyreltilir, hacim paneli gizlenir. */
+  /**
+   * Yoğun ızgara: referans çizgisi ETİKETLERİ gizlenir (yer yok).
+   * Eksenleri GİZLEMEZ — eksensiz grafik nerede olduğunu söylemez.
+   */
   compact?: boolean
+  /** Fiyat ve zaman eksenleri. Varsayılan açık; kapatmak yön duygusunu yok eder. */
+  showAxes?: boolean
   showVolume?: boolean
   overlays?: Overlay[]
   /** Fiyatın kaç ondalıkla gösterileceği (FOREX 4, hisse 2). */
@@ -78,7 +83,7 @@ const cssVar = (name: string, fallback: string) => {
 }
 
 export function PriceChart({
-  bars, kind = 'candle', compact = false, showVolume = true,
+  bars, kind = 'candle', compact = false, showAxes = true, showVolume = true,
   overlays = [], precision = 2, onCrosshair, syncGroup, height = '100%',
 }: Props) {
   const boxRef    = useRef<HTMLDivElement>(null)
@@ -115,12 +120,12 @@ export function PriceChart({
       },
       rightPriceScale: {
         borderColor: border,
-        visible: !compact,
-        scaleMargins: { top: 0.08, bottom: showVolume && !compact ? 0.26 : 0.08 },
+        visible: showAxes,
+        scaleMargins: { top: 0.08, bottom: showVolume ? 0.26 : 0.08 },
       },
       timeScale: {
         borderColor: border,
-        visible: !compact,
+        visible: showAxes,
         timeVisible: true,
         secondsVisible: false,
       },
@@ -216,7 +221,7 @@ export function PriceChart({
       volRef.current = null
       overlayRefs.current = []
     }
-  }, [kind, compact, showVolume, precision, syncGroup])
+  }, [kind, compact, showAxes, showVolume, precision, syncGroup])
 
   // ── Veri ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -246,7 +251,7 @@ export function PriceChart({
     // Bağımlılıklar kurulum efektiyle AYNI olmak zorunda: kurulum yeniden
     // çalıştığında (düzen değişince compact/showVolume değişir) grafik sıfırdan
     // kurulur; veri efekti tetiklenmezse yeni grafik BOŞ kalırdı.
-  }, [bars, kind, compact, showVolume, precision, syncGroup])
+  }, [bars, kind, compact, showAxes, showVolume, precision, syncGroup])
 
   // ── Referans çizgileri (AI hedef/stop) ───────────────────────────────────
   useEffect(() => {
@@ -270,7 +275,7 @@ export function PriceChart({
     )
     return () => { for (const l of lines) { try { main.removePriceLine(l) } catch { /* sökülmüş */ } } }
     // Kurulum efektiyle aynı bağımlılıklar — yukarıdaki nota bak.
-  }, [overlays, compact, kind, showVolume, precision, syncGroup])
+  }, [overlays, compact, kind, showAxes, showVolume, precision, syncGroup])
 
   return <div ref={boxRef} style={{ width: '100%', height }} />
 }
