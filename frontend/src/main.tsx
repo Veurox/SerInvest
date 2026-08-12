@@ -15,7 +15,6 @@ import OverviewPage from './pages/OverviewPage'
 import TerminalPage from './pages/TerminalPage'
 import ModelPage from './pages/ModelPage'
 import OraclePage from './pages/OraclePage'
-import RadarPage from './pages/RadarPage'
 import ModelPortfolioPage from './pages/ModelPortfolioPage'
 import NewsPage from './pages/NewsPage'
 import FundamentalPage from './pages/FundamentalPage'
@@ -23,8 +22,6 @@ import EvaluationPage from './pages/EvaluationPage'
 import DipRadarPage from './pages/DipRadarPage'
 import { PortfolioTab } from './tabs/PortfolioTab'
 import { HistoryTab } from './tabs/HistoryTab'
-import { MLOpsTab } from './tabs/MLOpsTab'
-import { AdminTab } from './tabs/AdminTab'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -35,7 +32,6 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/" element={<App />}>
             <Route index               element={<OverviewPage />} />
             <Route path="terminal"      element={<TerminalPage />} />
-            <Route path="radar"         element={<RadarPage />} />
             <Route path="model-portfoy" element={<ModelPortfolioPage />} />
             <Route path="oracle"        element={<OraclePage />} />
             <Route path="portfolio"     element={<PortfolioTab />} />
@@ -45,8 +41,6 @@ createRoot(document.getElementById('root')!).render(
             {/* Model = eski ML Ops + Yönetim (07/2026 sadeleştirme).
                 Eski rotalar korunur; yer imi/derin link kırılmasın. */}
             <Route path="model"         element={<ModelPage />} />
-            <Route path="mlops"         element={<MLOpsTab />} />
-            <Route path="admin"         element={<AdminTab />} />
             <Route path="degerlendirme" element={<EvaluationPage />} />
             <Route path="dip-radar"     element={<DipRadarPage />} />
             {/* Bilinmeyen route → Piyasa Genel */}

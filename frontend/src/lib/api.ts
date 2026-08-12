@@ -9,7 +9,16 @@ export const API = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http
 // Admin endpoint base — MLOps ve Yönetim sekmesindeki tüm proxy çağrıları.
 export const ADMIN = `${API}/admin/oracle`
 
-// Admin API anahtarı — localStorage > VITE env > boş
+// Admin API anahtarı — localStorage > VITE env > boş.
+//
+// Anahtarı core-api zorunlu tutar (Program.cs: /api/admin/* → X-Admin-Key).
+// Normal kurulumda docker-compose `VITE_ADMIN_API_KEY` olarak enjekte eder,
+// bu yüzden elle girmeye gerek yoktur.
+//
+// 08/2026 temizliği: anahtarı elle girmeye yarayan `AdminKeyInput` bileşeni
+// yalnızca silinen /admin sayfasında kullanılıyordu ve menüden erişilemiyordu.
+// Farklı bir ortamda env olmadan çalıştırılırsa anahtar tarayıcı konsolundan
+// verilebilir:  localStorage.setItem('si_admin_key', '<anahtar>')
 export const getAdminKey = (): string =>
   localStorage.getItem('si_admin_key') ||
   (import.meta.env.VITE_ADMIN_API_KEY as string | undefined) ||

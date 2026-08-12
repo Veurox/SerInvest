@@ -1,15 +1,16 @@
-// Tek import noktası — `import { Button, KPI, Badge } from './components/ui'`
+// Tek import noktası — `import { Button, KPI, PageHeader } from './components/ui'`
+//
+// 08/2026 temizliği: Badge, Card/CardHeader, Input/Select, CountUp ve InfoTip
+// hiçbir yerde kullanılmıyordu (329 satır) — silindi. Barrel yalnızca gerçekten
+// kullanılan bileşenleri yayınlar; kullanılmayanı burada tutmak "var ama yok"
+// izlenimi yaratıyordu.
 export { Button } from './Button'
-export { Card, CardHeader } from './Card'
-export { Input, Select } from './Input'
-export { Badge } from './Badge'
 export { KPI } from './KPI'
 export { PageHeader } from './PageHeader'
 export { Icon } from './Icon'
 export type { IconName } from './Icon'
 export { EmptyState } from './EmptyState'
 export { ToastProvider, useToast } from './Toast'
-export { Tooltip, InfoTip } from './Tooltip'
-export { CountUp } from './CountUp'
+export { Tooltip } from './Tooltip'
 export { CommandPalette } from './CommandPalette'
 export type { Command } from './CommandPalette'

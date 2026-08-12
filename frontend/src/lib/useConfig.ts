@@ -78,8 +78,3 @@ export function useConfig(): AppConfig {
   }, [])
   return cfg
 }
-
-/** "10g", "%58" gibi kısa etiketler için yardımcılar. */
-export const horizonLabel = (c: AppConfig) => `${c.model.horizon_days}g`
-export const barrierLabel = (c: AppConfig) =>
-  `TP ${c.model.tp_atr_mult}×ATR / SL ${c.model.sl_atr_mult}×ATR`

@@ -10,7 +10,6 @@ from pathlib import Path
 MODELS_DIR   = Path("/app/models")
 ML_DIR       = MODELS_DIR / "ml_v3"
 CHAMPION_FILE   = ML_DIR / "champion.joblib"      # canlı (şampiyon) model
-CHALLENGER_FILE = ML_DIR / "challenger.joblib"    # son eğitilen rakip
 TRAIN_CACHE     = ML_DIR / "training_data.csv" # özellik+etiket önbelleği
 PROMOTION_LOG   = ML_DIR / "promotion_log.jsonl"   # her terfi/ret kararı (şeffaflık)
 PREDICTION_LOG  = ML_DIR / "predictions.csv"       # canlı tahmin + sonuç

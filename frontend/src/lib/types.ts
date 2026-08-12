@@ -16,11 +16,6 @@ export interface SysLog {
   level: string; message: string; timestamp: string; accuracy: number
 }
 
-export interface EvaluationRecord {
-  timestamp: string; symbol: string; predicted: string; confidence: number
-  close: number; target: number; eval1d: string; eval5d: string; eval20d: string
-}
-
 export interface PriceData {
   id: string; symbol: string; assetType: string
   close: number | null; open: number | null; high: number | null; low: number | null; volume: number | null
@@ -82,30 +77,6 @@ export interface PortfolioSummary {
   warnings: PortfolioWarning[]
 }
 
-// ── Walk-Forward ─────────────────────────────────────────────────────────────
-export interface WFStepStat {
-  step: number; train_days: number; test_days: number
-  accuracy: number; buy_accuracy: number | null; sell_accuracy: number | null
-  net_return?: number
-}
-
-export interface WFSummary {
-  status?: string; message?: string
-  overall_accuracy: number; buy_accuracy: number; sell_accuracy: number
-  neutral_pct: number; n_predictions: number; n_steps: number; n_symbols: number
-  transaction_cost_pct?: number
-  gross_return_per_trade?: number
-  net_return_per_trade?: number
-  annualized_net_return?: number
-  win_rate_after_costs?: number
-  avg_win?: number
-  avg_loss?: number
-  breakeven_accuracy?: number
-  step_stats: WFStepStat[]
-  top_symbols: { symbol: string; accuracy: number; n: number }[]
-  completed_at: string
-}
-
 // ── Admin / MLOps ────────────────────────────────────────────────────────────
 export interface PredRow {
   timestamp: string; symbol: string; predicted: string; confidence: number
@@ -164,11 +135,6 @@ export interface AdminStatus {
   wf_sell_accuracy: number | null
   wf_n_predictions: number | null
   wf_completed_at: string | null
-}
-
-export interface FeatImportance {
-  features: { name: string; importance: number; pct: number; group: string }[]
-  groups: Record<string, number>
 }
 
 export interface SymbolList {

@@ -90,3 +90,49 @@ def test_eval_min_age_covers_horizon_with_slack():
     """
     from ml.config import HORIZON
     assert EVAL_MIN_AGE_DAYS >= HORIZON * 1.6
+
+
+# ── Eğitim verisi tavanı (08/2026: sabit vardı ama uygulanmıyordu) ───────────
+
+def test_training_rows_capped():
+    """
+    MAX_TRAIN_ROWS gerçekten uygulanmalı. Denetimde bu sabit tanımlıydı ve
+    yorumunda "137 OOM'a karşı" yazıyordu ama hiçbir yerde kullanılmıyordu —
+    yani koruma yalnızca yorumdan ibaretti.
+    """
+    import pandas as pd
+    from ml.config import MAX_TRAIN_ROWS
+    from ml_live import _cap_training_rows
+
+    n = MAX_TRAIN_ROWS + 500
+    df = pd.DataFrame({
+        "date": pd.date_range("2020-01-01", periods=n, freq="h"),
+        "label": [1, 0] * (n // 2),
+    })
+    out = _cap_training_rows(df)
+    assert len(out) == MAX_TRAIN_ROWS
+
+
+def test_training_cap_keeps_newest_rows():
+    """Kırpma EN ESKİ satırlardan olmalı — güncel rejim korunsun."""
+    import pandas as pd
+    from ml.config import MAX_TRAIN_ROWS
+    from ml_live import _cap_training_rows
+
+    n = MAX_TRAIN_ROWS + 100
+    df = pd.DataFrame({
+        "date": pd.date_range("2020-01-01", periods=n, freq="h"),
+        "label": [1] * n,
+    })
+    out = _cap_training_rows(df.sample(frac=1, random_state=0))   # sırası bozuk gelse de
+    assert out["date"].max() == df["date"].max()
+    assert out["date"].min() > df["date"].min()
+
+
+def test_training_cap_is_noop_when_small():
+    """Tavanın altındaysa veri DOKUNULMADAN geçmeli."""
+    import pandas as pd
+    from ml_live import _cap_training_rows
+
+    df = pd.DataFrame({"date": pd.date_range("2026-01-01", periods=50), "label": [1] * 50})
+    assert len(_cap_training_rows(df)) == 50

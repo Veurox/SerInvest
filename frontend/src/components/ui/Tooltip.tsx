@@ -55,26 +55,3 @@ export function Tooltip({
     </span>
   )
 }
-
-// ── Yardımcı: bilgi ikonu — hover ile tooltip ────────────────────────────
-export function InfoTip({ content, position }: { content: ReactNode; position?: 'top' | 'bottom' | 'left' | 'right' }) {
-  return (
-    <Tooltip content={content} position={position} inline>
-      <span style={{
-        display: 'inline-flex',
-        alignItems: 'center', justifyContent: 'center',
-        width: '14px', height: '14px',
-        marginLeft: '4px',
-        borderRadius: '50%',
-        background: 'var(--bg-surface-3)',
-        color: 'var(--text-muted)',
-        fontSize: '9px',
-        fontWeight: 'var(--fw-bold)',
-        cursor: 'help',
-        verticalAlign: 'middle',
-      }}>
-        ?
-      </span>
-    </Tooltip>
-  )
-}

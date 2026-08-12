@@ -31,6 +31,7 @@ from ml.config import (
     FEATURE_NAMES,
     HISTORY_PERIOD,
     HORIZON,
+    MAX_TRAIN_ROWS,
     META_FILE,
     ML_DIR,
     PREDICTION_LOG,
@@ -106,15 +107,35 @@ def load_champion():
     return None
 
 
+def _cap_training_rows(data: pd.DataFrame) -> pd.DataFrame:
+    """
+    MAX_TRAIN_ROWS kayan pencere tavanı — RAM güvenliği.
+
+    08/2026 denetimi: bu sabit tanımlıydı ve yorumunda "137 OOM'a karşı" yazıyordu
+    ama HİÇBİR YERDE UYGULANMIYORDU. Yani koruma yalnızca yorumdan ibaretti;
+    veri seti büyüdükçe konteyner yine 137 (OOM kill) ile ölecekti.
+
+    Kesme EN ESKİ satırlardan yapılır: en yeni rejim korunur, ki bu zaten
+    kayan pencere mantığının amacıdır.
+    """
+    if len(data) <= MAX_TRAIN_ROWS:
+        return data
+    data = data.sort_values("date")
+    trimmed = data.tail(MAX_TRAIN_ROWS).reset_index(drop=True)
+    print(f"[ml v3] Eğitim verisi {len(data):,} → {len(trimmed):,} satıra kırpıldı "
+          f"(MAX_TRAIN_ROWS={MAX_TRAIN_ROWS:,}); en eski satırlar düşürüldü.")
+    return trimmed
+
+
 def _load_training_data(rebuild: bool = False) -> pd.DataFrame:
     """Önbellekten yükle; yoksa veya rebuild ise BIST-50 veri setini kur."""
     if not rebuild and TRAIN_CACHE.exists():
-        return pd.read_csv(TRAIN_CACHE, parse_dates=["date"])
+        return _cap_training_rows(pd.read_csv(TRAIN_CACHE, parse_dates=["date"]))
     from ml.dataset import build_dataset
     ML_DIR.mkdir(parents=True, exist_ok=True)
     data = build_dataset(period=HISTORY_PERIOD, verbose=True)
-    data.to_csv(TRAIN_CACHE, index=False)
-    return data
+    data.to_csv(TRAIN_CACHE, index=False)   # önbellek TAM hâli tutar (deneyler için)
+    return _cap_training_rows(data)
 
 
 def prepare_training(data: pd.DataFrame) -> pd.DataFrame:
