@@ -25,6 +25,7 @@ const TF_LABEL: Record<TF, string> = {
 const LS_SLOTS  = 'si_mc_slots'
 const LS_LAYOUT = 'si_mc_layout'
 const LS_TF     = 'si_mc_tf'
+const LS_KIND   = 'si_mc_kind'
 
 const readLS = <T,>(key: string, fallback: T): T => {
   try {
@@ -43,6 +44,7 @@ export default function MultiChartPage() {
     return (LAYOUTS as readonly number[]).includes(v) ? v : 4
   })
   const [tf, setTf]       = useState<TF>(() => readLS<TF>(LS_TF, '3M'))
+  const [kind, setKind]   = useState<'candle' | 'line'>(() => readLS<'candle' | 'line'>(LS_KIND, 'candle'))
   const [slots, setSlots] = useState<string[]>(() => readLS<string[]>(LS_SLOTS, []))
   const [active, setActive] = useState(0)
   const [adding, setAdding] = useState<number | null>(null)
@@ -63,6 +65,7 @@ export default function MultiChartPage() {
   useEffect(() => { localStorage.setItem(LS_SLOTS, JSON.stringify(slots)) }, [slots])
   useEffect(() => { localStorage.setItem(LS_LAYOUT, JSON.stringify(layout)) }, [layout])
   useEffect(() => { localStorage.setItem(LS_TF, JSON.stringify(tf)) }, [tf])
+  useEffect(() => { localStorage.setItem(LS_KIND, JSON.stringify(kind)) }, [kind])
 
   const setSlot = useCallback((i: number, symbol: string) => {
     setSlots(prev => {
@@ -102,8 +105,17 @@ export default function MultiChartPage() {
           ))}
         </span>
 
+        <span className="mc-bar__label">Tip</span>
+        <span className="mc-seg" role="group" aria-label="Grafik tipi">
+          <button aria-pressed={kind === 'candle'} onClick={() => setKind('candle')}
+                  title="Mum grafiği">▮ Mum</button>
+          <button aria-pressed={kind === 'line'} onClick={() => setKind('line')}
+                  title="Kapanış çizgisi">╱ Çizgi</button>
+        </span>
+
         <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-muted)' }}>
-          Sembolü değiştirmek için başlığa, tüm detaylar için grafiğe tıkla
+          Başlığa tıkla → sembol değiştir · Grafiğe tıkla → tüm detaylar ·
+          6+ hücrede otomatik çizgiye düşer
         </span>
       </div>
 
@@ -114,6 +126,7 @@ export default function MultiChartPage() {
               key={`${i}-${sym}`}
               symbol={sym}
               tf={tf}
+              kind={kind}
               assets={assets}
               analysis={latest.get(sym) ?? null}
               density={layout}

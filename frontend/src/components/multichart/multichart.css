@@ -153,6 +153,28 @@
 .mc-grid[data-n='6'] .mc-chg__tf,
 .mc-grid[data-n='8'] .mc-chg__tf { display: none; }
 
+/* Crosshair OHLC okuması — fare grafiğin üzerindeyken başlığın yerini alır.
+   Borsa terminali standardı: A(çılış) Y(üksek) D(üşük) K(apanış) H(acim). */
+.mc-ohlc {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.mc-ohlc i {
+  font-style: normal;
+  font-size: 8.5px;
+  font-weight: 700;
+  color: var(--text-disabled);
+  margin-left: 5px;
+}
+.mc-ohlc i:first-child { margin-left: 0; }
+.mc-ohlc b { color: var(--text-primary); font-weight: 700; }
+
 .mc-badge {
   font-size: 9px;
   font-weight: 800;

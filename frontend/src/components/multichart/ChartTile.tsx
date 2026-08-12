@@ -1,33 +1,31 @@
 // =============================================================================
 // SerInvest — Çoklu Grafik: tek hücre
 //
-// Bir sembolün sıkıştırılmış fiyat grafiği + başlıkta canlı fiyat/değişim ve
-// (varsa) AI kararı. Grafik gövdesine tıklamak sembolün TAM detay panelini açar
-// (App.tsx'teki SymbolDrawer — grafik, teknik göstergeler, AI hedef/stop).
+// Bir sembolün mum grafiği + başlıkta canlı fiyat/değişim ve (varsa) AI kararı.
+// Grafik gövdesine tıklamak sembolün TAM detay panelini açar (App.tsx'teki
+// SymbolDrawer — büyük grafik, teknik göstergeler, AI hedef/stop).
 //
-// Tasarım notu: 8 hücre aynı anda açık olabildiği için hücre içi her piksel
-// pahalı. Eksen etiketleri seyreltilmiş, ızgara yatayda tek çizgi, tooltip
-// yalnızca imleç üzerindeyken. Hücre küçüldükçe eksenler otomatik gizlenir.
+// Başlık iki hâllidir: fare grafiğin üzerindeyken o barın OHLC'sini gösterir
+// (borsa terminallerinin standardı), fare çıkınca son fiyata döner. Böylece
+// dar hücrede ayrı bir okuma satırına yer harcanmaz.
 // =============================================================================
-import { useEffect, useState } from 'react'
-import {
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
-} from 'recharts'
+import { useEffect, useMemo, useState } from 'react'
 import { API } from '../../lib/api'
+import { PriceChart, type Bar, type CrosshairInfo, type Overlay } from '../charts/PriceChart'
 import type { OracleAnalysis, PriceData } from '../../lib/types'
 import { SymbolPicker } from './SymbolPicker'
 
 export type TF = '1H' | '1D' | '1W' | '1M' | '3M' | '1Y' | '5Y'
 
-interface ChartPoint { t: number; c: number }
-interface ChartPayload { symbol: string; points: ChartPoint[]; error?: string }
+interface ChartPayload { symbol: string; points: Bar[]; error?: string }
 
 interface Props {
   symbol: string
   tf: TF
+  kind: 'candle' | 'line'
   assets: PriceData[]
   analysis: OracleAnalysis | null
-  /** Hücre sayısı — küçük hücrede eksenler gizlenir. */
+  /** Hücre sayısı — küçük hücrede eksenler ve hacim gizlenir. */
   density: number
   active: boolean
   onActivate: () => void
@@ -36,55 +34,66 @@ interface Props {
   onRemove: () => void
 }
 
-const px = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-const tickFmt = (tf: TF) => (t: number) => {
-  const d = new Date(t)
-  if (tf === '1H' || tf === '1D') return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
-  if (tf === '5Y') return d.toLocaleDateString('tr-TR', { month: 'short', year: '2-digit' })
-  return d.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })
+const num = (d: number) => new Intl.NumberFormat('tr-TR', { minimumFractionDigits: d, maximumFractionDigits: d })
+const vol = (v: number | null) => {
+  if (v == null) return '—'
+  if (v >= 1e9) return `${(v / 1e9).toFixed(2)}B`
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`
+  if (v >= 1e3) return `${(v / 1e3).toFixed(0)}K`
+  return String(Math.round(v))
 }
 
 export function ChartTile({
-  symbol, tf, assets, analysis, density, active,
+  symbol, tf, kind, assets, analysis, density, active,
   onActivate, onOpenDetail, onChangeSymbol, onRemove,
 }: Props) {
-  const [points, setPoints] = useState<ChartPoint[]>([])
+  const [bars, setBars] = useState<Bar[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const [picking, setPicking] = useState(false)
+  const [hover, setHover] = useState<CrosshairInfo | null>(null)
 
   useEffect(() => {
     let stop = false
-    setLoading(true); setErr(null)
+    setLoading(true); setErr(null); setHover(null)
     fetch(`${API}/market/${encodeURIComponent(symbol)}/chart?tf=${tf}`)
       .then(r => r.json())
       .then((j: ChartPayload) => {
         if (stop) return
-        if (j.error || !j.points?.length) { setErr(j.error || 'veri yok'); setPoints([]) }
-        else setPoints(j.points.filter(p => p.c != null).sort((a, b) => a.t - b.t))
+        if (j.error || !j.points?.length) { setErr(j.error || 'veri yok'); setBars([]) }
+        else setBars(j.points)
       })
       .catch(e => { if (!stop) setErr(String(e)) })
       .finally(() => { if (!stop) setLoading(false) })
     return () => { stop = true }
   }, [symbol, tf])
 
-  // Değişim: seçili aralığın ilk-son farkı (gün içi açılış değil — grafikle tutarlı)
-  const first = points.length ? points[0].c : null
-  const last  = points.length ? points[points.length - 1].c : null
+  const asset = assets.find(a => a.symbol === symbol)
+  const dec = asset?.assetType === 'FOREX' ? 4 : 2
+  const fmt = num(dec)
+
+  const first = bars.length ? bars[0].c : null
+  const last  = bars.length ? bars[bars.length - 1].c : null
   const chgPct = last != null && first ? ((last - first) / first) * 100 : null
   const up = (chgPct ?? 0) >= 0
-  const lineColor = chgPct == null ? 'var(--info)' : up ? 'var(--profit)' : 'var(--loss)'
 
-  const isBuy  = !!analysis && analysis.recommendation.includes('ALIM')
-  const target = isBuy ? analysis?.shortTermTarget ?? null : null
-  const stopPx = isBuy ? analysis?.shortTermStop ?? null : null
+  const isBuy = !!analysis && analysis.recommendation.includes('ALIM')
 
-  // Yoğunluk arttıkça kroma azalır: 6-8 hücrede eksenler okunmuyor, gizlenir.
-  const showAxes = density <= 4
-  const showY    = density <= 6
+  // Referans çizgileri kimliği her render'da değişmesin diye memo — aksi hâlde
+  // PriceChart onları her seferinde söküp yeniden kurardı (görsel titreme).
+  const overlays = useMemo<Overlay[]>(() => {
+    if (!isBuy) return []
+    const out: Overlay[] = []
+    if (analysis?.shortTermTarget != null)
+      out.push({ price: analysis.shortTermTarget, color: 'var(--profit)', label: 'HEDEF' })
+    if (analysis?.shortTermStop != null)
+      out.push({ price: analysis.shortTermStop, color: 'var(--loss)', label: 'STOP' })
+    return out
+  }, [isBuy, analysis?.shortTermTarget, analysis?.shortTermStop])
 
-  const gradId = `mcFill_${symbol.replace(/[^A-Za-z0-9]/g, '')}_${density}`
+  // Küçük hücrede mum okunmuyor; 6+ hücrede çizgiye düşülür.
+  const effKind = density >= 6 ? 'line' : kind
+  const compact = density >= 6
 
   return (
     <div className={`mc-tile${active ? ' mc-tile--active' : ''}`} onMouseDown={onActivate}>
@@ -94,19 +103,31 @@ export function ChartTile({
           {symbol}
         </button>
 
-        <span className="mc-px">{last != null ? px.format(last) : '—'}</span>
-        {chgPct != null && (
-          // DİKKAT: bu yüzde SEÇİLİ ARALIĞIN değişimi (grafikle tutarlı olsun diye),
-          // borsa terminallerindeki alışılmış "günlük değişim" DEĞİL. Karışmasın
-          // diye aralık etiketi yanında; dar hücrede etiket gizlenir, başlık kalır.
-          <span className="mc-chg" style={{ color: up ? 'var(--profit)' : 'var(--loss)' }}
-                title={`${symbol} · seçili aralık (${tf}) değişimi`}>
-            {up ? '+' : ''}{chgPct.toFixed(2)}%
-            <span className="mc-chg__tf">{tf}</span>
+        {hover ? (
+          // Crosshair okuması — borsa terminali standardı
+          <span className="mc-ohlc">
+            <i>A</i>{fmt.format(hover.o ?? 0)}
+            <i>Y</i>{fmt.format(hover.h ?? 0)}
+            <i>D</i>{fmt.format(hover.l ?? 0)}
+            <i>K</i><b>{fmt.format(hover.c ?? 0)}</b>
+            {hover.v != null && <><i>H</i>{vol(hover.v)}</>}
           </span>
+        ) : (
+          <>
+            <span className="mc-px">{last != null ? fmt.format(last) : '—'}</span>
+            {chgPct != null && (
+              // Bu yüzde SEÇİLİ ARALIĞIN değişimi (grafikle tutarlı olsun diye),
+              // alışılmış "günlük değişim" DEĞİL — yanındaki etiket bunu söyler.
+              <span className="mc-chg" style={{ color: up ? 'var(--profit)' : 'var(--loss)' }}
+                    title={`${symbol} · seçili aralık (${tf}) değişimi`}>
+                {up ? '+' : ''}{chgPct.toFixed(2)}%
+                <span className="mc-chg__tf">{tf}</span>
+              </span>
+            )}
+          </>
         )}
 
-        {analysis && (
+        {analysis && !hover && (
           <span className="mc-badge" style={{
             color: isBuy ? 'var(--profit)' : 'var(--text-muted)',
             borderColor: isBuy ? 'var(--profit-border)' : 'var(--border-default)',
@@ -130,6 +151,7 @@ export function ChartTile({
 
       <div className="mc-tile__body"
            onClick={() => onOpenDetail(symbol)}
+           onMouseLeave={() => setHover(null)}
            role="button" tabIndex={0}
            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenDetail(symbol) } }}
            aria-label={`${symbol} detaylarını aç`}>
@@ -137,65 +159,17 @@ export function ChartTile({
           <div className="mc-tile__msg">{loading ? 'yükleniyor…' : `veri yok (${err})`}</div>
         )}
 
-        {points.length > 0 && (
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={points} margin={{ top: 6, right: showY ? 4 : 2, bottom: 2, left: 2 }}>
-              <defs>
-                <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={lineColor} stopOpacity={0.24} />
-                  <stop offset="100%" stopColor={lineColor} stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-
-              <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
-
-              <XAxis dataKey="t" type="number" scale="time" domain={['dataMin', 'dataMax']}
-                     hide={!showAxes} tickFormatter={tickFmt(tf)} minTickGap={44}
-                     tick={{ fontSize: 9, fill: 'var(--text-muted)' }}
-                     axisLine={{ stroke: 'var(--border-default)' }} tickLine={false} />
-
-              <YAxis domain={['dataMin', 'dataMax']} orientation="right" width={46}
-                     hide={!showY} tickFormatter={(v: number) => px.format(v)}
-                     tick={{ fontSize: 9, fill: 'var(--text-muted)' }}
-                     axisLine={false} tickLine={false} />
-
-              <Tooltip
-                cursor={{ stroke: 'var(--border-strong)', strokeDasharray: '3 3' }}
-                content={({ active: on, payload }) => {
-                  if (!on || !payload?.length) return null
-                  const p = payload[0].payload as ChartPoint
-                  return (
-                    <div style={{
-                      background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
-                      padding: '4px 8px', fontSize: 11,
-                    }}>
-                      <div style={{ color: 'var(--text-muted)', fontSize: 9.5 }}>
-                        {new Date(p.t).toLocaleString('tr-TR', {
-                          day: '2-digit', month: 'short',
-                          ...(tf === '1H' || tf === '1D' ? { hour: '2-digit', minute: '2-digit' } : {}),
-                        })}
-                      </div>
-                      <div style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                        {px.format(p.c)}
-                      </div>
-                    </div>
-                  )
-                }}
-              />
-
-              <Area type="monotone" dataKey="c" stroke={lineColor} strokeWidth={1.4}
-                    fill={`url(#${gradId})`} dot={false} isAnimationActive={false}
-                    activeDot={{ r: 2.5, fill: lineColor, stroke: 'var(--bg-surface)', strokeWidth: 1.5 }} />
-
-              {/* AI bariyerleri — yalnız yeterli alan varsa, etiketsiz (yer yok) */}
-              {showY && target != null && (
-                <ReferenceLine y={target} stroke="var(--profit)" strokeDasharray="4 3" strokeWidth={1} />
-              )}
-              {showY && stopPx != null && (
-                <ReferenceLine y={stopPx} stroke="var(--loss)" strokeDasharray="4 3" strokeWidth={1} />
-              )}
-            </AreaChart>
-          </ResponsiveContainer>
+        {bars.length > 0 && (
+          <PriceChart
+            bars={bars}
+            kind={effKind}
+            compact={compact}
+            showVolume={density <= 4}
+            overlays={overlays}
+            precision={dec}
+            onCrosshair={setHover}
+            syncGroup={`mc-${tf}`}
+          />
         )}
 
         <span className="mc-tile__hint">detay için tıkla</span>
