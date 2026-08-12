@@ -91,8 +91,11 @@ export function ChartTile({
     return out
   }, [isBuy, analysis?.shortTermTarget, analysis?.shortTermStop])
 
-  // Küçük hücrede mum okunmuyor; 6+ hücrede çizgiye düşülür.
-  const effKind = density >= 6 ? 'line' : kind
+  // Kullanıcının seçtiği tip AYNEN uygulanır.
+  // 08/2026: burada "6+ hücrede otomatik çizgiye düş" kuralı vardı; kullanıcı
+  // Mum seçtiği hâlde 8'li düzende çizgi çiziliyordu. Açık bir seçimi sessizce
+  // ezmek yanlış — dar hücrede ince mum çizmek borsa terminallerinin normali.
+  // `compact` yalnızca EKSENLERİ gizler (yer meselesi), seriyi değiştirmez.
   const compact = density >= 6
 
   return (
@@ -162,7 +165,7 @@ export function ChartTile({
         {bars.length > 0 && (
           <PriceChart
             bars={bars}
-            kind={effKind}
+            kind={kind}
             compact={compact}
             showVolume={density <= 4}
             overlays={overlays}

@@ -114,8 +114,7 @@ export default function MultiChartPage() {
         </span>
 
         <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-muted)' }}>
-          Başlığa tıkla → sembol değiştir · Grafiğe tıkla → tüm detaylar ·
-          6+ hücrede otomatik çizgiye düşer
+          Başlığa tıkla → sembol değiştir · Grafiğe tıkla → tüm detaylar
         </span>
       </div>
 
