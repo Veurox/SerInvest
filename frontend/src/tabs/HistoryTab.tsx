@@ -4,13 +4,10 @@
 // =============================================================================
 import { useEffect, useState } from 'react'
 import { ADMIN, adminFetch } from '../lib/api'
-import { EmptyState, PageHeader, KPI, Icon } from '../components/ui'
+import { EmptyState, PageHeader, KPI, Icon, DataTable } from '../components/ui'
 import { AccuracyHeatmap, PredictionLifecycle, PredictionResults } from '../components/finance'
 import type { PredRow, PredSummary } from '../lib/types'
 import { downloadCsv } from '../lib/format'
-
-type SortKey = 'timestamp' | 'symbol' | 'predicted' | 'confidence' | 'close' | 'evaluated' | 'return'
-type SortDir = 'asc' | 'desc'
 
 export function HistoryTab() {
   const [data, setData]       = useState<{ rows: PredRow[]; summary: PredSummary } | null>(null)
@@ -18,18 +15,9 @@ export function HistoryTab() {
   const [filterSym, setFilterSym] = useState<string>('')
   const [filterRec, setFilterRec] = useState<string>('')   // BUY / SELL / NEUTRAL / ''
   const [filterDay, setFilterDay] = useState<string>('')   // takvimden seçilen gün (YYYY-MM-DD)
-  const [sortKey, setSortKey]   = useState<SortKey>('timestamp')
-  const [sortDir, setSortDir]   = useState<SortDir>('desc')
   const [error, setError]     = useState('')
-
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortKey(key)
-      setSortDir('desc')
-    }
-  }
+  // Sıralama artık DataTable'ın işi (Faz D4) — burada elle tutulan
+  // sortKey/sortDir/handleSort kaldırıldı.
 
   const fetchData = async (sym: string = '') => {
     setLoading(true)
@@ -60,37 +48,14 @@ export function HistoryTab() {
     : []
 
   // Filtre + Sıralama uygulanmış rows
-  const sortedFilteredRows = (() => {
+  // Filtre uygulanmış satırlar; sıralamayı DataTable yapar.
+  const filteredRows = (() => {
     if (!data?.rows) return []
     let rows = data.rows
     if (filterRec) rows = rows.filter(r => r.predicted === filterRec)
     if (filterDay) rows = rows.filter(r => r.timestamp.slice(0, 10) === filterDay)
-    // sembol filter zaten backend'de uygulandı (filterSym → fetchData)
-
-    const dir = sortDir === 'asc' ? 1 : -1
-    const sorted = [...rows].sort((a, b) => {
-      let av: any, bv: any
-      switch (sortKey) {
-        case 'timestamp':
-        case 'symbol':
-        case 'predicted':
-          av = a[sortKey] ?? ''; bv = b[sortKey] ?? ''
-          return String(av).localeCompare(String(bv)) * dir
-        case 'confidence':
-        case 'close':
-          av = a[sortKey] ?? 0; bv = b[sortKey] ?? 0
-          return (av - bv) * dir
-        case 'evaluated':
-          // bekliyor < yanlış < doğru sıralaması
-          const score = (r: PredRow) => !r.evaluated ? 0 : r.correct ? 2 : 1
-          return (score(a) - score(b)) * dir
-        case 'return':
-          av = parseFloat(a.return || '0'); bv = parseFloat(b.return || '0')
-          return (av - bv) * dir
-      }
-      return 0
-    })
-    return sorted
+    // sembol filtresi backend'de uygulandı (filterSym → fetchData)
+    return rows
   })()
 
   return (
@@ -239,111 +204,103 @@ export function HistoryTab() {
             <AccuracyHeatmap rows={data.rows} days={30} topN={15} />
           )}
 
-          {/* Tablo */}
-          <div style={{
-            background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
-            borderRadius: 'var(--radius-md)', overflow: 'hidden',
-            marginTop: 'var(--space-4)',
-          }}>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border-default)', background: 'var(--bg-glass)' }}>
-                    {([
-                      { label: 'Tarih',     key: 'timestamp' },
-                      { label: 'Sembol',    key: 'symbol' },
-                      { label: 'Karar',     key: 'predicted' },
-                      { label: 'Güven',     key: 'confidence' },
-                      { label: 'Fiyat',     key: 'close' },
-                      { label: 'Sonuç (10g)', key: 'evaluated' },
-                      { label: 'Getiri',    key: 'return' },
-                    ] as { label: string; key: SortKey }[]).map(h => {
-                      const isActive = sortKey === h.key
-                      const arrow = !isActive ? '⇅' : sortDir === 'asc' ? '▲' : '▼'
-                      const isRight = ['Getiri','Güven','Fiyat'].includes(h.label)
-                      return (
-                        <th key={h.key}
-                          onClick={() => handleSort(h.key)}
-                          style={{ padding: '.65rem .8rem',
-                            textAlign: isRight ? 'right' : 'left',
-                            color: isActive ? 'var(--text)' : 'var(--text-muted)',
-                            fontWeight: 700, fontSize: '.65rem',
-                            textTransform: 'uppercase', letterSpacing: '.05em', whiteSpace: 'nowrap',
-                            cursor: 'pointer', userSelect: 'none',
-                            background: isActive ? 'rgba(251,191,36,.08)' : 'transparent',
-                          }}>
-                          {h.label}
-                          <span style={{ marginLeft: '.35rem', fontSize: '.65rem',
-                            color: isActive ? '#fbbf24' : 'var(--text-muted)', opacity: isActive ? 1 : 0.4 }}>
-                            {arrow}
-                          </span>
-                        </th>
-                      )
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedFilteredRows.map((row, i) => {
-                    const ts = new Date((row.timestamp ?? '') + (row.timestamp?.endsWith('Z') ? '' : 'Z'))
-                    const dateStr = isNaN(ts.getTime()) ? row.timestamp : ts.toLocaleDateString('tr-TR', { day:'2-digit', month:'short', year:'2-digit' })
-                    const predColor = row.predicted === 'BUY' ? '#22c55e' : row.predicted === 'SELL' ? '#ef4444' : '#94a3b8'
-                    const rowBg = !row.evaluated ? 'transparent'
-                      : row.correct ? 'rgba(34,197,94,.04)' : 'rgba(239,68,68,.04)'
-                    const resultColor = !row.evaluated ? '#64748b' : row.correct ? '#22c55e' : '#ef4444'
-                    const resultLabel = !row.evaluated ? 'Bekliyor' : row.correct ? 'Doğru' : 'Yanlış'
-                    const retVal = row.return ? parseFloat(row.return) : null
-                    const retColor = retVal == null ? '#94a3b8' : retVal > 0 ? '#22c55e' : retVal < 0 ? '#ef4444' : '#94a3b8'
-                    const retStr = retVal != null ? `${retVal > 0 ? '+' : ''}${(retVal * 100).toFixed(2)}%` : '—'
-
-                    return (
-                      <tr key={i} style={{ borderBottom: '1px solid var(--tint-2)', background: rowBg }}>
-                        <td style={{ padding: '.5rem .8rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                          {dateStr}
-                        </td>
-                        <td style={{ padding: '.5rem .8rem', fontWeight: 700 }}>{row.symbol}</td>
-                        <td style={{ padding: '.5rem .8rem' }}>
-                          <span style={{ padding: '.15rem .5rem', borderRadius: '5px', fontWeight: 700,
-                            background: predColor + '22', color: predColor, border: `1px solid ${predColor}44`,
-                            fontSize: '.7rem' }}>
-                            {row.predicted}
-                          </span>
-                        </td>
-                        <td style={{ padding: '.5rem .8rem', textAlign: 'right', fontWeight: 600,
-                          color: row.confidence > 0.7 ? '#22c55e' : row.confidence > 0.55 ? '#fbbf24' : '#94a3b8' }}>
-                          %{(row.confidence * 100).toFixed(0)}
-                        </td>
-                        <td style={{ padding: '.5rem .8rem', textAlign: 'right', color: 'var(--text-muted)' }}>
-                          {row.close ? row.close.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
-                        </td>
-                        <td style={{ padding: '.5rem .8rem', color: resultColor, fontWeight: 600, fontSize: '.72rem' }}>
-                          {resultLabel}
-                        </td>
-                        <td style={{ padding: '.5rem .8rem', textAlign: 'right', fontWeight: 700, color: retColor }}>
-                          {retStr}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-              {sortedFilteredRows.length === 0 && (
-                filterSym || filterRec ? (
-                  <EmptyState
-                    icon={<Icon name="search" size={28} />}
-                    title="Filtre eşleşmedi"
-                    message={`${filterSym || 'Tümü'}${filterSym && filterRec ? ' + ' : ''}${filterRec || ''} için kayıt yok. Filtreyi değiştirip tekrar dene.`}
-                    size="sm"
-                  />
-                ) : (
-                  <EmptyState
-                    icon={<Icon name="history" size={28} />}
-                    title="Henüz tahmin kaydı yok"
-                    message="Sistem her gün otomatik analiz üretir. İlk tahminler birkaç döngü sonra burada görünecek."
-                    size="sm"
-                  />
-                )
+          {/* Tablo — DataTable (Faz D4). Eskiden elle yazılmış <table> vardı ve
+              sabit hex renkler (#22c55e, #fbbf24, #ef4444) kullanıyordu; tema
+              sistemini baypas ediyor, açık temada kontrastı ölçülmemiş renkler
+              çıkıyordu. Sıralama da artık bileşenin işi. */}
+          <div style={{ marginTop: 'var(--space-4)' }}>
+            <DataTable
+              rows={filteredRows}
+              rowKey={r => `${r.timestamp}-${r.symbol}`}
+              defaultSort={{ key: 'timestamp', dir: 'desc' }}
+              maxHeight="60vh"
+              empty={filterSym || filterRec ? (
+                <EmptyState
+                  icon={<Icon name="search" size={28} />}
+                  title="Filtre eşleşmedi"
+                  message={`${filterSym || 'Tümü'}${filterSym && filterRec ? ' + ' : ''}${filterRec || ''} için kayıt yok. Filtreyi değiştirip tekrar dene.`}
+                  size="sm"
+                />
+              ) : (
+                <EmptyState
+                  icon={<Icon name="history" size={28} />}
+                  title="Henüz tahmin kaydı yok"
+                  message="Sistem her gün otomatik analiz üretir. İlk tahminler birkaç döngü sonra burada görünecek."
+                  size="sm"
+                />
               )}
-            </div>
+              columns={[
+                {
+                  key: 'timestamp', header: 'Tarih', width: 92,
+                  sortValue: r => r.timestamp ?? '',
+                  render: r => {
+                    const ts = new Date((r.timestamp ?? '') + (r.timestamp?.endsWith('Z') ? '' : 'Z'))
+                    return <span style={{ color: 'var(--text-muted)' }}>
+                      {isNaN(ts.getTime()) ? r.timestamp
+                        : ts.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: '2-digit' })}
+                    </span>
+                  },
+                },
+                {
+                  key: 'symbol', header: 'Sembol', width: 78,
+                  sortValue: r => r.symbol ?? '',
+                  render: r => <b style={{ color: 'var(--text-primary)' }}>{r.symbol}</b>,
+                },
+                {
+                  key: 'predicted', header: 'Karar', width: 86,
+                  sortValue: r => r.predicted ?? '',
+                  render: r => {
+                    const c = r.predicted === 'BUY' ? 'var(--profit)'
+                            : r.predicted === 'SELL' ? 'var(--loss)' : 'var(--text-muted)'
+                    const bg = r.predicted === 'BUY' ? 'var(--profit-bg)'
+                            : r.predicted === 'SELL' ? 'var(--loss-bg)' : 'var(--bg-glass)'
+                    const bd = r.predicted === 'BUY' ? 'var(--profit-border)'
+                            : r.predicted === 'SELL' ? 'var(--loss-border)' : 'var(--border-default)'
+                    return <span style={{ padding: '1px 6px', fontWeight: 700, fontSize: 'var(--text-2xs)',
+                                          color: c, background: bg, border: `1px solid ${bd}` }}>{r.predicted}</span>
+                  },
+                },
+                {
+                  key: 'confidence', header: 'Güven', numeric: true, width: 66,
+                  title: 'Modelin ham çıktısı — doğrulanmış bir olasılık değil',
+                  sortValue: r => r.confidence ?? 0,
+                  render: r => <>%{(r.confidence * 100).toFixed(0)}</>,
+                },
+                {
+                  key: 'close', header: 'Fiyat', numeric: true, width: 84, priority: 2,
+                  sortValue: r => r.close ?? 0,
+                  render: r => r.close
+                    ? r.close.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    : '—',
+                },
+                {
+                  key: 'evaluated', header: 'Sonuç (10g)', width: 92,
+                  sortValue: r => (!r.evaluated ? 0 : r.correct ? 2 : 1),
+                  render: r => {
+                    const c = !r.evaluated ? 'var(--text-muted)' : r.correct ? 'var(--profit)' : 'var(--loss)'
+                    return <span style={{ color: c, fontWeight: 600 }}>
+                      {!r.evaluated ? 'Bekliyor' : r.correct ? 'Doğru' : 'Yanlış'}
+                    </span>
+                  },
+                },
+                {
+                  key: 'return', header: 'Getiri', numeric: true, width: 84,
+                  // Değerlendirilmemiş satır 0 DEĞİL, "değer yok"tur. 0 sayarsak
+                  // sıralamada gerçek getirilerin ortasına serpilir ve kolon
+                  // okunamaz hale gelir; null dönünce DataTable onları dibe atar.
+                  sortValue: r => (r.return ? parseFloat(r.return) : null),
+                  render: r => {
+                    const v = r.return ? parseFloat(r.return) : null
+                    if (v == null) return '—'
+                    // Yön renge EK OLARAK glifle veriliyor (theme.css .dir-up/.dir-down)
+                    return <span className={v > 0 ? 'dir-up' : v < 0 ? 'dir-down' : undefined}
+                                 style={{ fontWeight: 700, color: v === 0 ? 'var(--text-muted)' : undefined }}>
+                      {Math.abs(v * 100).toFixed(2)}%
+                    </span>
+                  },
+                },
+              ]}
+            />
           </div>
         </>
       )}

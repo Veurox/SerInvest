@@ -1,0 +1,94 @@
+/* =============================================================================
+   SerInvest — Yoğun Veri Tablosu
+   Kurumsal terminal yoğunluğu: alçak satır, hairline ayraç, tabular rakam.
+   ========================================================================== */
+
+.dt-wrap {
+  /* Yatay taşma TABLONUN kabında kalır — sayfa gövdesi asla yana kaymaz. */
+  overflow-x: auto;
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+}
+
+.dt {
+  width: 100%;
+  border-collapse: separate;   /* sticky başlıkta collapse kenarlığı kaybettirir */
+  border-spacing: 0;
+  font-size: var(--text-xs);
+  line-height: 1.35;
+}
+
+/* ── Başlık ──────────────────────────────────────────────────────────────── */
+.dt thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 6px 10px;
+  text-align: left;
+  white-space: nowrap;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--bg-surface-2);
+  border-bottom: 1px solid var(--border-strong);
+  user-select: none;
+}
+
+.dt thead th[data-numeric='true'] { text-align: right; }
+
+.dt-sortable { cursor: pointer; }
+.dt-sortable:hover { color: var(--text-secondary); background: var(--bg-surface-3); }
+
+.dt-caret {
+  margin-left: 4px;
+  font-size: 7.5px;
+  color: var(--text-disabled);
+  vertical-align: 1px;
+}
+.dt-caret--on { color: var(--accent); }
+
+/* ── Gövde ───────────────────────────────────────────────────────────────── */
+.dt tbody td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.dt tbody td[data-numeric='true'] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+  color: var(--text-primary);
+}
+
+.dt tbody tr:last-child td { border-bottom: none; }
+.dt tbody tr:hover td { background: var(--bg-glass); }
+
+.dt-click { cursor: pointer; }
+.dt-click:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* Seçili satır: sol kenarda vurgu şeridi — arka plan tonu tek başına
+   yoğun tabloda fark edilmiyor. */
+.dt-row--active td { background: var(--accent-bg); }
+.dt-row--active td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
+
+.dt-empty {
+  padding: 18px 10px !important;
+  text-align: center;
+  color: var(--text-muted);
+  white-space: normal !important;
+}
+
+/* ── Dar ekranda kolon gizleme ───────────────────────────────────────────── */
+@media (max-width: 1200px) {
+  .dt [data-priority='2'] { display: none; }
+}
+@media (max-width: 900px) {
+  .dt [data-priority='3'] { display: none; }
+}
