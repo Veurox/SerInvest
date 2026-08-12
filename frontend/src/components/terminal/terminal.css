@@ -15,7 +15,6 @@
 .terminal-page {
   --t-gap: 8px;
   --t-radius: 3px;
-  --t-mono: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
   display: grid;
   gap: var(--t-gap);
   grid-template-columns: repeat(12, 1fr);

@@ -33,7 +33,7 @@
   --border-subtle:  rgba(15, 23, 42, 0.06);
   --border-default: #e2e8f0;
   --border-strong:  #cbd5e1;
-  --border-focus:   #d97706;
+  --border-focus:   #1d4ed8;
 
   /* Text */
   --text-primary:   #0f172a;
@@ -41,29 +41,36 @@
   --text-muted:     #64748b;
   --text-disabled:  #94a3b8;
 
-  /* Semantic */
-  --profit:         #059669;
-  --profit-soft:    #10b981;
-  --profit-bg:      rgba(5, 150, 105, 0.10);
-  --profit-border:  rgba(5, 150, 105, 0.30);
+  /* Semantic — açık temada koyulaştırıldı: beyaz üzerinde #059669 ve #dc2626
+     küçük punto rakamda yeterli kontrast vermiyordu (WCAG AA sınırında). */
+  --profit:         #047857;
+  --profit-soft:    #059669;
+  --profit-bg:      rgba(4, 120, 87, 0.09);
+  --profit-border:  rgba(4, 120, 87, 0.28);
 
-  --loss:           #dc2626;
-  --loss-soft:      #ef4444;
-  --loss-bg:        rgba(220, 38, 38, 0.08);
-  --loss-border:    rgba(220, 38, 38, 0.28);
+  --loss:           #b91c1c;
+  --loss-soft:      #dc2626;
+  --loss-bg:        rgba(185, 28, 28, 0.08);
+  --loss-border:    rgba(185, 28, 28, 0.26);
 
   --warning:        #d97706;
   --warning-bg:     rgba(217, 119, 6, 0.10);
   --warning-border: rgba(217, 119, 6, 0.30);
 
-  --info:           #2563eb;
-  --info-bg:        rgba(37, 99, 235, 0.08);
-  --info-border:    rgba(37, 99, 235, 0.25);
+  /* Bilgi/veri serisi = CAMGÖBEĞİ. Vurgu lacivert olunca ikisi çakışmasın diye
+     ayrıldı: lacivert = arayüz (seçim, aktif sekme), camgöbeği = veri (çizgi). */
+  --info:           #0891b2;
+  --info-bg:        rgba(8, 145, 178, 0.08);
+  --info-border:    rgba(8, 145, 178, 0.25);
 
-  --accent:         #d97706;
-  --accent-soft:    #f59e0b;
-  --accent-bg:      rgba(217, 119, 6, 0.10);
-  --accent-border:  rgba(217, 119, 6, 0.30);
+  /* Vurgu = LACİVERT (08/2026 görsel kimlik kararı: modern kurumsal).
+     Önce kehribardı; kehribar Bloomberg çağrışımı yapıyor ama uyarı rengiyle
+     (--warning) çakışıyordu ve "vurgu mu, uyarı mı?" belirsizliği yaratıyordu.
+     Lacivert marka/seçim rengi, kehribar yalnız uyarı olarak kaldı. */
+  --accent:         #1d4ed8;
+  --accent-soft:    #3b82f6;
+  --accent-bg:      rgba(29, 78, 216, 0.08);
+  --accent-border:  rgba(29, 78, 216, 0.28);
 
   /* Sinyal renkleri */
   --signal-strong-buy:  #059669;
@@ -72,18 +79,19 @@
   --signal-sell:        #ea580c;
   --signal-strong-sell: #dc2626;
 
-  /* Body backdrop (tema-bazlı vurgu) */
-  --bg-image:
-    radial-gradient(ellipse 60% 40% at 10% 10%, rgba(37,99,235,.06) 0%, transparent 60%),
-    radial-gradient(ellipse 50% 40% at 90% 90%, rgba(217,119,6,.05) 0%, transparent 60%);
+  /* Zemin deseni YOK. Yumuşak radyal gradyanlar "jenerik AI arayüzü"nün en
+     belirgin işaretiydi; kurumsal terminal düz yüzey kullanır. */
+  --bg-image: none;
 
-  /* Shadows — light için yumuşak slate-900 tabanlı */
-  --shadow-xs:  0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-sm:  0 2px 6px rgba(15, 23, 42, 0.08);
-  --shadow-md:  0 4px 14px rgba(15, 23, 42, 0.10);
-  --shadow-lg:  0 12px 32px rgba(15, 23, 42, 0.14);
-  --shadow-xl:  0 20px 50px rgba(15, 23, 42, 0.18);
-  --shadow-accent: 0 0 0 1px rgba(217, 119, 6, 0.25), 0 8px 24px rgba(217, 119, 6, 0.12);
+  /* Gölgeler — yalnız GERÇEKTEN üstte duran katmanlar için (menü, çekmece,
+     tooltip). Kartlar gölge değil KENARLIK kullanır; katman hiyerarşisi
+     gölgeyle değil yüzey tonuyla anlatılır. */
+  --shadow-xs:  0 1px 1px rgba(15, 23, 42, 0.04);
+  --shadow-sm:  0 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-md:  0 3px 10px rgba(15, 23, 42, 0.09);
+  --shadow-lg:  0 8px 22px rgba(15, 23, 42, 0.12);
+  --shadow-xl:  0 14px 36px rgba(15, 23, 42, 0.15);
+  --shadow-accent: 0 0 0 1px rgba(29, 78, 216, 0.22);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -112,7 +120,7 @@
   --border-subtle:  rgba(255, 255, 255, 0.06);
   --border-default: #21262d;
   --border-strong:  #30363d;
-  --border-focus:   #fbbf24;
+  --border-focus:   #60a5fa;
 
   --text-primary:   #f1f5f9;
   --text-secondary: #cbd5e1;
@@ -133,14 +141,15 @@
   --warning-bg:     rgba(245, 158, 11, 0.12);
   --warning-border: rgba(245, 158, 11, 0.30);
 
-  --info:           #3b82f6;
-  --info-bg:        rgba(59, 130, 246, 0.12);
-  --info-border:    rgba(59, 130, 246, 0.30);
+  /* Bkz. açık temadaki not: vurgu = arayüz (lacivert), bilgi = veri (camgöbeği). */
+  --info:           #22d3ee;
+  --info-bg:        rgba(34, 211, 238, 0.10);
+  --info-border:    rgba(34, 211, 238, 0.28);
 
-  --accent:         #fbbf24;
-  --accent-soft:    #fcd34d;
-  --accent-bg:      rgba(251, 191, 36, 0.10);
-  --accent-border:  rgba(251, 191, 36, 0.30);
+  --accent:         #60a5fa;
+  --accent-soft:    #93c5fd;
+  --accent-bg:      rgba(96, 165, 250, 0.12);
+  --accent-border:  rgba(96, 165, 250, 0.32);
 
   --signal-strong-buy:  #10b981;
   --signal-buy:         #84cc16;
@@ -148,22 +157,29 @@
   --signal-sell:        #fb923c;
   --signal-strong-sell: #f43f5e;
 
-  --bg-image:
-    radial-gradient(ellipse 60% 40% at 10% 10%, rgba(59,130,246,.05) 0%, transparent 60%),
-    radial-gradient(ellipse 50% 40% at 90% 90%, rgba(251,191,36,.04) 0%, transparent 60%);
+  --bg-image: none;
 
-  --shadow-xs:  0 1px 2px rgba(0, 0, 0, 0.30);
-  --shadow-sm:  0 2px 6px rgba(0, 0, 0, 0.40);
-  --shadow-md:  0 4px 14px rgba(0, 0, 0, 0.50);
-  --shadow-lg:  0 12px 40px rgba(0, 0, 0, 0.60);
-  --shadow-xl:  0 20px 60px rgba(0, 0, 0, 0.70);
-  --shadow-accent: 0 0 0 1px rgba(251, 191, 36, 0.15), 0 8px 24px rgba(251, 191, 36, 0.08);
+  --shadow-xs:  0 1px 1px rgba(0, 0, 0, 0.25);
+  --shadow-sm:  0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-md:  0 3px 10px rgba(0, 0, 0, 0.45);
+  --shadow-lg:  0 8px 24px rgba(0, 0, 0, 0.55);
+  --shadow-xl:  0 14px 40px rgba(0, 0, 0, 0.65);
+  --shadow-accent: 0 0 0 1px rgba(96, 165, 250, 0.30);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
    Tipografi / Spacing / Radius / Transitions — tema bağımsız
    ───────────────────────────────────────────────────────────────────────── */
 :root {
+  /* Font yığınları — GLOBAL.
+     08/2026 hatası: --t-mono yalnız .terminal-page içinde tanımlıydı, bu yüzden
+     Çoklu Grafik ve Model sayfalarındaki grafikler yedek fonta düşüyordu.
+     Rakamlar her yerde aynı monospace ile hizalanmalı. */
+  --t-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --t-mono: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', Consolas,
+            ui-monospace, monospace;
+
+  --text-2xs:   10px;   /* yoğun tablo alt satırı, rozet */
   --text-xs:    11px;
   --text-sm:    13px;
   --text-base:  15px;
@@ -237,3 +253,17 @@ table .num, table .price, table .pct, table .pnl {
   font-feature-settings: "tnum";
   text-align: right;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   ERİŞİLEBİLİRLİK — kâr/zarar yalnız RENGE bağlı kalmamalı
+   Kırmızı-yeşil renk körlüğü erkeklerin ~%8'inde görülür; bir finans
+   arayüzünde yön bilgisini yalnız renkle vermek o kullanıcı için okunamaz
+   demektir. Bu yardımcılar renge ek olarak bir GLİF koyar.
+   ───────────────────────────────────────────────────────────────────────── */
+.dir-up, .dir-down { font-variant-numeric: tabular-nums; }
+.dir-up   { color: var(--profit); }
+.dir-down { color: var(--loss); }
+.dir-up::before   { content: '▲'; font-size: .78em; margin-right: .25em; }
+.dir-down::before { content: '▼'; font-size: .78em; margin-right: .25em; }
+/* Glif zaten metinde varsa tekrarlamasın */
+.dir-up.no-glyph::before, .dir-down.no-glyph::before { content: none; }

@@ -21,7 +21,8 @@
   /* Eski radius isimleri */
   --radius:       var(--radius-md);
   /* --radius-sm zaten theme.css'te tanımlı */
-  --font: 'Inter', system-ui, -apple-system, sans-serif;
+  /* theme.css'teki --t-sans'a bağlı — tek kaynak orası */
+  --font: var(--t-sans);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
