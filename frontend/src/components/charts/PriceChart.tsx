@@ -56,6 +56,13 @@ interface Props {
 // Basit bir kayıt defteri; grafik sökülünce kendini siler.
 const SYNC: Record<string, Set<IChartApi>> = {}
 
+// Geri besleme kilidi MODÜL düzeyinde olmak ZORUNDA.
+// 08/2026 hatası: bayrak her grafiğin kendi kapanışındaydı. A grafiği B'ye
+// aralık yazınca B'nin kendi dinleyicisi tetikleniyor, B de A/C/D'ye yazıyordu
+// → döngü. Sonuç: zaman ekseninin görünür aralığı null kalıyor ve seride 64
+// geçerli mum olmasına rağmen HİÇBİR ŞEY çizilmiyordu.
+let syncApplying = false
+
 function joinSync(group: string | undefined, chart: IChartApi): () => void {
   if (!group) return () => {}
   ;(SYNC[group] ??= new Set()).add(chart)
@@ -171,20 +178,33 @@ export function PriceChart({
       })
     })
 
+    // Teşhis sondası — grafik nesnesini DOM'a bağlar ki tarayıcı konsolundan
+    // "seri veriyi aldı mı, kaç bar var" sorulabilsin. Boyama gizli sekmede
+    // yapılamadığı için tek doğrulama yolu bu.
+    ;(box as unknown as Record<string, unknown>).__chart = chart
+    ;(box as unknown as Record<string, unknown>).__main = mainRef.current
+
     const leaveSync = joinSync(syncGroup, chart)
-    // Zaman aralığı senkronizasyonu — kendi tetiklediğimiz güncellemede
-    // sonsuz döngüye girmemek için bayrak kullanılır.
-    let applying = false
+    // Zaman aralığı senkronizasyonu. Kilit modül düzeyinde (yukarıdaki nota bak):
+    // yayılım sırasında hiçbir grafiğin dinleyicisi yeni yayılım başlatamaz.
+    // Ayrıca yalnız VERİSİ OLAN grafiklere yazılır — veri gelmemiş grafiğe
+    // aralık dayatmak zaman eksenini geçersiz duruma sokuyordu.
     const onRange = () => {
-      if (applying || !syncGroup) return
+      if (syncApplying || !syncGroup) return
       const range = chart.timeScale().getVisibleLogicalRange()
       if (!range) return
-      applying = true
-      for (const other of SYNC[syncGroup] ?? []) {
-        if (other === chart) continue
-        try { other.timeScale().setVisibleLogicalRange(range) } catch { /* sökülmüş olabilir */ }
+      syncApplying = true
+      try {
+        for (const other of SYNC[syncGroup] ?? []) {
+          if (other === chart) continue
+          try {
+            if (other.timeScale().getVisibleLogicalRange() == null) continue   // henüz verisiz
+            other.timeScale().setVisibleLogicalRange(range)
+          } catch { /* sökülmüş olabilir */ }
+        }
+      } finally {
+        syncApplying = false
       }
-      applying = false
     }
     chart.timeScale().subscribeVisibleLogicalRangeChange(onRange)
 
@@ -223,7 +243,10 @@ export function PriceChart({
     }
 
     chartRef.current?.timeScale().fitContent()
-  }, [bars, kind])
+    // Bağımlılıklar kurulum efektiyle AYNI olmak zorunda: kurulum yeniden
+    // çalıştığında (düzen değişince compact/showVolume değişir) grafik sıfırdan
+    // kurulur; veri efekti tetiklenmezse yeni grafik BOŞ kalırdı.
+  }, [bars, kind, compact, showVolume, precision, syncGroup])
 
   // ── Referans çizgileri (AI hedef/stop) ───────────────────────────────────
   useEffect(() => {
@@ -246,7 +269,8 @@ export function PriceChart({
       }),
     )
     return () => { for (const l of lines) { try { main.removePriceLine(l) } catch { /* sökülmüş */ } } }
-  }, [overlays, compact])
+    // Kurulum efektiyle aynı bağımlılıklar — yukarıdaki nota bak.
+  }, [overlays, compact, kind, showVolume, precision, syncGroup])
 
   return <div ref={boxRef} style={{ width: '100%', height }} />
 }
