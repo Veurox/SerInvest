@@ -7,12 +7,14 @@ import './components/dashboard/dashboard.css'
 import './components/watchlist/watchlist.css'
 import './shell/shell.css'
 import './components/terminal/terminal.css'
+import './components/multichart/multichart.css'
 import App from './App.tsx'
 import { ToastProvider } from './components/ui/Toast'
 
 // ── Sayfalar (route'lar) ─────────────────────────────────────────────────────
 import OverviewPage from './pages/OverviewPage'
 import TerminalPage from './pages/TerminalPage'
+import MultiChartPage from './pages/MultiChartPage'
 import ModelPage from './pages/ModelPage'
 import OraclePage from './pages/OraclePage'
 import ModelPortfolioPage from './pages/ModelPortfolioPage'
@@ -32,6 +34,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/" element={<App />}>
             <Route index               element={<OverviewPage />} />
             <Route path="terminal"      element={<TerminalPage />} />
+            <Route path="coklu-grafik"  element={<MultiChartPage />} />
             <Route path="model-portfoy" element={<ModelPortfolioPage />} />
             <Route path="oracle"        element={<OraclePage />} />
             <Route path="portfolio"     element={<PortfolioTab />} />

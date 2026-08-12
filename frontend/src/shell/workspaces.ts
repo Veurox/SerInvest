@@ -30,6 +30,7 @@ export const WORKSPACES: Workspace[] = [
     id: 'chart', label: 'Grafik', icon: 'overview', home: '/terminal',
     sections: [
       { to: '/terminal',      label: 'Terminal' },
+      { to: '/coklu-grafik',  label: 'Çoklu Grafik' },
       { to: '/',              label: 'Piyasa Genel', end: true },
       { to: '/degerlendirme', label: 'Sembol İncele' },
       { to: '/news',          label: 'Haberler', badgeKey: 'news' },

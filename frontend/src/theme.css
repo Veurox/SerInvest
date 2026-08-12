@@ -192,11 +192,16 @@
   --space-7:    48px;
   --space-8:    64px;
 
-  --radius-xs:    4px;
-  --radius-sm:    6px;
-  --radius-md:    10px;
-  --radius-lg:    14px;
-  --radius-xl:    20px;
+  /* Köşe yarıçapları — 08/2026: "daha keskin hatlı" terminal görünümü.
+     Yuvarlak köşeler tüketici uygulaması hissi veriyordu; profesyonel borsa
+     yazılımları (Bloomberg, Eikon) neredeyse dik köşe kullanır. Değerler
+     sıfırlanmadı: 1-3px, kenarların pikselde ezilmesini önleyip yine de
+     "kesilmiş" hissi verir. --radius-full dokunulmadı (avatar/pill dairesel). */
+  --radius-xs:    0px;
+  --radius-sm:    2px;
+  --radius-md:    2px;
+  --radius-lg:    3px;
+  --radius-xl:    4px;
   --radius-full:  999px;
 
   --transition-fast:   120ms ease-out;
