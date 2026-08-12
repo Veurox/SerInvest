@@ -1,87 +1,112 @@
 // =============================================================================
 // Terminal — Ana Grafik: Gerçek Fiyat vs AI Hedef/Stop Bariyerleri
-// Tek eksen, tek seri (kapanış) + Oracle'ın triple-barrier seviyeleri referans
-// çizgisi olarak. Crosshair tooltip; grid geri planda (dataviz disiplinine uygun).
+//
+// 08/2026: Recharts'tan lightweight-charts'a taşındı (docs/PLAN_2026-08.md Faz C).
+// Kazanılan: mum grafiği, hacim alt paneli, crosshair ile OHLC okuması.
+// Çizim işi components/charts/PriceChart.tsx'te — çoklu ızgara ile AYNI bileşen,
+// ikisi zamanla ayrışmasın diye.
 // =============================================================================
 import { useEffect, useMemo, useState } from 'react'
-import {
-  ResponsiveContainer, ComposedChart, Area, XAxis, YAxis,
-  CartesianGrid, Tooltip, ReferenceLine,
-} from 'recharts'
 import { API } from '../../lib/api'
 import { useConfig } from '../../lib/useConfig'
+import { PriceChart, type CrosshairInfo, type Overlay } from '../charts/PriceChart'
+import type { Bar } from '../../lib/bars'
 import type { OracleAnalysis } from '../../lib/types'
 
-interface ChartPoint { t: number; c: number }
-interface ChartPayload { symbol: string; points: ChartPoint[]; error?: string }
+interface ChartPayload { symbol: string; points: Bar[]; error?: string }
 
 interface Props {
   symbol: string
   analysis: OracleAnalysis | null
 }
 
-const TIMEFRAMES = ['1M', '3M', '1Y'] as const
+const TIMEFRAMES = ['1H', '1D', '1W', '1M', '3M', '1Y', '5Y'] as const
 type TF = typeof TIMEFRAMES[number]
+const TF_LABEL: Record<TF, string> = {
+  '1H': '1S', '1D': '1G', '1W': '1H', '1M': '1A', '3M': '3A', '1Y': '1Y', '5Y': '5Y',
+}
 
 const px = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-// t = epoch MİLİSANİYE (market-data chart API'si)
-const dt = (t: number) => new Date(t).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })
+const vol = (v: number | null) => {
+  if (v == null) return '—'
+  if (v >= 1e9) return `${(v / 1e9).toFixed(2)}B`
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`
+  if (v >= 1e3) return `${(v / 1e3).toFixed(0)}K`
+  return String(Math.round(v))
+}
 
 export function TerminalChart({ symbol, analysis }: Props) {
   const cfg = useConfig()
   const [tf, setTf] = useState<TF>('3M')
-  const [points, setPoints] = useState<ChartPoint[]>([])
+  const [kind, setKind] = useState<'candle' | 'line'>('candle')
+  const [bars, setBars] = useState<Bar[]>([])
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [hover, setHover] = useState<CrosshairInfo | null>(null)
 
   useEffect(() => {
     let stop = false
-    setLoading(true); setErr(null)
+    setLoading(true); setErr(null); setHover(null)
     fetch(`${API}/market/${encodeURIComponent(symbol)}/chart?tf=${tf}`)
       .then(r => r.json())
       .then((j: ChartPayload) => {
         if (stop) return
-        if (j.error || !j.points?.length) { setErr(j.error || 'veri yok'); setPoints([]) }
-        // Kronolojik garanti — API sırasına güvenme (eksen sayısal/zaman ölçekli)
-        else setPoints(j.points.filter(p => p.c != null).sort((a, b) => a.t - b.t))
+        if (j.error || !j.points?.length) { setErr(j.error || 'veri yok'); setBars([]) }
+        else setBars(j.points)
       })
       .catch(e => { if (!stop) setErr(String(e)) })
       .finally(() => { if (!stop) setLoading(false) })
     return () => { stop = true }
   }, [symbol, tf])
 
-  const isBuy = !!analysis && analysis.recommendation.includes('ALIM')
+  const isBuy  = !!analysis && analysis.recommendation.includes('ALIM')
   const target = isBuy ? analysis?.shortTermTarget ?? null : null
   const stopPx = isBuy ? analysis?.shortTermStop ?? null : null
   const entry  = analysis?.priceAtAnalysis ?? null
 
-  const last = points.length ? points[points.length - 1].c : null
-  const first = points.length ? points[0].c : null
+  const first = bars.length ? bars[0].c : null
+  const last  = bars.length ? bars[bars.length - 1].c : null
   const chgPct = last != null && first ? ((last - first) / first) * 100 : null
 
-  // Y ekseni: seri + bariyer seviyelerini kapsasın, %2 nefes payı
-  const yDomain = useMemo((): [number, number] | undefined => {
-    if (!points.length) return undefined
-    const vals = points.map(p => p.c)
-    if (target != null) vals.push(target)
-    if (stopPx != null) vals.push(stopPx)
-    const lo = Math.min(...vals), hi = Math.max(...vals)
-    const pad = (hi - lo) * 0.04 || hi * 0.01
-    return [lo - pad, hi + pad]
-  }, [points, target, stopPx])
+  const overlays = useMemo<Overlay[]>(() => {
+    const out: Overlay[] = []
+    if (target != null) out.push({ price: target, color: 'var(--profit)', label: `HEDEF ${px.format(target)}` })
+    if (stopPx != null) out.push({ price: stopPx, color: 'var(--loss)',   label: `STOP ${px.format(stopPx)}` })
+    if (entry != null && isBuy) out.push({ price: entry, color: 'var(--text-disabled)', label: `ANALİZ ${px.format(entry)}` })
+    return out
+  }, [target, stopPx, entry, isBuy])
 
   return (
     <section className="t-panel t-area-chart" aria-label="Fiyat ve yapay zeka bariyer grafiği">
       <div className="t-panel__head">
         <span className="t-panel__title">
           {symbol} · Fiyat vs AI Bariyerleri
-          {chgPct != null && (
-            <span className={`t-num ${chgPct >= 0 ? 't-up' : 't-down'}`} style={{ marginLeft: 8, textTransform: 'none', letterSpacing: 0 }}>
+          {hover ? (
+            <span className="t-ohlc">
+              <i>A</i>{px.format(hover.o ?? 0)}
+              <i>Y</i>{px.format(hover.h ?? 0)}
+              <i>D</i>{px.format(hover.l ?? 0)}
+              <i>K</i><b>{px.format(hover.c ?? 0)}</b>
+              {hover.v != null && <><i>H</i>{vol(hover.v)}</>}
+            </span>
+          ) : chgPct != null && (
+            <span className={`t-num ${chgPct >= 0 ? 't-up' : 't-down'}`}
+                  style={{ marginLeft: 8, textTransform: 'none', letterSpacing: 0 }}>
               {chgPct >= 0 ? '+' : ''}{chgPct.toFixed(2)}%
             </span>
           )}
         </span>
-        <span style={{ display: 'inline-flex', gap: 2 }}>
+
+        <span style={{ display: 'inline-flex', gap: 2, marginLeft: 'auto' }}>
+          <button onClick={() => setKind(k => (k === 'candle' ? 'line' : 'candle'))}
+                  title={kind === 'candle' ? 'Çizgiye geç' : 'Muma geç'}
+                  style={{
+                    fontSize: 10, fontWeight: 700, padding: '2px 8px', cursor: 'pointer',
+                    borderRadius: 2, border: '1px solid var(--border-default)',
+                    background: 'transparent', color: 'var(--text-secondary)', marginRight: 6,
+                  }}>
+            {kind === 'candle' ? '▮ Mum' : '╱ Çizgi'}
+          </button>
           {TIMEFRAMES.map(t => (
             <button key={t} onClick={() => setTf(t)}
               style={{
@@ -90,7 +115,7 @@ export function TerminalChart({ symbol, analysis }: Props) {
                 borderColor: tf === t ? 'var(--accent-border)' : 'transparent',
                 background: tf === t ? 'var(--accent-bg)' : 'transparent',
                 color: tf === t ? 'var(--accent)' : 'var(--text-muted)',
-              }}>{t}</button>
+              }}>{TF_LABEL[t]}</button>
           ))}
         </span>
       </div>
@@ -102,71 +127,20 @@ export function TerminalChart({ symbol, analysis }: Props) {
             {loading ? 'Grafik yükleniyor…' : `Grafik alınamadı (${err})`}
           </div>
         )}
-        {points.length > 0 && (
-          <ResponsiveContainer width="100%" height={420}>
-            <ComposedChart data={points} margin={{ top: 14, right: 58, bottom: 4, left: 4 }}>
-              <defs>
-                <linearGradient id="tPriceFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--info)" stopOpacity={0.22} />
-                  <stop offset="100%" stopColor="var(--info)" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
-              <XAxis dataKey="t" type="number" scale="time" domain={['dataMin', 'dataMax']}
-                     tickFormatter={dt} minTickGap={48}
-                     tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
-                     axisLine={{ stroke: 'var(--border-default)' }} tickLine={false} />
-              <YAxis domain={yDomain} orientation="right" width={54}
-                     tickFormatter={(v: number) => px.format(v)}
-                     tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'var(--t-mono)' }}
-                     axisLine={false} tickLine={false} />
-              <Tooltip
-                cursor={{ stroke: 'var(--border-strong)', strokeDasharray: '3 3' }}
-                content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null
-                  const p = payload[0].payload as ChartPoint
-                  return (
-                    <div style={{
-                      background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
-                      borderRadius: 3, padding: '6px 10px', fontSize: 11.5, boxShadow: 'var(--shadow-md, 0 4px 12px rgba(0,0,0,.25))',
-                    }}>
-                      <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>
-                        {new Date(p.t).toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })}
-                      </div>
-                      <div className="t-num" style={{ fontWeight: 700, fontSize: 13 }}>₺{px.format(p.c)}</div>
-                    </div>
-                  )
-                }}
-              />
-              {/* Kapanış serisi — tek seri, legend gerekmez (başlık adlandırıyor) */}
-              <Area type="monotone" dataKey="c" stroke="var(--info)" strokeWidth={2}
-                    fill="url(#tPriceFill)" dot={false} isAnimationActive={false}
-                    activeDot={{ r: 3.5, fill: 'var(--info)', stroke: 'var(--bg-surface)', strokeWidth: 2 }} />
-
-              {/* Oracle triple-barrier seviyeleri (eğitimle aynı tanım) */}
-              {target != null && (
-                <ReferenceLine y={target} stroke="var(--profit)" strokeDasharray="5 3" strokeWidth={1.5}
-                  label={{ value: `HEDEF ${px.format(target)}`, position: 'insideTopRight',
-                           fontSize: 9.5, fontWeight: 700, fill: 'var(--profit)' }} />
-              )}
-              {stopPx != null && (
-                <ReferenceLine y={stopPx} stroke="var(--loss)" strokeDasharray="5 3" strokeWidth={1.5}
-                  label={{ value: `STOP ${px.format(stopPx)}`, position: 'insideBottomRight',
-                           fontSize: 9.5, fontWeight: 700, fill: 'var(--loss)' }} />
-              )}
-              {entry != null && isBuy && (
-                <ReferenceLine y={entry} stroke="var(--text-disabled)" strokeDasharray="2 4" strokeWidth={1}
-                  label={{ value: `ANALİZ ${px.format(entry)}`, position: 'insideRight',
-                           fontSize: 9, fill: 'var(--text-muted)' }} />
-              )}
-            </ComposedChart>
-          </ResponsiveContainer>
+        {bars.length > 0 && (
+          <PriceChart
+            bars={bars}
+            kind={kind}
+            overlays={overlays}
+            onCrosshair={setHover}
+            height={420}
+          />
         )}
       </div>
 
       <div style={{ padding: '5px 10px', borderTop: '1px solid var(--border-subtle)',
                     fontSize: 10, color: 'var(--text-muted)', display: 'flex', gap: 14 }}>
-        <span><span className="t-dot" style={{ background: 'var(--info)' }} /> Kapanış</span>
+        <span>{kind === 'candle' ? 'Mum' : 'Kapanış'} + hacim</span>
         {target != null && <span className="t-up">— — Hedef (TP = {cfg.model.tp_atr_mult}×ATR)</span>}
         {stopPx != null && <span className="t-down">— — Stop (SL = {cfg.model.sl_atr_mult}×ATR)</span>}
         <span style={{ marginLeft: 'auto' }}>{cfg.model.horizon_days}g triple-barrier · eğitimle aynı tanım</span>

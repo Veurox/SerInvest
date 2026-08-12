@@ -8,10 +8,7 @@
 //   5. Kalibrasyon eğrisi — "model %X dedi, gerçekte %kaç çıktı"
 // =============================================================================
 import { useEffect, useState } from 'react'
-import {
-  ResponsiveContainer, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid,
-  Tooltip, ReferenceLine, LineChart, Line, Legend,
-} from 'recharts'
+import { LiftBars, CalibrationLines } from '../charts/StatCharts'
 import { ADMIN, adminFetch } from '../../lib/api'
 import { useConfig } from '../../lib/useConfig'
 
@@ -267,42 +264,7 @@ export function ModelStory() {
           Her çubuk bir dönem: modelin AL isabeti ile “hepsini alsaydık” tabanı arasındaki <b>fark</b>.
           Sıfırın üstü = model değer katmış. Çubukların savrulması, tek dönemin şansa bağlı olduğunu gösterir.
         </div>
-        <ResponsiveContainer width="100%" height={chartH}>
-          <BarChart data={folds} margin={{ top: 6, right: 6, bottom: 4, left: -18 }}>
-            <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'var(--text-muted)' }}
-                   axisLine={{ stroke: 'var(--border-default)' }} tickLine={false} interval={1} />
-            <YAxis tick={{ fontSize: 9.5, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false}
-                   tickFormatter={(v: number) => `${v}p`} />
-            <Tooltip
-              cursor={{ fill: 'var(--bg-glass)' }}
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) return null
-                const f = payload[0].payload as typeof folds[number]
-                return (
-                  <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
-                                borderRadius: 4, padding: '7px 10px', fontSize: 11.5 }}>
-                    <div style={{ fontWeight: 700 }}>Dönem {f.fold}</div>
-                    <div style={{ color: 'var(--text-muted)', fontSize: 10.5 }}>{f.test}</div>
-                    <div style={{ marginTop: 3 }}>
-                      AL isabeti <b>{f.buy_precision != null ? `%${(f.buy_precision * 100).toFixed(0)}` : '—'}</b>
-                      {' '}· taban <b>%{(f.base_rate * 100).toFixed(0)}</b>
-                    </div>
-                    <div style={{ color: f.liftPct >= 0 ? 'var(--profit)' : 'var(--loss)', fontWeight: 700 }}>
-                      fark {f.liftPct >= 0 ? '+' : ''}{f.liftPct} puan
-                    </div>
-                    <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>{f.buy_signals} AL sinyali</div>
-                  </div>
-                )
-              }} />
-            <ReferenceLine y={0} stroke="var(--border-strong)" strokeWidth={1.5} />
-            <Bar dataKey="liftPct" radius={[3, 3, 0, 0]} isAnimationActive={false}>
-              {folds.map((f, i) => (
-                <Cell key={i} fill={f.liftPct >= 0 ? 'var(--profit)' : 'var(--loss)'} opacity={0.85} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        <LiftBars data={folds} height={chartH} />
       </div>
 
       {/* ── 5. KALİBRASYON EĞRİSİ ────────────────────────────────────────── */}
@@ -318,34 +280,7 @@ export function ModelStory() {
             Mavi çizginin <b>düz</b> olması kritik: model ham 0.60 ile 0.90 arasında fark üretemiyor,
             bu yüzden hepsine aynı olasılığı veriyor — sıralama yapamamasının sebebi bu.
           </div>
-          <ResponsiveContainer width="100%" height={chartH - 20}>
-            <LineChart data={calPts} margin={{ top: 6, right: 10, bottom: 4, left: -20 }}>
-              <CartesianGrid stroke="var(--border-subtle)" />
-              <XAxis dataKey="x" tick={{ fontSize: 9.5, fill: 'var(--text-muted)' }}
-                     tickFormatter={(v: number) => `%${v}`} axisLine={{ stroke: 'var(--border-default)' }} tickLine={false} />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 9.5, fill: 'var(--text-muted)' }}
-                     tickFormatter={(v: number) => `%${v}`} axisLine={false} tickLine={false} />
-              <Tooltip
-                content={({ active, payload, label }) => {
-                  if (!active || !payload?.length) return null
-                  const p = payload[0].payload as typeof calPts[number]
-                  return (
-                    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
-                                  borderRadius: 4, padding: '7px 10px', fontSize: 11.5 }}>
-                      <div style={{ color: 'var(--text-muted)', fontSize: 10.5 }}>ham skor ≈ %{label}</div>
-                      <div style={{ color: 'var(--info)' }}>model dedi: <b>%{p.tahmin}</b></div>
-                      <div style={{ color: 'var(--accent)' }}>gerçekte: <b>%{p.gercek}</b></div>
-                      <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>{p.n} örnek</div>
-                    </div>
-                  )
-                }} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="tahmin" name="Model tahmini" stroke="var(--info)"
-                    strokeWidth={2.5} dot={{ r: 3 }} isAnimationActive={false} />
-              <Line type="monotone" dataKey="gercek" name="Gerçekleşen" stroke="var(--accent)"
-                    strokeWidth={2.5} dot={{ r: 3 }} isAnimationActive={false} />
-            </LineChart>
-          </ResponsiveContainer>
+          <CalibrationLines data={calPts} height={chartH - 20} />
         </div>
       )}
 
