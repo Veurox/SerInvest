@@ -531,3 +531,33 @@ select option:hover {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+/* ── Model sayfası sekmeleri (Faz E) ─────────────────────────────────────────
+   Dokuz bölümlük tek kaydırma yerine üç soru, üç sekme. Alt satırdaki soru
+   metni etiketin ne anlama geldiğini söyler — "Kanıt" tek başına belirsiz. */
+.mtabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-default);
+  overflow-x: auto;
+}
+.mtab {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  color: var(--text-muted);
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+.mtab:hover { color: var(--text-secondary); background: var(--bg-glass); }
+.mtab--on { color: var(--text-primary); border-bottom-color: var(--accent); }
+.mtab > :first-child { font-size: 13.5px; font-weight: 700; }
+.mtab__q { font-size: 10.5px; color: var(--text-disabled); font-weight: 400; }
+.mtab--on .mtab__q { color: var(--text-muted); }

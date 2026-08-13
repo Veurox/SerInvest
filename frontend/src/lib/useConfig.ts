@@ -23,6 +23,14 @@ export interface AppConfig {
   promotion:   { min_edge: number; min_samples: number; min_precision: number
                  min_fresh_days: number; windows: number }
   jobs:        { overdue_hours: Record<string, number> }
+  /** Faz A — kural docs/PLAN_2026-08.md §A0'da önceden çivilendi. */
+  risk_filter: {
+    on: boolean; top_pct: number; min_symbols: number
+    coverage_target: [number, number]
+    criteria: string[]; decision_date: string
+    /** Sharpe farkı 1 standart hatanın içinde — bugün kanıtlanmış DEĞİL. */
+    proven: boolean
+  }
   schedule:    { cycle_min: number; close_scan: string; evaluate: string
                  health: string; selftest: string; promote: string }
 }
@@ -37,6 +45,10 @@ export const DEFAULTS: AppConfig = {
   promotion:   { min_edge: 0.02, min_samples: 200, min_precision: 0.50,
                  min_fresh_days: 30, windows: 3 },
   jobs:        { overdue_hours: { analyze: 4, evaluate: 36, health: 36, promote: 192 } },
+  risk_filter: { on: true, top_pct: 0.30, min_symbols: 20,
+                 coverage_target: [0.20, 0.40],
+                 criteria: ['düşük oynaklık (atr_pct)', '52h zirveye yakınlık'],
+                 decision_date: '2027-02-12', proven: false },
   schedule:    { cycle_min: 30, close_scan: '18:10', evaluate: '19:00',
                  health: '19:20', selftest: '19:25', promote: 'Pazar 20:00' },
 }

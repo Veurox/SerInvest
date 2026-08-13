@@ -10,7 +10,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { ADMIN, API, adminFetch } from '../lib/api'
 import { useConfig } from '../lib/useConfig'
 import { PageHeader, Icon } from '../components/ui'
-import { ModelStory, JobStatus, SelfTestPanel, ModelVersions, ModelEvidence } from '../components/finance'
+import { useSearchParams } from 'react-router-dom'
+import { ModelStory, JobStatus, SelfTestPanel, ModelVersions, ModelEvidence,
+         RiskFilterPanel } from '../components/finance'
 import { useToast } from '../components/ui/Toast'
 import type { SysLog, TrainingInfo, AdminStatus } from '../lib/types'
 
@@ -47,6 +49,21 @@ function Fold({ title, hint, children, open: initOpen = false }:
   )
 }
 
+// ── Sekmeler (Faz E) ─────────────────────────────────────────────────────────
+// Her sekme TEK bir soruya cevap verir; "bir sürü şey var ama ne olduğunu
+// anlamıyorum" şikâyeti dokuz bölümün tek kaydırmada olmasından geliyordu.
+type TabId = 'durum' | 'kanit' | 'kunye'
+const TABS: { id: TabId; label: string; q: string }[] = [
+  { id: 'durum', label: 'Durum',  q: 'bir şey bozuk mu?' },
+  { id: 'kanit', label: 'Kanıt',  q: 'gerçekten bir şey biliyor mu?' },
+  { id: 'kunye', label: 'Künye',  q: 'nasıl kuruldu, nasıl yönetilir?' },
+]
+const TAB_SUB: Record<TabId, string> = {
+  durum: 'Sağlık, zamanlanmış işler ve kontroller',
+  kanit: 'Ölçülmüş tahmin gücü — ve o ölçünün belirsizliği',
+  kunye: 'Eğitim künyesi, sürümler ve modelin baktığı göstergeler',
+}
+
 const pct = (v: number | null | undefined, d = 1) => v == null ? '—' : `%${(v * 100).toFixed(d)}`
 const trDate = (iso?: string | null) =>
   !iso ? '—' : new Date(iso.length <= 10 ? iso + 'T00:00:00' : iso)
@@ -55,6 +72,10 @@ const trDate = (iso?: string | null) =>
 export default function ModelPage() {
   const toast = useToast()
   const cfg = useConfig()
+  // Sekme URL'de tutulur (?t=kanit): paylaşılabilir ve yenilemede kaybolmaz.
+  const [sp, setSp] = useSearchParams()
+  const tab = (TABS.some(t => t.id === sp.get('t')) ? sp.get('t') : 'durum') as TabId
+  const setTab = (t: TabId) => setSp(t === 'durum' ? {} : { t }, { replace: true })
   const [info, setInfo]   = useState<TrainingInfo | null>(null)
   const [status, setStatus] = useState<AdminStatus | null>(null)
   const [cal, setCal]     = useState<CalSummary | null>(null)
@@ -109,9 +130,26 @@ export default function ModelPage() {
       <PageHeader
         icon={<Icon name="mlops" size={20} />}
         title="Model"
-        subtitle={<>Durum, kontroller ve performans — eski “ML Ops” + “Yönetim” tek sayfada</>}
+        subtitle={TAB_SUB[tab]}
       />
 
+      {/* ── SEKMELER (Faz E) ─────────────────────────────────────────────
+          Önce tek uzun kaydırmada 9 bölüm vardı ve "karışık" şikâyeti
+          buradan geliyordu. Üç soruya üç sekme: bir şey bozuk mu / gerçekten
+          bir şey biliyor mu / nasıl kurulup yönetiliyor.
+          Seçim URL'de tutulur: paylaşılabilir ve yenilemede kaybolmaz. */}
+      <div className="mtabs" role="tablist" aria-label="Model bölümleri">
+        {TABS.map(t => (
+          <button key={t.id} role="tab" aria-selected={tab === t.id}
+                  onClick={() => setTab(t.id)}
+                  className={`mtab${tab === t.id ? ' mtab--on' : ''}`}>
+            {t.label}
+            <span className="mtab__q">{t.q}</span>
+          </button>
+        ))}
+      </div>
+
+      {tab === 'durum' && <>
       {/* ── 1. DURUM KARTI — sayılar değil, cümleler ────────────────────── */}
       <div className="card" style={{ padding: '14px 16px', marginBottom: 'var(--space-3)' }}>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
@@ -203,21 +241,12 @@ export default function ModelPage() {
         <SelfTestPanel />
       </div>
 
-      <ModelEvidence />
-
-      <ModelVersions />
-
       {/* ── 2b. ZAMANLANMIŞ İŞLER — "bugünkü değerlendirme yapıldı mı?" ──── */}
       <div style={{ marginBottom: 'var(--space-3)' }}>
         <JobStatus />
       </div>
 
-      {/* ── 3. MODELİN HİKÂYESİ (görsel) ────────────────────────────────── */}
-      <div style={{ marginBottom: 'var(--space-3)' }}>
-        <ModelStory />
-      </div>
-
-      {/* ── 4. KATLANIR: son olaylar ────────────────────────────────────── */}
+      {/* ── KATLANIR: son olaylar ───────────────────────────────────────── */}
       <Fold title="Son olaylar" hint={`· ${logs.length} kayıt`}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 10 }}>
           {(allLogs ? logs : logs.slice(0, 10)).map((l, i) => (
@@ -243,9 +272,22 @@ export default function ModelPage() {
           </button>
         )}
       </Fold>
+      </>}
 
-      {/* ── 4. KATLANIR: ileri metrikler ────────────────────────────────── */}
-      <Fold title="İleri metrikler" hint="· doğrulama sınavı, kâr eşiği, ayrım gücü">
+      {tab === 'kanit' && <>
+        {/* Filtrenin durumu + gölge portföyle karşılaştırma (Faz A) */}
+        <RiskFilterPanel />
+
+        {/* Ölçülmüş sıralama gücü — açık başlar, sekmenin asıl konusu bu */}
+        <ModelEvidence />
+
+        {/* Modelin görsel künyesi: sınav grafiği ve kalibrasyon eğrisi burada,
+            çünkü ikisi de "gerçekten bir şey biliyor mu" sorusunun kanıtı. */}
+        <div style={{ marginBottom: 'var(--space-3)' }}>
+          <ModelStory />
+        </div>
+
+        <Fold title="İleri metrikler" hint="· doğrulama sınavı, kâr eşiği, ayrım gücü">
         <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
           {[
             { k: 'Geçmiş sınav — yön doğruluğu', v: pct(info?.walkforward?.overall_accuracy as any),
@@ -270,6 +312,11 @@ export default function ModelPage() {
           ))}
         </div>
       </Fold>
+      </>}
+
+      {tab === 'kunye' && <>
+        {/* Sürümler + geri alma: modelin nasıl yönetildiği */}
+        <ModelVersions />
 
       {/* ── 5. KATLANIR: model neye bakıyor ─────────────────────────────── */}
       <Fold title="Model neye bakıyor?" hint="· en etkili göstergeler">
@@ -315,6 +362,7 @@ export default function ModelPage() {
           })}
         </div>
       </Fold>
+      </>}
     </div>
   )
 }
