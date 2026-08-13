@@ -72,6 +72,12 @@ from infra import send_syslog
 ML_STATS_FILE = ML_DIR / "live_accuracy.json"   # 10g canlı doğruluk özeti
 MAX_POSITION_PCT = 0.10 # tek pozisyon tavanı
 
+# Gölge defter (Faz A1) pozisyon boyutu: EŞİT AĞIRLIK.
+# Ana defter Kelly ile boyutlandırıyor; gölge taban tanımı
+# ml/experiment_lowvol.py'deki "eşit ağırlık" ile AYNI olmalı ki
+# 2027-02-12'deki karşılaştırma çevrimdışı ölçümle aynı dili konuşsun.
+SHADOW_POSITION_PCT = round(1.0 / paper_trading.MAX_OPEN_POSITIONS, 4)
+
 # ── Eşzamanlılık koruması (08/2026 — selftest I8 mükerrer kayıt yakaladı) ────
 # `analyze-now` admin endpoint'i ayrı bir thread'de run_ml_cycle çağırıyor;
 # zamanlanmış döngüyle çakışabiliyor. Log yazımları tüm dosyayı oku-değiştir-yaz
@@ -400,6 +406,11 @@ def analyze_symbol(model, sym: str, yf_sym: str, snap: tuple,
     # DİKKAT: bu kapı modelin tahmin gücünü artırmaz. Model zaten sıralayamıyor;
     # burada yaptığımız, ölçümle KÖTÜ olduğunu gösterebildiğimiz kısmı elemek.
     # risk_allowed None ise filtre ölçülemedi (evren küçük) → karışılmaz.
+    # Filtre ÖNCESİ karar — gölge defter (Faz A1) bunu kullanır. İki defterin
+    # TEK farkı risk filtresi olsun ki 2027-02-12'deki karşılaştırma filtrenin
+    # etkisini ölçsün, başka bir şeyin değil.
+    rec_dir_nofilter = rec_dir
+
     risk_gated = False
     if risk_allowed is not None and rec_dir == "BUY" and sym not in risk_allowed:
         risk_gated = True
@@ -491,7 +502,7 @@ def analyze_symbol(model, sym: str, yf_sym: str, snap: tuple,
         "rec": rec, "rec_dir": rec_dir, "close": close,
         "target": tp, "stop": sl, "atr_pct": round(clamp_atr_pct(atr_pct), 5),
     }
-    return msg, log, (df, close, rec_dir, p_cal, pos, tp, sl, ev)
+    return msg, log, (df, close, rec_dir, p_cal, pos, tp, sl, ev, rec_dir_nofilter)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -576,13 +587,15 @@ def _run_ml_cycle_locked(model_holder: list):
     if meta_model is not None:
         print("[ml cycle] meta-model CANLIDA — AL sinyalleri haber/rejim süzgecinden geçiyor")
 
-    paper_state    = paper_trading.load_state()
+    paper_state    = paper_trading.load_state("main")
+    shadow_state   = paper_trading.load_state("shadow")   # Faz A1 — karşılaştırma tabanı
     paper_universe = set(paper_trading.get_universe())
     paper_mkt_open = paper_trading.is_market_open()
     # YEREL tarih bilinçli: yfinance bar tarihleri borsa (TR) takvimindedir.
     # Kayıt tarihleri (predictions/feature_log) ise UTC — ikisini karıştırma.
     today_str      = datetime.date.today().isoformat()
     paper_candidates: list[dict] = []   # AL adayları — döngü sonunda EV sırasıyla açılır
+    shadow_candidates: list[dict] = []  # gölge defterin adayları (filtresiz)
 
     # ── Faz 1: evrenin özellik fotoğrafı (ham) ────────────────────────────────
     snaps: dict[str, tuple] = {}
@@ -649,7 +662,7 @@ def _run_ml_cycle_locked(model_holder: list):
             # kısıtlarıyla açılır (greedy top-k — en iyi fırsata öncelik).
             if sym in paper_universe:
                 try:
-                    df, close, _rd, p_c, pos, tp, sl, ev = paper_ctx
+                    df, close, _rd, p_c, pos, tp, sl, ev, rd_nofilter = paper_ctx
                     recent = df.tail(40)
                     def _col(name):
                         c = recent[name]
@@ -673,6 +686,24 @@ def _run_ml_cycle_locked(model_holder: list):
                             "position_pct": pos, "target": tp, "stop": sl,
                             "score": ev,
                         })
+
+                    # ── Gölge defter (Faz A1): FİLTRESİZ + EŞİT AĞIRLIK ────────
+                    # İki defterin tek farkı risk filtresi olmalı ki 2027-02-12'de
+                    # ölçülen şey filtrenin etkisi olsun. Boyut eşit ağırlık:
+                    # taban tanımı experiment_lowvol.py ile aynı tutuluyor.
+                    paper_trading.on_signal(
+                        shadow_state, sym, close, rd_nofilter, p_c,
+                        SHADOW_POSITION_PCT, tp, sl,
+                        bars=bars, market_open=paper_mkt_open, fresh=fresh,
+                        allow_open=False,
+                    )
+                    if (rd_nofilter == "BUY" and fresh
+                            and sym not in shadow_state["positions"]):
+                        shadow_candidates.append({
+                            "symbol": sym, "price": close, "conf": p_c,
+                            "position_pct": SHADOW_POSITION_PCT,
+                            "target": tp, "stop": sl, "score": ev,
+                        })
                 except Exception as e:
                     print(f"  [Paper] {sym}: {e}")
 
@@ -689,6 +720,10 @@ def _run_ml_cycle_locked(model_holder: list):
             opened = paper_trading.open_from_candidates(paper_state, paper_candidates)
             if opened:
                 print(f"  [Paper] {opened}/{len(paper_candidates)} aday pozisyona çevrildi (EV sıralı, kısıtlı)")
+        if shadow_candidates and paper_mkt_open:
+            s_opened = paper_trading.open_from_candidates(shadow_state, shadow_candidates)
+            if s_opened:
+                print(f"  [Gölge] {s_opened}/{len(shadow_candidates)} aday pozisyona çevrildi (filtresiz taban)")
     except Exception as e:
         print(f"  [Paper] aday açma hatası: {e}")
 
@@ -704,7 +739,9 @@ def _run_ml_cycle_locked(model_holder: list):
             except Exception:
                 pass
             paper_trading.snapshot_equity(paper_state, benchmark_price=bench_px)
+            paper_trading.snapshot_equity(shadow_state, benchmark_price=bench_px)
         paper_trading.save_state(paper_state)
+        paper_trading.save_state(shadow_state)
     except Exception as e:
         print(f"  [Paper] snapshot hatası: {e}")
 

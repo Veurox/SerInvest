@@ -952,8 +952,18 @@ def _admin_make_app():
     # ── GET /admin/paper-portfolio ────────────────────────────────────────────
     @app.get("/admin/paper-portfolio")
     def admin_paper_portfolio():
+        """
+        ?book=main (varsayılan) veya ?book=shadow.
+
+        shadow = risk filtresi UYGULANMAMIŞ, eşit ağırlıklı karşılaştırma tabanı
+        (Faz A1). 2027-02-12'deki karar bu ikisinin karşılaştırmasına dayanacak;
+        geçmiş bir Sharpe sayısıyla kıyaslamak rejim değiştiği için yanıltıcı olur.
+        """
+        book = request.args.get("book", "main")
+        if book not in paper_trading.BOOKS:
+            return jsonify({"error": f"bilinmeyen defter: {book}"}), 400
         try:
-            return jsonify(paper_trading.get_summary())
+            return jsonify(paper_trading.get_summary(book=book))
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 

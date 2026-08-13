@@ -43,6 +43,32 @@ PORTFOLIO_FILE = MODELS_DIR / "paper_portfolio.json"
 TRADES_FILE    = MODELS_DIR / "paper_trades.csv"
 UNIVERSE_FILE  = MODELS_DIR / "paper_universe.json"
 
+# ── Defterler (Faz A1) ───────────────────────────────────────────────────────
+# İKİ portföy aynı anda çalışır:
+#   main   — risk filtresi UYGULANMIŞ, Kelly boyutlandırmalı (gerçek sistem)
+#   shadow — filtresiz, EŞİT AĞIRLIK (karşılaştırma tabanı)
+#
+# Neden gölge defter şart: filtreyi geçmiş bir Sharpe sayısıyla kıyaslamak
+# yanıltıcı olur, çünkü rejim değişir. 2027-02-12'deki karar ancak AYNI
+# DÖNEMDE, aynı sermayeyle çalışan bir tabana dayanırsa dürüst olur.
+# Taban tanımı experiment_lowvol.py'deki "eşit ağırlık" ile aynı tutuldu.
+BOOKS = ("main", "shadow")
+
+
+def _paths(book: str) -> tuple:
+    """
+    Defterin (portföy, işlemler) dosya yolları.
+
+    Yollar ÇAĞRI ANINDA okunur, sözlükte dondurulmaz. İlk hâlinde bir
+    BOOKS sözlüğü modül yüklenirken PORTFOLIO_FILE/TRADES_FILE değerlerini
+    kopyalıyordu; sonradan bu sabitleri değiştirmek (test veya yol taşıma)
+    etkisiz kalıyordu — testler bunu yakaladı.
+    """
+    if book == "shadow":
+        return (MODELS_DIR / "paper_portfolio_shadow.json",
+                MODELS_DIR / "paper_trades_shadow.csv")
+    return (PORTFOLIO_FILE, TRADES_FILE)
+
 # ── Sabitler ─────────────────────────────────────────────────────────────────
 INITIAL_CAPITAL   = 100_000.0   # ₺
 MAX_OPEN_POSITIONS = 8          # aynı anda en fazla açık pozisyon
@@ -210,21 +236,29 @@ def _new_state() -> dict:
     }
 
 
-def load_state() -> dict:
+def load_state(book: str = "main") -> dict:
+    """Defterin durumunu yükler. Defter adı state içinde taşınır ki save_state
+    doğru dosyaya yazsın — çağıranın hatırlaması gereken bir şey olmasın."""
+    pf, _ = _paths(book)
     with _LOCK:
-        if PORTFOLIO_FILE.exists():
+        if pf.exists():
             try:
-                return json.loads(PORTFOLIO_FILE.read_text(encoding="utf-8"))
+                st = json.loads(pf.read_text(encoding="utf-8"))
+                st["book"] = book
+                return st
             except Exception as e:
-                print(f"[Paper] Durum okunamadı, sıfırdan başlanıyor: {e}")
-        return _new_state()
+                print(f"[Paper] {book} durumu okunamadı, sıfırdan başlanıyor: {e}")
+        st = _new_state()
+        st["book"] = book
+        return st
 
 
 def save_state(state: dict) -> None:
     """Portföy durumunu ATOMİK yazar — yarım yazım tüm portföyü kaybettirirdi."""
+    pf, _ = _paths(state.get("book", "main"))
     with _LOCK:
         try:
-            atomic.write_json(PORTFOLIO_FILE, state)
+            atomic.write_json(pf, state)
         except Exception as e:
             print(f"[Paper] Durum kaydedilemedi: {e}")
 
@@ -263,7 +297,7 @@ def _trade_key(row: dict) -> tuple:
             str(row.get("exit_date", ""))[:19])
 
 
-def _append_trade(trade: dict) -> None:
+def _append_trade(trade: dict, book: str = "main") -> None:
     """
     Kapanan işlemi CSV'ye ekler — İDEMPOTANT.
 
@@ -273,17 +307,18 @@ def _append_trade(trade: dict) -> None:
     kapanıyor → aynı işlem CSV'ye İKİ KEZ yazılıyordu (BIMAS/EREGL vakası).
     Artık aynı (giriş, sembol, çıkış) üçlüsü varsa satır atlanır.
     """
+    _, tf = _paths(book)
     with _LOCK:
         try:
-            if TRADES_FILE.exists():
+            if tf.exists():
                 key = _trade_key(trade)
-                with open(TRADES_FILE, "r", encoding="utf-8") as f:
+                with open(tf, "r", encoding="utf-8") as f:
                     for r in csv.DictReader(f):
                         if _trade_key(r) == key:
                             print(f"  [Paper] {trade.get('symbol')} işlemi zaten kayıtlı — atlandı (mükerrer koruma)")
                             return
-            write_header = not TRADES_FILE.exists()
-            with open(TRADES_FILE, "a", newline="", encoding="utf-8") as f:
+            write_header = not tf.exists()
+            with open(tf, "a", newline="", encoding="utf-8") as f:
                 w = csv.DictWriter(f, fieldnames=_TRADE_FIELDS)
                 if write_header:
                     w.writeheader()
@@ -294,9 +329,10 @@ def _append_trade(trade: dict) -> None:
             print(f"[Paper] İşlem CSV yazılamadı: {e}")
 
 
-def _read_trades(limit: int = 200) -> list:
+def _read_trades(limit: int = 200, book: str = "main") -> list:
+    _, tf = _paths(book)
     with _LOCK:
-        if not TRADES_FILE.exists():
+        if not tf.exists():
             return []
         try:
             with open(TRADES_FILE, "r", encoding="utf-8") as f:
@@ -362,7 +398,7 @@ def _close_position(state: dict, sym: str, exit_price: float, reason: str,
         "hold_days":   round(hold_d, 1),
         "entry_conf":  pos.get("entry_conf"),
     }
-    _append_trade(trade)
+    _append_trade(trade, book=state.get("book", "main"))
     state["n_trades"] = state.get("n_trades", 0) + 1
     print(f"  [Paper] KAPAT {sym} @ {exit_price:.2f} ({reason}) → net P&L {net_pnl:+.0f}₺ ({pnl_pct:+.1%})")
     # State'i HEMEN kalıcılaştır: aksi halde döngü sonuna kadarki restart penceresinde
@@ -537,12 +573,12 @@ def snapshot_equity(state: dict, benchmark_price=None) -> None:
 
 
 # ── Özet / API ───────────────────────────────────────────────────────────────
-def get_summary(trades_limit: int = 100) -> dict:
+def get_summary(trades_limit: int = 100, book: str = "main") -> dict:
     """Admin endpoint için tam portföy durumu + performans metrikleri."""
     with _LOCK:
-        state = load_state()
+        state = load_state(book)
         universe = get_universe()
-        trades = _read_trades(limit=500)
+        trades = _read_trades(limit=500, book=book)
 
     equity   = _total_equity(state)
     initial  = state.get("initial_capital", INITIAL_CAPITAL)
