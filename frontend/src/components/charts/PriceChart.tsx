@@ -96,6 +96,15 @@ export function PriceChart({
   const cbRef = useRef(onCrosshair)
   cbRef.current = onCrosshair
 
+  // Kullanıcı bu grafikte gerçekten zoom/pan yaptı mı?
+  // 08/2026 hatası: senkronizasyon HER aralık değişimini yayıyordu —
+  // programatik fitContent dahil. Grafik yeniden kurulurken kabı henüz
+  // genişlik almamış oluyor, o anda hesaplanan bozuk aralık diğerlerine de
+  // dayatılıyor ve altı grafik birden tek muma sıkışıyordu.
+  // Artık yalnız KULLANICI kaynaklı değişim yayılır; makine kendi kendine
+  // yaptığı sığdırmayı komşularına empoze etmez.
+  const userZoomedRef = useRef(false)
+
   // ── Kurulum: yalnız görsel yapı değişince ─────────────────────────────────
   useEffect(() => {
     const box = boxRef.current
@@ -196,6 +205,7 @@ export function PriceChart({
     // aralık dayatmak zaman eksenini geçersiz duruma sokuyordu.
     const onRange = () => {
       if (syncApplying || !syncGroup) return
+      if (!userZoomedRef.current) return   // programatik sığdırma yayılmaz
       const range = chart.timeScale().getVisibleLogicalRange()
       if (!range) return
       syncApplying = true
@@ -213,7 +223,31 @@ export function PriceChart({
     }
     chart.timeScale().subscribeVisibleLogicalRangeChange(onRange)
 
+    // Kullanıcı gerçekten zoom/pan yaptı mı? Yalnız bu olaylardan sonra
+    // senkronizasyon yayılır ve otomatik yeniden sığdırma durur.
+    const markUser = () => { userZoomedRef.current = true }
+    box.addEventListener('wheel', markUser, { passive: true })
+    box.addEventListener('mousedown', markUser)
+    box.addEventListener('touchstart', markUser, { passive: true })
+
+    // Kap boyutu oturana kadar yeniden sığdır.
+    // Asıl kusur buydu: grafik yeniden kurulurken kap henüz genişlik almamış
+    // oluyor, o anda yapılan fitContent tek mumluk bir aralık üretiyordu.
+    // ResizeObserver gerçek genişlik gelince tekrar sığdırıyor — kullanıcı
+    // kendi zoom'unu yapmadıysa. Yaptıysa onun seçimine dokunulmaz.
+    const ro = new ResizeObserver(() => {
+      if (userZoomedRef.current) return
+      const el = boxRef.current
+      if (!el || el.clientWidth < 40) return
+      try { chart.timeScale().fitContent() } catch { /* sökülmüş olabilir */ }
+    })
+    ro.observe(box)
+
     return () => {
+      ro.disconnect()
+      box.removeEventListener('wheel', markUser)
+      box.removeEventListener('mousedown', markUser)
+      box.removeEventListener('touchstart', markUser)
       leaveSync()
       chart.remove()
       chartRef.current = null
@@ -247,6 +281,9 @@ export function PriceChart({
       ) as never)
     }
 
+    // Yeni veri = yeni sembol veya yeni zaman aralığı → kullanıcının önceki
+    // zoom'u artık geçerli değil; sıfırla ki tam dönem görünsün.
+    userZoomedRef.current = false
     chartRef.current?.timeScale().fitContent()
     // Bağımlılıklar kurulum efektiyle AYNI olmak zorunda: kurulum yeniden
     // çalıştığında (düzen değişince compact/showVolume değişir) grafik sıfırdan
