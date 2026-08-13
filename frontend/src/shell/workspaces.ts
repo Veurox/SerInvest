@@ -37,11 +37,13 @@ export const WORKSPACES: Workspace[] = [
     ],
   },
   {
-    id: 'screener', label: 'Tarayıcı', icon: 'target', home: '/oracle',
+    // Faz F: üç ayrı tarama sayfası tek tabloda birleşti; her eskisi bir
+    // "hazır görünüm" (?g=...) oldu. Eski rotalar yönlendiriliyor.
+    id: 'screener', label: 'Tarayıcı', icon: 'target', home: '/tarayici',
     sections: [
-      { to: '/oracle',      label: 'AI Tavsiye', badgeKey: 'oracle' },
-      { to: '/dip-radar',   label: 'Dip Radarı' },
-      { to: '/fundamental', label: 'Temel Analiz', badgeKey: 'fundamentals' },
+      { to: '/tarayici',        label: 'AI Tavsiye', badgeKey: 'oracle' },
+      { to: '/tarayici?g=dip',   label: 'Dip Fırsatı' },
+      { to: '/tarayici?g=temel', label: 'Temel Analiz', badgeKey: 'fundamentals' },
     ],
   },
   {
