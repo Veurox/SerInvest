@@ -53,10 +53,12 @@ from ml.config import (
 )
 import ml.atomic as atomic
 from ml.calibration import calibrate, expected_R, kelly_size, load_calibrator
-from ml.config import EV_FILTER, META_VETO_P, PROMOTE_WINDOWS
+from ml.config import (COVERAGE_TARGET, EV_FILTER, META_VETO_P,
+                       PROMOTE_WINDOWS, RISK_FILTER_ON)
 import ml.meta as meta
 import ml.monitoring as monitoring
 import ml.registry as registry
+import ml.risk_filter as risk_filter
 from ml.features import compute_features, fetch_context, xsec_rank_frame, xsec_rank_latest
 from ml.labels import clamp_atr_pct, triple_barrier_label
 from ml.model import feature_importance, train_model
@@ -334,7 +336,8 @@ def fetch_snapshot(sym: str, yf_sym: str, ctx: pd.DataFrame):
 def analyze_symbol(model, sym: str, yf_sym: str, snap: tuple,
                    model_feat: dict | None = None,
                    live_acc: float = 0.0, regime: dict | None = None,
-                   cal=None, news_map: dict | None = None, meta_model=None):
+                   cal=None, news_map: dict | None = None, meta_model=None,
+                   risk_allowed: set[str] | None = None):
     """
     Karar + mesaj üretimi. snap = fetch_snapshot çıktısı (df, ham_feat, close).
     model_feat: MODELE giren özellikler (XSEC_RANK'te günün kesitsel rank'i);
@@ -391,6 +394,17 @@ def analyze_symbol(model, sym: str, yf_sym: str, snap: tuple,
             meta_gated = True
             rec, rec_dir = "NÖTR", "NEUTRAL"
 
+    # ── Faz A: RİSK FİLTRESİ — kesitsel "kötüden kaçın" kapısı ────────────────
+    # Kural docs/PLAN_2026-08.md §A0'da önceden yazıldı: gün-içi kesitsel
+    # rank_pct(-atr_pct) + rank_pct(price_vs_52w_high) skorunda en iyi %30 geçer.
+    # DİKKAT: bu kapı modelin tahmin gücünü artırmaz. Model zaten sıralayamıyor;
+    # burada yaptığımız, ölçümle KÖTÜ olduğunu gösterebildiğimiz kısmı elemek.
+    # risk_allowed None ise filtre ölçülemedi (evren küçük) → karışılmaz.
+    risk_gated = False
+    if risk_allowed is not None and rec_dir == "BUY" and sym not in risk_allowed:
+        risk_gated = True
+        rec, rec_dir = "NÖTR", "NEUTRAL"
+
     is_buy = rec_dir == "BUY"
     tp, sl, rr = _targets(close, atr_pct)
     pos = _position_size(p, p_cal if cal is not None else None) if is_buy else 0.0
@@ -421,6 +435,13 @@ def analyze_symbol(model, sym: str, yf_sym: str, snap: tuple,
             f"olasılıkla beklenen değer {ev:+.2f}R ≤ 0 — maliyet sonrası kazanç beklenmiyor)."
         )
         risks = [f"EV kapısı: kalibre olasılık %{p_cal*100:.0f} → beklenen değer {ev:+.2f}R ≤ 0"] + (risks or [])
+    if risk_gated:
+        reasoning += (
+            " Model sinyali ALIM'dı; risk filtresi eledi — bu hisse bugünün "
+            "evreninde oynaklık/zirveye yakınlık sıralamasının alt kısmında. "
+            "(Filtre getiri tahmin etmez; ölçümle kötü çıkan grubu ayıklar.)"
+        )
+        risks = ["Risk filtresi: yüksek oynaklık ve/veya 52h zirveden uzak"] + (risks or [])
     if pm is not None and not meta_gated and is_buy:
         reasoning += f" Meta-model (haber/rejim) güveni %{pm*100:.0f} → boyut ×{meta.size_multiplier(pm):.2f}."
     if meta_gated:
@@ -588,6 +609,23 @@ def _run_ml_cycle_locked(model_holder: list):
     if XSEC_RANK:
         print(f"[ml cycle] kesitsel rank: {len(model_feats)} sembol bugünün evreninde sıralandı")
 
+    # ── Faz A: risk filtresi — kesitsel, HAM özelliklerden (rank'lenmiş değil) ──
+    # Ham değerler kullanılır çünkü ölçüt oynaklığın ve zirveye uzaklığın
+    # KENDİSİ; filtre kendi kesitsel sıralamasını içeride yapar.
+    risk_allowed: set[str] | None = None
+    if RISK_FILTER_ON:
+        try:
+            risk_allowed = risk_filter.select(raw_feats)
+            if risk_allowed is None:
+                print(f"[risk filtresi] evren küçük ({len(raw_feats)}) — filtre uygulanmadı")
+            else:
+                print(f"[risk filtresi] {len(risk_allowed)}/{len(raw_feats)} sembol geçti "
+                      f"(hedef kapsam %{COVERAGE_TARGET[0]*100:.0f}-%{COVERAGE_TARGET[1]*100:.0f})")
+        except Exception as e:
+            # Filtre patlarsa sinyaller SUSTURULMAZ — None "karışma" demektir.
+            print(f"[risk filtresi] hata, filtre atlandı: {e}")
+            risk_allowed = None
+
     count = buys = 0
     for sym, snap in snaps.items():
         yf_sym = universe[sym]
@@ -595,7 +633,8 @@ def _run_ml_cycle_locked(model_holder: list):
             result = analyze_symbol(model, sym, yf_sym, snap,
                                     model_feat=model_feats.get(sym),
                                     live_acc=live_acc, regime=regime, cal=cal,
-                                    news_map=news_map, meta_model=meta_model)
+                                    news_map=news_map, meta_model=meta_model,
+                                    risk_allowed=risk_allowed)
             msg, log, paper_ctx = result
             _publish(msg)
             _log_prediction(log)

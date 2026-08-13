@@ -66,8 +66,14 @@ def log_features(raw_feats: dict) -> None:
     # UTC gün bazı — predictions.csv ile AYNI olmak ZORUNDA (08/2026 bulgusu:
     # burası yerel (TZ+03), predictions UTC kullanıyordu; 00:00-03:00 TR arasında
     # iki log FARKLI güne yazıyor, karşılaştırma ve gün sayımı bozuluyordu).
-    today = datetime.datetime.utcnow().date().isoformat()
-    fields = ["date", "symbol"] + FEATURE_NAMES
+    now = datetime.datetime.utcnow()
+    today = now.date().isoformat()
+    stamp = now.isoformat(timespec="seconds")
+    # `ts` = fotoğrafın alındığı AN. 08/2026 bulgusu: günde birden çok döngü
+    # çalıştığı için (30 dk'da bir) yalnız `date` ile hangi döngüye ait olduğu
+    # bilinemiyordu; I2 bir döngünün özelliklerini başka bir döngünün tahminiyle
+    # eşleştirip sahte "train/serve sapması" İHLALİ üretiyordu.
+    fields = ["date", "ts", "symbol"] + FEATURE_NAMES
 
     rows = []
     if FEATURE_LOG_FILE.exists():
@@ -78,7 +84,7 @@ def log_features(raw_feats: dict) -> None:
                     if r.get("date", "") >= cutoff and r.get("date") != today]
 
     for sym, feat in raw_feats.items():
-        row = {"date": today, "symbol": sym}
+        row = {"date": today, "ts": stamp, "symbol": sym}
         for k in FEATURE_NAMES:
             try:
                 v = feat.get(k)

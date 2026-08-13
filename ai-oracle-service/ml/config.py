@@ -150,6 +150,22 @@ LGBM_PARAMS = {
 }
 
 # ── Eğitim penceresi ─────────────────────────────────────────────────────────
+# ── Risk filtresi (Faz A) ────────────────────────────────────────────────────
+# Kural docs/PLAN_2026-08.md §A0'da ÖNCEDEN yazıldı; sonucu görüp değiştirmek
+# yasak. Karar tarihi 2027-02-12.
+RISK_FILTER_ON          = True
+RISK_FILTER_TOP_PCT     = 0.30   # gün-içi kesitsel skorda en iyi %30 geçer
+# Filtrenin canlıya alındığı gün. I11 yalnız BU TARİHTEN SONRAKİ günleri
+# yargılar; öncesi filtresiz üretildi ve o veriyi filtreye göre suçlamak
+# yanlış olur (devreye alır almaz İHLAL veren, 10 gün öyle kalan bir kontrol
+# işe yaramaz). Ölçüm penceresinin başlangıcı olarak da kayda geçer.
+# 13 Ağustos'un logu KARIŞIK: o günün tahminlerinin bir kısmı filtre devreye
+# girmeden önce üretildi. Karışık günü ölçüme katmak hem yanlış hem düzeltilemez
+# olurdu, bu yüzden pencere ertesi günden başlar.
+RISK_FILTER_SINCE       = "2026-08-14"
+RISK_FILTER_MIN_SYMBOLS = 20     # altında kesitsel sıralama anlamsız → filtre yok
+COVERAGE_TARGET         = (0.20, 0.40)   # AL kapsamı bu aralıkta kalmalı (I11)
+
 MIN_TRAIN_ROWS = 2000        # bu kadar örnek yoksa model eğitilmez
 MAX_TRAIN_ROWS = 60000       # kayan pencere tavanı (RAM güvenliği — 137 OOM'a karşı)
 HISTORY_PERIOD = "3y"        # her sembol için indirilecek geçmiş

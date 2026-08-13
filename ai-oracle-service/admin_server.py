@@ -504,6 +504,8 @@ def _admin_make_app():
             KELLY_FRACTION, META_MIN_AUC, META_VETO_P, MIN_META_SAMPLES,
             PROMOTE_MIN_EDGE, PROMOTE_MIN_FRESH_DAYS, PROMOTE_MIN_PRECISION,
             PROMOTE_MIN_SAMPLES, PROMOTE_WINDOWS, PSI_ALERT, PSI_WATCH,
+            COVERAGE_TARGET, RISK_FILTER_MIN_SYMBOLS, RISK_FILTER_ON,
+            RISK_FILTER_TOP_PCT,
             SL_ATR_MULT, STRONG_BUY_P, TP_ATR_MULT, TRANSACTION_COST_PCT,
         )
         from config import CYCLE_MIN
@@ -517,6 +519,16 @@ def _admin_make_app():
                 "kelly_fraction": KELLY_FRACTION,
             },
             "evaluation": {"min_age_days": EVAL_MIN_AGE_DAYS},
+            # Faz A — kural docs/PLAN_2026-08.md §A0'da önceden çivilendi.
+            "risk_filter": {
+                "on": RISK_FILTER_ON,
+                "top_pct": RISK_FILTER_TOP_PCT,
+                "min_symbols": RISK_FILTER_MIN_SYMBOLS,
+                "coverage_target": list(COVERAGE_TARGET),
+                "criteria": ["düşük oynaklık (atr_pct)", "52h zirveye yakınlık"],
+                "decision_date": "2027-02-12",
+                "proven": False,   # Sharpe farkı 1 standart hatanın içinde
+            },
             "drift":      {"min_rows": monitoring.MIN_LIVE_ROWS,
                            "min_days": monitoring.MIN_LIVE_DAYS,
                            "psi_watch": PSI_WATCH, "psi_alert": PSI_ALERT},

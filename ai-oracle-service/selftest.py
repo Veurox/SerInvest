@@ -115,12 +115,43 @@ def i2_train_serve_skew(now) -> dict:
             return _skip("I2", t, "champion yüklü değil")
 
         day = max(r["date"] for r in fl)
+        today_fl = [r for r in fl if r["date"] == day]
         feats = {r["symbol"]: {k: (float(r[k]) if r.get(k) not in (None, "") else np.nan)
                                for k in FEATURE_NAMES}
-                 for r in fl if r["date"] == day}
+                 for r in today_fl}
         live = {r["symbol"]: float(r["p_up"]) for r in pr
                 if (r.get("timestamp") or "")[:10] == day and r.get("p_up")}
         common = sorted(set(feats) & set(live))
+
+        # AYNI DÖNGÜ eşleştirmesi (08/2026 bulgusu). Günde birden çok döngü
+        # çalışıyor; bir döngünün özelliklerini başka bir döngünün tahminiyle
+        # kıyaslamak sahte sapma üretir. `ts` varsa yalnız özellik fotoğrafına
+        # YAKIN zamanlı tahminler karşılaştırılır.
+        snap_ts = {r["symbol"]: (r.get("ts") or "") for r in today_fl}
+        pred_ts = {}
+        for r in pr:
+            if (r.get("timestamp") or "")[:10] == day and r.get("p_up"):
+                pred_ts[r["symbol"]] = r.get("timestamp") or ""
+        if any(snap_ts.values()):
+            def _sec(s):
+                try:
+                    return datetime.datetime.fromisoformat(s[:19]).timestamp()
+                except Exception:
+                    return None
+            paired = []
+            for s in common:
+                a, b = _sec(snap_ts.get(s, "")), _sec(pred_ts.get(s, ""))
+                # 10 dakikalık pencere: aynı döngünün sembolleri sırayla
+                # işlendiği için aralarında birkaç dakika olabilir.
+                if a is not None and b is not None and abs(a - b) <= 600:
+                    paired.append(s)
+            if len(paired) >= 5:
+                common = paired
+            else:
+                return _skip("I2", t,
+                             f"{day}: aynı döngüye ait eşleşme yetersiz ({len(paired)}) — "
+                             f"gün içinde birden çok döngü var")
+
         if len(common) < 5:
             return _skip("I2", t, f"{day} için ortak sembol yetersiz ({len(common)})")
 
@@ -207,6 +238,63 @@ def i5_coverage_envelope(now) -> dict:
     return _warn("I5", t,
                  f"{day}: kapsam %{cov*100:.0f}, doğrulanmış zarf %{lo*100:.0f}-%{hi*100:.0f} "
                  f"DIŞINDA — model hiç sınanmadığı bir rejimde")
+
+
+def i11_coverage_target(now) -> dict:
+    """
+    Risk filtresi açıkken AL kapsamı ÖNCEDEN yazılmış hedef bantta olmalı.
+
+    Fark I5'ten şu: I5 "model doğrulandığı rejimde mi" diye sorar (geçmiş
+    fold'lardan gelen zarf). I11 ise "filtre söz verdiği işi yapıyor mu" diye
+    sorar (docs/PLAN_2026-08.md §A0'da çivilenmiş %20-40 hedefi). Filtre
+    bozulur veya sessizce devre dışı kalırsa I5 hâlâ geçebilir; I11 geçmez.
+
+    Başarısızlık ölçütü de orada yazılı: 10 ardışık iş günü bant dışı kalırsa
+    filtre KALDIRILIR.
+    """
+    t = "I11 · Risk filtresi kapsam hedefinde"
+    from ml.config import COVERAGE_TARGET, RISK_FILTER_ON, RISK_FILTER_SINCE
+    if not RISK_FILTER_ON:
+        return _skip("I11", t, "risk filtresi kapalı")
+
+    rows = _read_csv(PREDICTION_LOG)
+    if not rows:
+        return _skip("I11", t, "tahmin logu yok")
+
+    lo, hi = COVERAGE_TARGET
+    # YALNIZ filtre devredeyken üretilmiş günler. Öncesi filtresiz üretildi;
+    # o veriyi filtreye göre yargılamak yanlış suçlama olur.
+    days = sorted({(r.get("timestamp") or "")[:10] for r in rows
+                   if (r.get("timestamp") or "")[:10] >= RISK_FILTER_SINCE})[-10:]
+    if not days:
+        return _skip("I11", t, f"{RISK_FILTER_SINCE} sonrası tahmin yok — filtre henüz ölçülmedi")
+
+    outside = []
+    son = None
+    for d in days:
+        todays = [r for r in rows if (r.get("timestamp") or "")[:10] == d]
+        if not todays:
+            continue
+        cov = sum(1 for r in todays if r.get("rec_dir") == "BUY") / len(todays)
+        son = (d, cov)
+        if not (lo <= cov <= hi):
+            outside.append((d, cov))
+
+    if son is None:
+        return _skip("I11", t, "kapsam hesaplanamadı")
+
+    d, cov = son
+    hedef = f"hedef %{lo*100:.0f}-%{hi*100:.0f}"
+    # Ardışık 10 gün bant dışı = plandaki başarısızlık ölçütü → İHLAL.
+    if len(outside) >= 10:
+        return _fail("I11", t,
+                     f"{len(outside)} ardışık gün bant dışı ({hedef}) — plandaki "
+                     f"başarısızlık ölçütü: filtre kaldırılmalı")
+    if outside:
+        return _warn("I11", t,
+                     f"son {len(days)} günün {len(outside)}'inde bant dışı; "
+                     f"{d}: %{cov*100:.0f} ({hedef})")
+    return _ok("I11", t, f"{d}: kapsam %{cov*100:.0f} ({hedef})")
 
 
 def i6_calibrator_sane(now) -> dict:
@@ -338,7 +426,7 @@ def i10_jobs_not_overdue(now) -> dict:
 CHECKS = [i1_date_basis, i2_train_serve_skew, i3_tier_matches_confidence,
           i4_thresholds_from_config, i5_coverage_envelope, i6_calibrator_sane,
           i7_prediction_schema, i8_no_duplicates, i9_promotion_balance,
-          i10_jobs_not_overdue]
+          i10_jobs_not_overdue, i11_coverage_target]
 
 
 def run(send_syslog=None) -> dict:
