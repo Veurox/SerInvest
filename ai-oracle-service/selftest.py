@@ -155,8 +155,16 @@ def i2_train_serve_skew(now) -> dict:
         if len(common) < 5:
             return _skip("I2", t, f"{day} için ortak sembol yetersiz ({len(common)})")
 
-        use = xsec_rank_latest({s: feats[s] for s in common}) if XSEC_RANK \
-            else {s: feats[s] for s in common}
+        # Kesitsel rank TÜM günün evreni üzerinde hesaplanmalı, ortak alt küme
+        # üzerinde DEĞİL. 08/2026 bulgusu: canlı döngü 50 sembolü sıralamıştı,
+        # bu kontrol 47 ortak sembolü sıralıyordu; yüzdelik sıralar kayınca p
+        # farklı çıkıyor ve "47/47 sembolde sapma" gibi sahte bir İHLAL doğuyordu.
+        # Sıralama tam evrende yapılır, karşılaştırma ortak sembollerde.
+        ranked_all = xsec_rank_latest(feats) if XSEC_RANK else feats
+        use = {s: ranked_all[s] for s in common if s in ranked_all}
+        common = [s for s in common if s in use]
+        if len(common) < 5:
+            return _skip("I2", t, f"{day}: rank sonrası ortak sembol yetersiz ({len(common)})")
         X = pd.DataFrame([[use[s].get(c, 0.0) for c in FEATURE_NAMES] for s in common],
                          columns=FEATURE_NAMES)
         recomputed = model.predict_proba(X)[:, 1]

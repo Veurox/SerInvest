@@ -53,7 +53,7 @@ from ml.config import (
 )
 import ml.atomic as atomic
 from ml.calibration import calibrate, expected_R, kelly_size, load_calibrator
-from ml.config import (COVERAGE_TARGET, EV_FILTER, META_VETO_P,
+from ml.config import (COVERAGE_TARGET, EV_FILTER, META_ENABLED, META_VETO_P,
                        PROMOTE_WINDOWS, RISK_FILTER_ON)
 import ml.meta as meta
 import ml.monitoring as monitoring
@@ -394,7 +394,9 @@ def analyze_symbol(model, sym: str, yf_sym: str, snap: tuple,
             meta.log_meta_row(sym, meta_feats)
         except Exception as e:
             print(f"  [meta] {sym} özellik/log hatası: {e}")
-    if meta_model is not None and meta_feats is not None and rec_dir == "BUY":
+    # META_ENABLED=False (Faz G): veto ve boyut çarpanı devre dışı. Özellik logu
+    # yukarıda yazılmaya devam ediyor — veri birikince katman ölçülüp açılabilsin.
+    if META_ENABLED and meta_model is not None and meta_feats is not None and rec_dir == "BUY":
         pm = meta.p_meta(meta_model, meta_feats)
         if pm < META_VETO_P:
             meta_gated = True
@@ -583,7 +585,7 @@ def _run_ml_cycle_locked(model_holder: list):
     except Exception as e:
         print(f"[ml cycle] haber haritası alınamadı (meta pasif): {e}")
         news_map = {}
-    meta_model = meta.load_meta()
+    meta_model = meta.load_meta() if META_ENABLED else None
     if meta_model is not None:
         print("[ml cycle] meta-model CANLIDA — AL sinyalleri haber/rejim süzgecinden geçiyor")
 

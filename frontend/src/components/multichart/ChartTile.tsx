@@ -79,6 +79,20 @@ export function ChartTile({
 
   const isBuy = !!analysis && analysis.recommendation.includes('ALIM')
 
+  // ── Veri tazeliği (Faz H) ────────────────────────────────────────────────
+  // Son barın yaşı. Bayat veriyle karar vermeyi önlemek için: kullanıcı
+  // grafiğe bakıp "şu an böyle" sanabilir, oysa veri günler öncesine ait
+  // olabilir (hafta sonu, tatil, veri kaynağı kesintisi).
+  // Eşik aralığa göre: dakikalık grafikte 1 saat bayat, günlükte değil.
+  const lastTs = bars.length ? bars[bars.length - 1].t : null
+  const ageMin = lastTs ? (Date.now() - lastTs) / 60000 : null
+  const staleAfter = tf === '1H' || tf === '1D' ? 90 : 60 * 24 * 4   // dk
+  const stale = ageMin != null && ageMin > staleAfter
+  const ageLabel = ageMin == null ? null
+    : ageMin < 90 ? `${Math.round(ageMin)} dk`
+    : ageMin < 60 * 48 ? `${Math.round(ageMin / 60)} sa`
+    : `${Math.round(ageMin / 1440)} gün`
+
   // Referans çizgileri kimliği her render'da değişmesin diye memo — aksi hâlde
   // PriceChart onları her seferinde söküp yeniden kurardı (görsel titreme).
   const overlays = useMemo<Overlay[]>(() => {
@@ -141,6 +155,12 @@ export function ChartTile({
             background: isBuy ? 'var(--profit-bg)' : 'transparent',
           }}>
             {analysis.recommendation}
+          </span>
+        )}
+
+        {stale && (
+          <span className="mc-stale" title={`Son bar ${ageLabel} önce — veri bayat olabilir`}>
+            ⏱ {ageLabel}
           </span>
         )}
 

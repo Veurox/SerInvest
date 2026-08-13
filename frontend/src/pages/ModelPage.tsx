@@ -12,7 +12,7 @@ import { useConfig } from '../lib/useConfig'
 import { PageHeader, Icon } from '../components/ui'
 import { useSearchParams } from 'react-router-dom'
 import { ModelStory, JobStatus, SelfTestPanel, ModelVersions, ModelEvidence,
-         RiskFilterPanel } from '../components/finance'
+         RiskFilterPanel, DataDepth } from '../components/finance'
 import { useToast } from '../components/ui/Toast'
 import type { SysLog, TrainingInfo, AdminStatus } from '../lib/types'
 
@@ -275,6 +275,9 @@ export default function ModelPage() {
       </>}
 
       {tab === 'kanit' && <>
+        {/* Alternatif verinin derinliği — "ne zaman daha iyisi olur" (Faz B) */}
+        <DataDepth />
+
         {/* Filtrenin durumu + gölge portföyle karşılaştırma (Faz A) */}
         <RiskFilterPanel />
 

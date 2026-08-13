@@ -150,6 +150,21 @@ LGBM_PARAMS = {
 }
 
 # ── Eğitim penceresi ─────────────────────────────────────────────────────────
+# ── Meta-labeling (Faz G — DEVRE DIŞI) ───────────────────────────────────────
+# 08/2026: kapatıldı. Kod SİLİNMEDİ, yalnız devre dışı.
+#
+# Gerekçe (docs/MODEL_KANIT.md): meta katmanın işi "modelin AL sinyallerinden
+# hangileri tutar" sorusunu haber/rejim bağlamıyla cevaplamaktı. Ama ana model
+# zaten hisse SIRALAYAMIYOR (gün-içi Spearman -0.007, t=-0.78, 485 gün);
+# sıralayamayan bir sinyal kümesini veto etmek ölçülebilir bir katkı üretmiyor,
+# yalnız karar zincirine bir kat daha karmaşıklık ve bir log dosyası daha
+# ekliyordu.
+#
+# Ne zaman tekrar açılır: haber verisi ~180 güne ulaşıp (bkz. /admin/data-depth)
+# meta katmanın katkısı ÖLÇÜLEBİLİR hale geldiğinde. Meta özellik logu bilinçli
+# olarak yazılmaya DEVAM ediyor — o gün geldiğinde eğitim verisi hazır olsun.
+META_ENABLED = False
+
 # ── Risk filtresi (Faz A) ────────────────────────────────────────────────────
 # Kural docs/PLAN_2026-08.md §A0'da ÖNCEDEN yazıldı; sonucu görüp değiştirmek
 # yasak. Karar tarihi 2027-02-12.

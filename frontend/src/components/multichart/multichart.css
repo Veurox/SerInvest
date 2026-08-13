@@ -287,3 +287,16 @@
 .mc-picker__row b { font-weight: 700; min-width: 54px; }
 .mc-picker__row span { margin-left: auto; font-variant-numeric: tabular-nums; font-size: 10.5px; }
 .mc-picker__empty { padding: 10px; font-size: 11px; color: var(--text-muted); }
+
+/* Veri tazeliği rozeti (Faz H) — son bar eşikten eskiyse çıkar.
+   Kullanıcı grafiğe bakıp "şu an böyle" sanabilir; oysa veri hafta sonu,
+   tatil veya kaynak kesintisi yüzünden günler öncesine ait olabilir. */
+.mc-stale {
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 5px;
+  white-space: nowrap;
+  color: var(--warning);
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+}

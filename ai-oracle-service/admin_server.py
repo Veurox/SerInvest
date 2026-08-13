@@ -229,6 +229,69 @@ def _admin_make_app():
         threading.Thread(target=_run, daemon=True).start()
         return jsonify({"ok": True, "message": "Korumalı şampiyon-rakip değerlendirmesi başlatıldı"})
 
+    # ── GET /admin/data-depth ─────────────────────────────────────────────────
+    @app.get("/admin/data-depth")
+    def admin_data_depth():
+        """
+        Alternatif verinin GERÇEK derinliği (Faz B).
+
+        08/2026 ölçümü: haber ~37 gün, temel 17 gün. Bu derinlikte geriye dönük
+        doğrulama YAPILAMAZ — bu yüzden haber/temel özellikler modele hâlâ
+        girmiyor ve meta-labeling kapalı (Faz G).
+
+        Kayıt SAYISI yanıltıcıdır: 10.448 haber kaydı vardı ama 73 güne
+        yayılmıştı ve çoğu son bir aydaydı. Ölçüt GÜN sayısı.
+        """
+        import csv as _csv
+        from ml.config import FEATURE_LOG_FILE, META_LOG_FILE, PREDICTION_LOG
+        TARGET_DAYS = 180   # anlamlı bir walk-forward için asgari
+
+        out = {"target_days": TARGET_DAYS, "sources": []}
+
+        def _days(path, *cols) -> tuple[int, int]:
+            """
+            Dosyadaki benzersiz gün sayısı ve satır sayısı.
+
+            Tarih kolonu adı dosyadan dosyaya değişiyor (feature_log 'date',
+            meta_log ve predictions 'timestamp'). İlk yazımda tek ad varsayıp
+            meta_log için "894 kayıt ama 0 gün" gibi tutarsız bir sonuç
+            ürettim; artık verilen adlar sırayla denenir.
+            """
+            if not path.exists():
+                return 0, 0
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    rows = list(_csv.DictReader(f))
+            except Exception:
+                return 0, 0
+            if not rows:
+                return 0, 0
+            col = next((c for c in cols if c in rows[0]), None)
+            if col is None:
+                return 0, len(rows)
+            return len({(r.get(col) or "")[:10] for r in rows if r.get(col)}), len(rows)
+
+        def add(name, days, rows, note):
+            out["sources"].append({
+                "name": name, "days": days, "rows": rows,
+                "target": TARGET_DAYS, "ready": days >= TARGET_DAYS,
+                "pct": round(min(1.0, days / TARGET_DAYS), 3), "note": note,
+            })
+
+        # Yalnız ORACLE'IN KENDİ yazdığı dosyalar ölçülüyor. Veritabanındaki ham
+        # haber/temel kayıt sayısı YANILTICI: 08/2026'da 10.448 haber kaydı vardı
+        # ama 73 güne yayılmıştı ve çoğu son bir aydaydı. Asıl soru "kaç gün
+        # boyunca NOKTASAL-ZAMANLI özellik ürettik" — cevabı bu loglarda.
+        d, n = _days(META_LOG_FILE, "timestamp", "date")
+        add("Haber özellikleri", d, n,
+            "meta katmanın eğitim verisi — 180 güne ulaşınca META_ENABLED açılabilir")
+        d, n = _days(FEATURE_LOG_FILE, "date", "ts")
+        add("Teknik özellikler", d, n, "PSI drift tabanı")
+        d, n = _days(PREDICTION_LOG, "timestamp")
+        add("Tahmin kaydı", d, n, "canlı isabet ve kapsam ölçümünün tabanı")
+
+        return jsonify(out)
+
     # ── GET /admin/model-evidence ─────────────────────────────────────────────
     @app.get("/admin/model-evidence")
     def admin_model_evidence():

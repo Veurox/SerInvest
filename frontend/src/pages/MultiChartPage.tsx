@@ -67,6 +67,32 @@ export default function MultiChartPage() {
   useEffect(() => { localStorage.setItem(LS_TF, JSON.stringify(tf)) }, [tf])
   useEffect(() => { localStorage.setItem(LS_KIND, JSON.stringify(kind)) }, [kind])
 
+  // ── Klavye (Faz H) — terminal hissi: fare olmadan kullanılabilsin ─────────
+  // Bir metin kutusuna yazarken kısayol ÇALIŞMAZ; aksi hâlde sembol ararken
+  // "1" yazmak düzeni değiştirirdi.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+
+      if (e.key >= '1' && e.key <= '8') {
+        const n = Number(e.key)
+        if ((LAYOUTS as readonly number[]).includes(n)) { e.preventDefault(); setLayout(n) }
+        return
+      }
+      if (e.key === 'c' || e.key === 'C') { setKind(k => (k === 'candle' ? 'line' : 'candle')); return }
+      if (e.key === 'ArrowRight') { e.preventDefault(); setActive(a => Math.min(layout - 1, a + 1)); return }
+      if (e.key === 'ArrowLeft')  { e.preventDefault(); setActive(a => Math.max(0, a - 1)); return }
+      if (e.key === 'Enter') {
+        const sym = slots[active]
+        if (sym) { e.preventDefault(); openChart(sym) }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [layout, slots, active, openChart])
+
   const setSlot = useCallback((i: number, symbol: string) => {
     setSlots(prev => {
       const next = [...prev]
@@ -114,7 +140,11 @@ export default function MultiChartPage() {
         </span>
 
         <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-muted)' }}>
-          Başlığa tıkla → sembol değiştir · Grafiğe tıkla → tüm detaylar
+          Başlığa tıkla → sembol · Grafiğe tıkla → detay ·{' '}
+          <b style={{ color: 'var(--text-disabled)' }}>1-8</b> düzen ·{' '}
+          <b style={{ color: 'var(--text-disabled)' }}>C</b> mum/çizgi ·{' '}
+          <b style={{ color: 'var(--text-disabled)' }}>← →</b> hücre ·{' '}
+          <b style={{ color: 'var(--text-disabled)' }}>Enter</b> detay
         </span>
       </div>
 
