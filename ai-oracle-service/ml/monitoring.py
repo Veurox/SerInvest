@@ -274,12 +274,19 @@ def calibration_report(n_bins: int = 5) -> dict:
         # "en yüksek güven çeyreği en kötü" gibi yanlış bir sonuç doğurmuştu.
         # Karar artık gün ORTALAMALARI üzerinden veriliyor: her gün bir gözlem.
         by_day: dict[str, list[int]] = {}
-        for d, yi in zip(days, y):
+        by_day_p: dict[str, list[float]] = {}
+        for d, yi, pi in zip(days, y, p_cal):
             by_day.setdefault(d, []).append(yi)
+            by_day_p.setdefault(d, []).append(pi)
         rates = [float(np.mean(v)) for _, v in sorted(by_day.items())]
         n_days = len(rates)
         report["n_days"] = n_days
-        cal_mean = float(P_cal.mean())
+        # İki taraf AYNI şekilde toplanır: gözlenen taraf gün ortalamalarının
+        # ortalaması; kalibratör tarafı da öyle. Havuzlanmış satır ortalamasıyla
+        # kıyaslamak elma-armut olur (günlük satır sayısı 37-45 arası oynuyor;
+        # fark küçük ama karşılaştırmanın tanımı simetrik olmalı).
+        cal_mean = float(np.mean([float(np.mean(v))
+                                  for _, v in sorted(by_day_p.items())]))
 
         if n_days < MIN_EVAL_DAYS:
             report["status"] = "COLLECTING"

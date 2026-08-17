@@ -325,6 +325,14 @@ Gerçekleşen varyans yaklaşımıyla düzeltildi (r/√Δd, iş günü bazında
 Ölçütler artık `/admin/filter-decision` ile okunuyor; hesap sonuç bilinmezken
 sabitlendi ve testlerle çivilendi.
 
+**İkinci tur düzeltmesi (aynı gün):** doğrulama turunda kendi kodumda üçüncü
+bir kusur çıktı — ana defterin serisi 08.07'den başlıyordu, filtre ise 14.08'de
+doğdu. Plan "AYNI dönemde" karşılaştırma şart koşarken ana defterin Sharpe'ına
+**filtresiz geçen 5 hafta** karışıyordu. Ölçüm penceresi artık iki defter için
+de `RISK_FILTER_SINCE` (2026-08-14) ile başlar; `window_start` çıktıda görünür.
+Pencere uygulanınca bugünkü dürüst durum: her iki defterde 1 günlük kayıt —
+"günlük kayıt yetersiz". Ölçüm gerçekten bugün başlıyor; Şubat'a kadar birikecek.
+
 ---
 
 ## 8.5 Dürüstlük katmanının kendisi yalan söylüyordu (17.08.2026)

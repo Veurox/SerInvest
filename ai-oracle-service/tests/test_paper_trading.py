@@ -167,6 +167,14 @@ def test_hold_days_never_negative_on_garbage():
 
 # ── 2027-02-12 karar ölçütleri (docs/PLAN_2026-08.md §A0) ────────────────────
 
+@pytest.fixture(autouse=True)
+def _decision_window_wide_open(monkeypatch):
+    """Karar penceresi (RISK_FILTER_SINCE) kendi testinde sınanır; diğer
+    testler sabit Temmuz tarihleri kullandığı için pencere geriye alınır —
+    yoksa üretim tarihi her değiştiğinde alakasız testler kırılır."""
+    monkeypatch.setattr(pt, "RISK_FILTER_SINCE", "2026-01-01")
+
+
 def _hist(equities, exposure, start_day=1, month="07"):
     """Günlük equity_history — her gün TEK kayıt."""
     return [{"t": f"2026-{month}-{start_day+i:02d}T18:00:00", "equity": e,
@@ -285,6 +293,24 @@ def test_sharpe_gap_correction_changes_result(monkeypatch):
     assert m["sampling_gaps"] == 1
     assert m["days_spanned"] == 15
     assert m["sharpe"] is not None          # patlamadı, sonlu bir sayı üretti
+
+
+def test_decision_metrics_excludes_prefilter_history(monkeypatch):
+    """
+    İKİNCİ DENETİM TURU BULGUSU (17.08.2026): ana defterin serisi 08.07'den
+    başlıyordu, filtre ise 14.08'de doğdu — filtresiz 5 hafta Sharpe'a
+    karışıyordu. Plan "AYNI dönemde" diyor; pencere dışı kayıt ölçüme giremez.
+    Temmuz'a felaket koyup Ağustos'a sakin seyir koyuyoruz: pencere işliyorsa
+    felaket görünmez OLMALI.
+    """
+    monkeypatch.setattr(pt, "RISK_FILTER_SINCE", "2026-08-14")
+    hist = (_hist([100.0, 50.0, 25.0, 12.5], 0.5, start_day=1, month="07")
+            + _hist([100.0, 100.5, 101.0, 101.5], 0.5, start_day=14, month="08"))
+    monkeypatch.setattr(pt, "load_state", lambda book="main": {"equity_history": hist})
+    m = pt.decision_metrics("main")
+    assert m["window_start"] == "2026-08-14"
+    assert m["n_days"] == 4                          # Temmuz çöküşü DAHİL DEĞİL
+    assert m["worst_month"] is not None and m["worst_month"] > 0.0
 
 
 def test_decision_metrics_survives_empty_history(monkeypatch):

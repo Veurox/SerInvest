@@ -36,6 +36,7 @@ from ml.config import (
     HORIZON,            # 10 işlem günü — canlı champion ile AYNI ufuk
     MODELS_DIR,
     RISK_FILTER_DECISION_DATE as DECISION_DATE,
+    RISK_FILTER_SINCE,
     TRANSACTION_COST_PCT,
 )
 
@@ -729,10 +730,18 @@ def decision_metrics(book: str = "main") -> dict:
     duyarlıdır; ana defter Kelly ile ~%44, gölge eşit ağırlıkla ~%75 sermaye
     kullandığı için ham karşılaştırma filtrenin lehine yapısal olarak yanlıdır.
     Sharpe ise sabit kaldıraca duyarsızdır (oran sadeleşir) — normalize edilmez.
+
+    PENCERE: yalnız RISK_FILTER_SINCE (2026-08-14) ve sonrası. İkinci denetim
+    turu (17.08.2026) bunu eksik buldu: ana defterin serisi 08.07'den başlıyordu
+    — filtresiz geçen 5 hafta Sharpe'a karışıyordu. Plan "AYNI dönemde" diyor;
+    gölge defter 13.08'de doğdu, ölçülen şey filtrenin etkisi olacaksa iki
+    defter de filtrenin var olduğu pencerede okunmalı.
     """
-    ser = _daily_series(load_state(book).get("equity_history", []))
+    ser = [x for x in _daily_series(load_state(book).get("equity_history", []))
+           if x[0] >= RISK_FILTER_SINCE]
     out = {
-        "book": book, "n_days": len(ser), "sharpe": None, "worst_month": None,
+        "book": book, "window_start": RISK_FILTER_SINCE,
+        "n_days": len(ser), "sharpe": None, "worst_month": None,
         "avg_exposure": None, "worst_month_norm": None, "months": 0,
         "days_spanned": 0, "sampling_gaps": 0, "note": None,
     }
