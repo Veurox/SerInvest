@@ -238,6 +238,112 @@ Gerekçe ilkenin kendisi: *bir bilgiyi aldığından önce bilmiş sayılamazsı
 
 ---
 
+## 8.3 Genel denetim (17.08.2026) — kalibratör gerçeği yalanlıyor
+
+Denetimin en önemli bulgusu. Sağlık kontrolü "KALİBRASYON SAPMIŞ" derken öz
+denetim **11/11 PASS** veriyordu ve Kelly, ölçümün yanlışladığı bir olasılıkla
+pozisyon açmaya devam ediyordu. Hiçbir değişmez bunu yakalamıyordu: I6
+kalibratörün **yapısını** sınıyor (monoton mu, aralık makul mu), **çıktısını
+gerçekleşmeyle karşılaştırmıyordu**.
+
+**Önce yöntemi düzelttim.** Rapor ECE'yi 401 tahmin üzerinden hesaplıyordu ama
+bu tahminler **10 güne** yayılıyor; aynı günün 50 sembolü aynı piyasa hareketini
+paylaşır. Bu §1'deki hatanın aynısı. Gün düzeyinde yeniden ölçüldü:
+
+| Gün | Gözlenen UP | Gün | Gözlenen UP |
+|---|---|---|---|
+| 07-08 | %57,9 | 07-19 | %22,5 |
+| 07-09 | %56,4 | 07-23 | %13,6 |
+| 07-10 | %43,6 | 07-24 | %26,8 |
+| 07-13 | %38,5 | 07-27 | %29,7 |
+| 07-16 | %17,8 | 07-28 | %41,0 |
+
+Gün ortalaması **%34,8** · sd 0,153 · standart hata 0,048 (n=10 gün).
+
+**Sapma gerçek — kümelenmeye rağmen ayakta kalıyor:**
+
+| Karşılaştırma | Fark | t | Sonuç |
+|---|---|---|---|
+| Kalibratörün dediği %52,8 | −0,185 | **−3,73** | sapma KANITLI |
+| Başabaş olasılık %42,0 | −0,072 | −1,49 | **kanıtlanmadı** |
+
+İkinci satır önemli: gözlenen oran başabaşın *altında* görünüyor ama 10 günle
+bu **istatistiksel olarak gösterilemiyor**. Yani "açılan tüm pozisyonlar
+negatif-EV" demek aşırı iddia olur — nokta tahmini öyle diyor, güven aralığı
+demiyor.
+
+**Sonucun ağırlığı — sapma boyutu değil, kararın İŞARETİNİ değiştiriyor:**
+
+| p | EV (R) | Kelly boyutu |
+|---|---|---|
+| 0,533 (kalibratörün dediği) | **+0,57** | **%5,55 → pozisyon açılır** |
+| 0,348 (gün düzeyinde gözlenen) | −0,40 | **%0 → hiç açılmaz** |
+
+**Düzeltmeler:**
+- Kalibrasyon kararı artık gün ortalamaları üzerinde t-testi (|t| > 2), havuzlanmış
+  ECE değil. ECE raporlanmaya devam eder ama "anlamlılık için KULLANILMAZ" notuyla.
+- `MIN_EVAL_DAYS = 10` — satır eşiği tek başına yetmez.
+- **Yeni değişmez I12**: kalibratör ölçülmüş olarak sapmışken boyutlandırmayı
+  besliyorsa **FAIL**. Bugün FAIL veriyor; sorun artık sessiz değil.
+- Standart hataya **binom tabanı**: günlerin oranı birebir aynı çıktığında sd
+  kayan nokta artığı kadar kalıyor, se ~1e-17 oluyor ve t 1e14'e patlıyordu.
+
+**Açık kalan karar (kullanıcıya ait):** Kelly/EV, `MISCALIBRATED` durumunda
+durdurulmalı mı? Bu **işlem davranışını değiştirir** (bugün açık 8 pozisyonun
+boyutu sıfırlanırdı), o yüzden tek başıma yapmadım. Kalibratörü tazelemenin
+yolu zaten var: `validate` (walk-forward) — ama **40 gündür çalışmamış** ve
+telafisi yok (`catchup: false`).
+
+---
+
+## 8.4 Ölçülemeyen ölçüt, ölçüt değildir (17.08.2026)
+
+§A0'da 2027-02-12 için ölçütler önceden çivilenmişti (Sharpe, en kötü ay) ama
+**hiçbir kod onları hesaplamıyordu**. Karar günü elle hesaplamak, tam o anda
+"şöyle hesaplayalım" kararının sızmasına kapı açar — önceden kayıt böylece
+değerini yitirir. İki kusur çıktı:
+
+**1. "En kötü ay" ölçütü yapısal olarak yanlıydı.** İki defterin kaldıracı aynı
+değil (ölçüm: ana %43,6 · gölge %74,7 yatırımda, oran sabit 0,583). Sharpe sabit
+kaldıraca duyarsızdır (oran sadeleşir) ama en kötü ay duyarlıdır: ana defter
+**filtre hiçbir şey yapmasa bile** ~0,58 katı iyi görünürdü. Ölçüt maruziyete
+göre normalize edildi. Gölge defterde **0 kapanmış işlem** varken düzeltildi —
+sonuç bilinmiyordu, gol direği kaydırılmadı.
+
+**2. Sharpe düzensiz örneklemeyi yok sayıyordu.** Bilgisayar sürekli açık değil:
+40 takvim gününde 16 günlük kayıt, boşluklar 1,1,**14**,3,1,1,1,1,3,1,1,2,**5**,1,**4** gün.
+Ardışık kayıtları "günlük getiri" saymak 14 günlük hareketi 1 güne sıkıştırır.
+Gerçekleşen varyans yaklaşımıyla düzeltildi (r/√Δd, iş günü bazında):
+
+| | Sharpe |
+|---|---|
+| Boşluk düzeltmesiz | −0,912 |
+| Boşluk düzeltmeli | **−0,555** |
+
+%39 fark. Karar günü bu fark yönü değiştirebilirdi.
+
+Ölçütler artık `/admin/filter-decision` ile okunuyor; hesap sonuç bilinmezken
+sabitlendi ve testlerle çivilendi.
+
+---
+
+## 8.5 Dürüstlük katmanının kendisi yalan söylüyordu (17.08.2026)
+
+Boot sırasında **öz denetim, sağlık kontrolünden ÖNCE** çalışıyordu. Sonuç: bir
+önceki kapanıştan kalan bayat `drift_report` okunuyor, I10 "health 3,8 gün
+gecikmiş" diyor, rapor 2 saniye sonra tazeleniyordu. Sonuç diske yazıldığı ve
+durum çubuğu **önbellekten** okuduğu için bu sahte uyarı akşam 19:25'e kadar
+ekranda kalıyordu — her gün.
+
+Sıra düzeltildi (sağlık → öz denetim; zamanlayıcıdaki 19:20 → 19:25 sırasının
+aynısı). Ayrıca I10 metni saatleri gün olarak yazdığı için 4 saatlik `analyze`
+sınırını **"0 gün sınırı"**, 36 saatlik `health` sınırını "2 gün sınırı" diye
+gösteriyordu; `_dur()` ile düzeltildi.
+
+Ders: uyarı üreten katmanın kendi girdisinin tazeliğini garanti etmesi gerekir.
+
+---
+
 ## 9. Buradan sonrası — üç dürüst seçenek
 
 1. **Arayüzü gerçeğe uydur.** Bugün 50 hissenin 49'una "GÜÇLÜ ALIM · %53 güven"

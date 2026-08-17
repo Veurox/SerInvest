@@ -163,3 +163,141 @@ def test_hold_days_never_negative_on_garbage():
     """Bozuk tarih çökertmemeli — 0 dönmeli."""
     assert pt._hold_days("bozuk-tarih", "2026-07-11T10:00:00") == 0.0
     assert pt._hold_days("", None) == 0.0
+
+
+# ── 2027-02-12 karar ölçütleri (docs/PLAN_2026-08.md §A0) ────────────────────
+
+def _hist(equities, exposure, start_day=1, month="07"):
+    """Günlük equity_history — her gün TEK kayıt."""
+    return [{"t": f"2026-{month}-{start_day+i:02d}T18:00:00", "equity": e,
+             "invested": e * exposure, "cash": e * (1 - exposure)}
+            for i, e in enumerate(equities)]
+
+
+def test_daily_series_collapses_intraday_snapshots():
+    """
+    30 dakikada bir alınan anlık görüntüler bağımsız gözlem DEĞİLDİR. Günün
+    son kaydı alınmalı; yoksa standart hata şişer (07/2026 PSI hatasının aynısı).
+    """
+    hist = [
+        {"t": "2026-07-01T10:00:00", "equity": 100.0, "invested": 40.0},
+        {"t": "2026-07-01T14:00:00", "equity": 105.0, "invested": 42.0},
+        {"t": "2026-07-01T18:00:00", "equity": 110.0, "invested": 44.0},
+        {"t": "2026-07-02T18:00:00", "equity": 120.0, "invested": 48.0},
+    ]
+    ser = pt._daily_series(hist)
+    assert len(ser) == 2                       # 4 kayıt → 2 gün
+    assert ser[0][1] == 110.0                  # günün SON değeri
+    assert ser[0][2] == pytest.approx(0.4)     # maruziyet oranı
+
+
+def test_sharpe_is_invariant_to_constant_leverage(monkeypatch):
+    """
+    ÖLÇÜT #1'in gerekçesi: nakit %0 getirirken portföy getirisi
+    `f × (yatırılanın getirisi)` olur; f sabitken hem ortalama hem standart sapma
+    aynı katsayıyla çarpılır ve Sharpe DEĞİŞMEZ. Bu yüzden Sharpe ölçütü iki
+    defterin kaldıraç farkına rağmen geçerlidir.
+    """
+    base = [100.0, 101.0, 100.5, 102.0, 103.0, 102.5, 104.0]
+    lev = [100.0 + (e - 100.0) * 0.583 for e in base]   # ölçülen kaldıraç oranı
+    monkeypatch.setattr(pt, "load_state", lambda book="main": {"equity_history": _hist(base, 0.75)})
+    a = pt.decision_metrics("shadow")["sharpe"]
+    monkeypatch.setattr(pt, "load_state", lambda book="main": {"equity_history": _hist(lev, 0.436)})
+    b = pt.decision_metrics("main")["sharpe"]
+    assert a is not None and b is not None
+    assert a == pytest.approx(b, rel=0.02)
+
+
+def test_worst_month_raw_is_biased_by_leverage(monkeypatch):
+    """
+    ÖLÇÜT #2'nin HAM hâli yanlıdır: aynı temel hareket, daha düşük kaldıraç →
+    mekanik olarak "daha iyi" en kötü ay. Filtre hiçbir şey yapmasa bile kazanır.
+    """
+    base = [100.0, 90.0]                                # −%10
+    lev = [100.0, 100.0 - 10.0 * 0.583]                 # −%5,83 (aynı hareket)
+    monkeypatch.setattr(pt, "load_state", lambda book="main": {"equity_history": _hist(base, 0.75)})
+    hi = pt.decision_metrics("shadow")
+    monkeypatch.setattr(pt, "load_state", lambda book="main": {"equity_history": _hist(lev, 0.436)})
+    lo = pt.decision_metrics("main")
+    assert lo["worst_month"] > hi["worst_month"]        # ham: düşük kaldıraç "kazanıyor"
+
+
+def test_worst_month_normalized_removes_leverage_bias(monkeypatch):
+    """Normalize edilince aynı temel hareket AYNI sonucu vermeli — yanlılık gitti."""
+    base = [100.0, 90.0]
+    lev = [100.0, 100.0 - 10.0 * 0.583]
+    monkeypatch.setattr(pt, "load_state", lambda book="main": {"equity_history": _hist(base, 0.75)})
+    hi = pt.decision_metrics("shadow")
+    monkeypatch.setattr(pt, "load_state", lambda book="main": {"equity_history": _hist(lev, 0.436)})
+    lo = pt.decision_metrics("main")
+    assert lo["worst_month_norm"] == pytest.approx(hi["worst_month_norm"], rel=0.05)
+
+
+def test_business_days_skips_weekends():
+    """Cuma→Pazartesi 3 takvim günü ama 1 İŞLEM günüdür; getiri o kadar birikir."""
+    assert pt._business_days_between("2026-07-10", "2026-07-13") == 1   # Cu→Pt
+    assert pt._business_days_between("2026-07-13", "2026-07-14") == 1
+    assert pt._business_days_between("2026-07-06", "2026-07-13") == 5   # tam hafta
+    assert pt._business_days_between("2026-07-13", "2026-07-13") == 1   # asgari 1
+    assert pt._business_days_between("bozuk", "2026-07-13") == 1        # çökmez
+
+
+def test_sharpe_robust_to_recording_gaps(monkeypatch):
+    """
+    ÖLÇÜLEN GERÇEK: bilgisayar sürekli açık değil, 40 günde 16 kayıt ve
+    aralarda 14 güne varan boşluklar var. Aynı temel getiri süreci, biri
+    kesintisiz biri boşluklu kaydedilirse Sharpe YAKIN çıkmalı — boşluk
+    düzeltmesi olmadan boşluklu seri oynaklığı şişirip Sharpe'ı bozuyordu.
+    """
+    # Kesintisiz: her iş günü %0,3 artış
+    full, eq = [], 100.0
+    for d in range(1, 21):
+        eq *= 1.003
+        full.append({"t": f"2026-07-{d:02d}T18:00:00", "equity": eq, "invested": eq * 0.5})
+    full = [h for h in full
+            if datetime.date.fromisoformat(h["t"][:10]).weekday() < 5]
+    # Boşluklu: aynı süreçten yalnızca bazı günler kaydedilmiş
+    sparse = [full[i] for i in (0, 1, 5, 6, 11, 13)]
+
+    monkeypatch.setattr(pt, "load_state", lambda book="main": {"equity_history": full})
+    s_full = pt.decision_metrics("main")["sharpe"]
+    monkeypatch.setattr(pt, "load_state", lambda book="main": {"equity_history": sparse})
+    m_sparse = pt.decision_metrics("main")
+    assert m_sparse["sampling_gaps"] > 0        # boşluk gerçekten var
+    assert s_full is not None and m_sparse["sharpe"] is not None
+    # Sabit büyüme → her iki seride de oynaklık ~0, Sharpe çok büyük ve aynı işaretli
+    assert (s_full > 0) == (m_sparse["sharpe"] > 0)
+
+
+def test_sharpe_gap_correction_changes_result(monkeypatch):
+    """
+    Düzeltmenin GERÇEKTEN iş yaptığını göster: 14 günlük boşluktan sonra gelen
+    büyük hareket, 1 günlük hareket sayılırsa oynaklık şişer. Δd bölmesi bunu
+    ölçeğine indirir; iki gözlemin normalize edilmiş büyüklüğü yakınlaşır.
+    """
+    hist = [
+        {"t": "2026-07-06T18:00:00", "equity": 100.0, "invested": 50.0},
+        {"t": "2026-07-07T18:00:00", "equity": 101.0, "invested": 50.0},   # 1 gün, %1
+        {"t": "2026-07-27T18:00:00", "equity": 116.0, "invested": 58.0},   # 15 iş günü
+    ]
+    monkeypatch.setattr(pt, "load_state", lambda book="main": {"equity_history": hist})
+    m = pt.decision_metrics("main")
+    assert m["sampling_gaps"] == 1
+    assert m["days_spanned"] == 15
+    assert m["sharpe"] is not None          # patlamadı, sonlu bir sayı üretti
+
+
+def test_decision_metrics_survives_empty_history(monkeypatch):
+    """Veri yoksa çökmemeli — None dönüp 'yetersiz' demeli."""
+    monkeypatch.setattr(pt, "load_state", lambda book="main": {"equity_history": []})
+    m = pt.decision_metrics("main")
+    assert m["sharpe"] is None and m["worst_month"] is None
+    assert m["note"] is not None
+
+
+def test_decision_not_declared_before_date(monkeypatch):
+    """Karar tarihinden önce okumak KARAR SAYILMAZ — erteleme kadar zararlıdır."""
+    monkeypatch.setattr(pt, "load_state", lambda book="main": {"equity_history": []})
+    d = pt.filter_decision()
+    assert d["decision_date"] == "2027-02-12"
+    assert d["decided"] is (datetime.date.today().isoformat() >= "2027-02-12")

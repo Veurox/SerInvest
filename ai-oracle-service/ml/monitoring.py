@@ -45,6 +45,13 @@ MIN_LIVE_ROWS  = 200    # PSI için asgari canlı satır
 # Anlamlı ECE için bin başına ~30 örnek gerekir → 5 bin × 30 = 150.
 MIN_EVAL_ROWS  = 150
 
+# 08/2026 bulgusu — SATIR EŞİĞİ YETMEZ, GÜN EŞİĞİ DE GEREKİR. n=401 satır
+# MIN_EVAL_ROWS'u rahatça geçiyordu ama yalnızca 10 güne yayılıyordu: aynı günün
+# 50 sembolü aynı piyasa hareketini paylaşır, bağımsız gözlem değildir. Kalibrasyon
+# kararı artık gün ORTALAMALARI üzerinde t-testi ile veriliyor; df = n_days − 1
+# olduğu için kullanışlı bir test en az ~10 gün ister.
+MIN_EVAL_DAYS  = 10
+
 # 07/2026 bulgusu — SATIR SAYISI YANILTICI: aynı günün 50 sembolü bağımsız gözlem
 # değildir. Piyasa-geneli özellikler (usdtry_ret5 gibi) tüm sembollerde AYNI değeri
 # taşır → 400 satır ama yalnızca 8 bağımsız gözlem. 8 günlük canlı pencereyi 747
@@ -208,15 +215,16 @@ def calibration_report(n_bins: int = 5) -> dict:
     """
     report = {
         "computed_at": datetime.datetime.utcnow().isoformat(),
-        "status": "NO_DATA", "n_evaluated": 0, "bins": [],
-        "brier": None, "ece": None,
+        "status": "NO_DATA", "n_evaluated": 0, "n_days": 0, "bins": [],
+        "brier": None, "ece": None, "day_level": None,
         "min_required": MIN_EVAL_ROWS,   # UI sabit yazmasın (bkz. compute_drift notu)
+        "min_days": MIN_EVAL_DAYS,
     }
     try:
         if not PREDICTION_LOG.exists():
             atomic.write_json(CALIB_REPORT_FILE, report)
             return report
-        p_raw, p_cal, y = [], [], []
+        p_raw, p_cal, y, days = [], [], [], []
         with open(PREDICTION_LOG, "r", encoding="utf-8") as f:
             for r in csv.DictReader(f):
                 ev = (r.get("eval") or "").split("|")[0].strip()
@@ -227,6 +235,7 @@ def calibration_report(n_bins: int = 5) -> dict:
                     pc = r.get("p_cal")
                     p_cal.append(float(pc) if pc not in (None, "") else float(r["p_up"]))
                     y.append(1 if ev == "UP" else 0)
+                    days.append((r.get("timestamp") or "")[:10])
                 except Exception:
                     continue
 
@@ -257,9 +266,51 @@ def calibration_report(n_bins: int = 5) -> dict:
             })
         report["bins"] = bins
         report["ece"] = round(float(ece), 4)
-        # ECE > 0.10 → kalibratör canlı dağılımdan sapmış; WF yeniden çalıştırılmalı
-        report["status"] = "MISCALIBRATED" if ece > 0.10 else "OK"
-        report["message"] = f"ECE {ece:.3f} (n={n}) — {'kalibratörü tazele (walk-forward)' if ece > 0.10 else 'kalibrasyon sağlıklı'}"
+
+        # ── GÜN DÜZEYİ TEST (08/2026 denetim düzeltmesi) ─────────────────────
+        # ECE 401 tahmini BAĞIMSIZ sayıyordu; oysa bunlar 10 güne yayılıyor ve
+        # aynı gün içindeki 50 sembol aynı piyasa hareketini paylaşıyor. Havuzlanmış
+        # ECE bu yüzden anlamlılığı şişirir — MODEL_KANIT.md §1'de aynı hata
+        # "en yüksek güven çeyreği en kötü" gibi yanlış bir sonuç doğurmuştu.
+        # Karar artık gün ORTALAMALARI üzerinden veriliyor: her gün bir gözlem.
+        by_day: dict[str, list[int]] = {}
+        for d, yi in zip(days, y):
+            by_day.setdefault(d, []).append(yi)
+        rates = [float(np.mean(v)) for _, v in sorted(by_day.items())]
+        n_days = len(rates)
+        report["n_days"] = n_days
+        cal_mean = float(P_cal.mean())
+
+        if n_days < MIN_EVAL_DAYS:
+            report["status"] = "COLLECTING"
+            report["message"] = (f"bağımsız gün birikiyor ({n_days}/{MIN_EVAL_DAYS}) — "
+                                 f"{n} tahmin var ama aynı günün sembolleri bağımsız değil")
+            atomic.write_json(CALIB_REPORT_FILE, report)
+            return report
+
+        obs = float(np.mean(rates))
+        sd = float(np.std(rates, ddof=1)) if n_days > 1 else 0.0
+        se_day = sd / (n_days ** 0.5)
+        # TABAN: standart hata, altındaki gözlemlerin yazı-tura gürültüsünden
+        # KÜÇÜK olamaz. Günlerin oranı birebir aynı çıktığında (küçük örneklemde
+        # olağan) sd kayan nokta artığı kadar kalıyor, se ~1e-17 oluyor ve t
+        # 1e14'e patlayıp her farkı "sapma" ilan ediyordu. Binom tabanı bunu keser;
+        # kümelenme varsa se_day zaten tabandan büyük olur ve taban devreye girmez.
+        se_binom = ((obs * (1.0 - obs) / n) ** 0.5) if 0.0 < obs < 1.0 else 0.0
+        se = max(se_day, se_binom)
+        t = (obs - cal_mean) / se if se > 0 else 0.0
+        report["day_level"] = {
+            "observed_up": round(obs, 4), "predicted_cal_p": round(cal_mean, 4),
+            "sd": round(sd, 4), "se": round(se, 4), "t": round(t, 2),
+            "gap": round(obs - cal_mean, 4),
+        }
+        # |t| > 2 → sapma gün gürültüsüyle açıklanamıyor; WF yeniden çalıştırılmalı.
+        report["status"] = "MISCALIBRATED" if abs(t) > 2.0 else "OK"
+        report["message"] = (
+            f"gün düzeyi: gözlenen %{obs*100:.1f} · kalibratör %{cal_mean*100:.1f} "
+            f"(t={t:+.2f}, {n_days} gün) — "
+            f"{'kalibratörü tazele (walk-forward)' if abs(t) > 2.0 else 'kalibrasyon sağlıklı'}"
+            f" · havuzlanmış ECE {ece:.3f} (n={n}, anlamlılık için KULLANILMAZ)")
     except Exception as e:
         report["status"] = "ERROR"
         report["message"] = str(e)

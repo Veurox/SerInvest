@@ -35,6 +35,7 @@ import ml.atomic as atomic
 from ml.config import (
     HORIZON,            # 10 işlem günü — canlı champion ile AYNI ufuk
     MODELS_DIR,
+    RISK_FILTER_DECISION_DATE as DECISION_DATE,
     TRANSACTION_COST_PCT,
 )
 
@@ -669,6 +670,137 @@ def get_summary(trades_limit: int = 100, book: str = "main") -> dict:
         "time_barrier_days": TIME_BARRIER_DAYS,
         "market_open":     is_market_open(),            # BIST şu an açık mı (seans + tatil gardı)
         "market_status":   market_closed_reason() or "Açık",  # kapalıysa nedeni (UI rozeti)
+    }
+
+
+# ── 2027-02-12 KARAR ÖLÇÜTLERİ (docs/PLAN_2026-08.md §A0) ────────────────────
+
+def _daily_series(hist: list) -> list[tuple[str, float, float]]:
+    """equity_history'yi GÜNLÜK seriye indirger: (gün, özkaynak, yatırım oranı).
+
+    Anlık görüntü 30 dakikada bir alınıyor; aynı günün 5 kaydını bağımsız gözlem
+    saymak standart hatayı şişirir (07/2026'daki PSI yanlış alarmının aynısı).
+    Günün SON kaydı alınır — kapanış değeri.
+    """
+    by_day: dict[str, tuple[str, float, float]] = {}
+    for h in hist:
+        t, eq = (h.get("t") or ""), h.get("equity")
+        if not t or not eq:
+            continue
+        inv = h.get("invested") or 0.0
+        by_day[t[:10]] = (t, float(eq), float(inv) / float(eq) if eq else 0.0)
+    return [(d, v[1], v[2]) for d, v in sorted(by_day.items())]
+
+
+def _business_days_between(d0: str, d1: str) -> int:
+    """İki tarih arası İŞ GÜNÜ sayısı (hafta sonu sayılmaz, en az 1).
+
+    Takvim günü kullanmak Cuma→Pazartesi'yi 3 gün sayar; oysa yalnızca 1 işlem
+    günü geçmiştir ve getiri de o kadar birikir. Tatiller yok sayılıyor —
+    en fazla birkaç günlük hata, hafta sonu hatasının yanında ihmal edilebilir.
+    """
+    try:
+        a = datetime.date.fromisoformat(d0[:10])
+        b = datetime.date.fromisoformat(d1[:10])
+    except Exception:
+        return 1
+    if b <= a:
+        return 1
+    n = 0
+    cur = a
+    while cur < b:
+        cur += datetime.timedelta(days=1)
+        if cur.weekday() < 5:
+            n += 1
+    return max(1, n)
+
+
+def decision_metrics(book: str = "main") -> dict:
+    """
+    Risk filtresi kararının ÖLÇÜTLERİ — 2027-02-12'de okunacak sayılar.
+
+    Neden şimdi yazıldı (17.08.2026): ölçütler §A0'da önceden çivilenmişti ama
+    hiçbir kod onları HESAPLAMIYORDU. Karar günü elle hesaplamak, tam o anda
+    "şöyle hesaplayalım" kararının sızmasına kapı açar — önceden kayıt böylece
+    değerini yitirir. Hesap, sonuç bilinmezken (gölge defterde 0 kapanmış işlem)
+    sabitlenir.
+
+    `worst_month_norm`: en kötü ay / ortalama maruziyet. Ham "en kötü ay" ölçeğe
+    duyarlıdır; ana defter Kelly ile ~%44, gölge eşit ağırlıkla ~%75 sermaye
+    kullandığı için ham karşılaştırma filtrenin lehine yapısal olarak yanlıdır.
+    Sharpe ise sabit kaldıraca duyarsızdır (oran sadeleşir) — normalize edilmez.
+    """
+    ser = _daily_series(load_state(book).get("equity_history", []))
+    out = {
+        "book": book, "n_days": len(ser), "sharpe": None, "worst_month": None,
+        "avg_exposure": None, "worst_month_norm": None, "months": 0,
+        "days_spanned": 0, "sampling_gaps": 0, "note": None,
+    }
+    if len(ser) < 2:
+        out["note"] = "günlük kayıt yetersiz"
+        return out
+
+    exps = [e for _, _, e in ser if e > 0]
+    avg_exp = sum(exps) / len(exps) if exps else 0.0
+    out["avg_exposure"] = round(avg_exp, 4)
+
+    # ── Sharpe: DÜZENSİZ ÖRNEKLEME (17.08.2026 denetim bulgusu) ──────────────
+    # Bilgisayar sürekli açık değil; ölçüldü: 40 takvim gününde 16 günlük kayıt,
+    # ardışık kayıtlar arası boşluklar 1,1,14,3,1,1,1,1,3,1,1,2,5,1,4 gün.
+    # Ardışık kayıtları "günlük getiri" saymak 14 günlük hareketi 1 güne sıkıştırır:
+    # oynaklık tahmini şişer, √252 ile yıllıklandırma tamamen yanlış çıkar.
+    # Çözüm — gerçekleşen varyans yaklaşımı: Δd günlük getirinin ortalaması μ·Δd,
+    # varyansı σ²·Δd'dir. r/√Δd normalizasyonu gözlemleri karşılaştırılabilir kılar.
+    obs: list[tuple[float, int]] = []          # (log getiri, geçen iş günü)
+    for (d0, a, _), (d1, b, _) in zip(ser, ser[1:]):
+        if a <= 0 or b <= 0:
+            continue
+        dd = _business_days_between(d0, d1)
+        if dd >= 1:
+            obs.append((math.log(b / a), dd))
+    out["days_spanned"] = _business_days_between(ser[0][0], ser[-1][0])
+    out["sampling_gaps"] = sum(1 for _, dd in obs if dd > 1)
+
+    if len(obs) >= 2:
+        tot_d = sum(dd for _, dd in obs)
+        mu = sum(r for r, _ in obs) / tot_d                    # günlük ortalama
+        z = [(r - mu * dd) / (dd ** 0.5) for r, dd in obs]      # ölçek düzeltmesi
+        var = sum(v * v for v in z) / (len(z) - 1)
+        sd = var ** 0.5
+        # Yıllıklandırma: 252 işlem günü. sd=0 ise Sharpe tanımsız (bölme yok).
+        out["sharpe"] = round(mu / sd * (252 ** 0.5), 3) if sd > 0 else None
+
+    # Aylık getiriler: her ayın ilk ve son günlük özkaynağı
+    by_month: dict[str, list[float]] = {}
+    for d, eq, _ in ser:
+        by_month.setdefault(d[:7], []).append(eq)
+    m_rets = [(v[-1] / v[0] - 1.0) for v in by_month.values() if len(v) >= 2 and v[0]]
+    out["months"] = len(m_rets)
+    if m_rets:
+        wm = min(m_rets)
+        out["worst_month"] = round(wm, 4)
+        if avg_exp > 0:
+            out["worst_month_norm"] = round(wm / avg_exp, 4)
+    return out
+
+
+def filter_decision() -> dict:
+    """İki defteri §A0 kuralına göre karşılaştırır. Karar tarihinden ÖNCE
+    çağrıldığında `decided: False` döner — erken okuma karar sayılmaz."""
+    main, shadow = decision_metrics("main"), decision_metrics("shadow")
+    crit: dict[str, bool | None] = {"sharpe": None, "worst_month_norm": None}
+    if main["sharpe"] is not None and shadow["sharpe"] is not None:
+        crit["sharpe"] = main["sharpe"] >= shadow["sharpe"]
+    if main["worst_month_norm"] is not None and shadow["worst_month_norm"] is not None:
+        # "en kötü ay" negatiftir; DAHA AZ kötü olan büyüktür.
+        crit["worst_month_norm"] = main["worst_month_norm"] >= shadow["worst_month_norm"]
+    today = datetime.date.today().isoformat()
+    return {
+        "decision_date": DECISION_DATE, "today": today,
+        "decided": today >= DECISION_DATE,
+        "main": main, "shadow": shadow, "criteria": crit,
+        "note": ("ölçüm birikiyor — karar tarihi gelmedi"
+                 if today < DECISION_DATE else "karar tarihi geldi: ölçüm ne derse o"),
     }
 
 

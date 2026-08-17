@@ -25,7 +25,11 @@ interface DriftResp {
   drift?: { status: string; message?: string
             n_live?: number; n_live_days?: number; min_rows?: number; min_days?: number }
   calibration?: { status: string; message?: string
-                  n_evaluated?: number; min_required?: number }
+                  n_evaluated?: number; min_required?: number
+                  /** Gün düzeyi karar — havuzlanmış ECE anlamlılığı şişiriyordu. */
+                  n_days?: number; min_days?: number
+                  day_level?: { observed_up: number; predicted_cal_p: number
+                                t: number; gap: number } | null }
 }
 
 // ── Katlanır bölüm ───────────────────────────────────────────────────────────
@@ -194,9 +198,23 @@ export default function ModelPage() {
             <b>{drift?.calibration?.status === 'OK' ? 'normal'
               : drift?.calibration?.status === 'MISCALIBRATED' ? 'SAPMIŞ'
               : 'henüz ölçülemiyor'}</b>
-            {drift?.calibration?.status === 'COLLECTING' && drift.calibration.min_required != null && (
+            {/* Hangi kısıt bağlayıcıysa O gösterilir. Gün eşiği eklendikten sonra
+                yalnız satır saymak yanıltıcıydı: "401/150 tahmin" yazıp yanında
+                "henüz ölçülemiyor" demek çelişki gibi okunuyordu. */}
+            {drift?.calibration?.status === 'COLLECTING' && (
               <span style={{ color: 'var(--text-muted)' }}>
-                {' '}({drift.calibration.n_evaluated ?? 0}/{drift.calibration.min_required} sonuçlanmış tahmin)
+                {drift.calibration.min_days != null
+                 && (drift.calibration.n_days ?? 0) < drift.calibration.min_days
+                  ? <> ({drift.calibration.n_days ?? 0}/{drift.calibration.min_days} bağımsız gün toplandı)</>
+                  : drift.calibration.min_required != null
+                  ? <> ({drift.calibration.n_evaluated ?? 0}/{drift.calibration.min_required} sonuçlanmış tahmin)</>
+                  : null}
+              </span>
+            )}
+            {drift?.calibration?.status === 'MISCALIBRATED' && drift.calibration.day_level && (
+              <span style={{ color: 'var(--text-muted)' }}>
+                {' '}(kalibratör {pct(drift.calibration.day_level.predicted_cal_p)},
+                {' '}{drift.calibration.n_days} günde gözlenen {pct(drift.calibration.day_level.observed_up)})
               </span>
             )}.
           </li>

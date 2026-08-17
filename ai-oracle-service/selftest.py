@@ -74,6 +74,15 @@ def _age_h(iso: str | None, now: datetime.datetime) -> float | None:
         return None
 
 
+def _dur(hours: float) -> str:
+    """Saati okunur süreye çevirir. Gün olarak yazmak kısa süreleri yalanlıyordu:
+    4 saatlik `analyze` sınırı "0 gün sınırı", 36 saatlik `health` sınırı
+    "2 gün sınırı" görünüyordu (08/2026 denetim bulgusu)."""
+    if hours < 48:
+        return f"{hours:.0f} saat"
+    return f"{hours / 24:.1f} gün"
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 #  DEĞİŞMEZLER
 # ═════════════════════════════════════════════════════════════════════════════
@@ -425,16 +434,63 @@ def i10_jobs_not_overdue(now) -> dict:
         if age is None:
             late.append(f"{key}: hiç çalışmamış")
         elif age > lim:
-            late.append(f"{key}: {age/24:.1f} gün ({lim/24:.0f} gün sınırı)")
+            late.append(f"{key}: {_dur(age)} gecikmiş ({_dur(lim)} sınırı)")
     if not late:
         return _ok("I10", t, "dört işin dördü de güncel")
     return _warn("I10", t, "; ".join(late))
 
 
+def i12_calibrator_matches_reality(now) -> dict:
+    """
+    Kalibratör, GERÇEKLEŞEN sonuçlarla ölçülmüş olarak sapmışken pozisyon
+    boyutlandırmasını beslemeye devam etmemeli.
+
+    08/2026 denetim boşluğu: I6 kalibratörün YAPISINI sınıyor (monoton mu, aralık
+    makul mu) ama çıktısını gerçekleşmeyle KARŞILAŞTIRMIYORDU. Sonuç: sağlık
+    kontrolü "KALİBRASYON SAPMIŞ" derken öz denetim 11/11 PASS veriyordu ve
+    Kelly, ölçümün yanlışladığı bir olasılıkla pozisyon açıyordu.
+
+    Neden bu önemli: Kelly boyutu p_cal'e doğrusal DEĞİL — başabaş olasılığın
+    (0.42) altına inince boyut sıfırlanır. Yani sapma yalnızca boyutu şişirmez,
+    kararın İŞARETİNİ çevirir: "aç" ile "hiç açma" arasındaki fark.
+    """
+    t = "I12 · Kalibratör ↔ gerçekleşme"
+    rep = _json(CALIB_REPORT_FILE)
+    if not rep:
+        return _skip("I12", t, "kalibrasyon raporu yok — sağlık kontrolü çalışmamış")
+    st = rep.get("status")
+    if st in ("NO_DATA", "COLLECTING"):
+        return _skip("I12", t, rep.get("message") or f"durum {st}")
+    if st == "ERROR":
+        return _warn("I12", t, f"rapor hatası: {rep.get('message')}")
+
+    dl = rep.get("day_level") or {}
+    obs, pred = dl.get("observed_up"), dl.get("predicted_cal_p")
+    tstat, nd = dl.get("t"), rep.get("n_days")
+    if obs is None or pred is None:
+        return _warn("I12", t, "gün düzeyi istatistik yok — sağlık kontrolü eski sürüm")
+
+    # Kalibratör canlıda gerçekten boyutlandırmayı besliyor mu?
+    rows = _read_csv(PREDICTION_LOG)
+    uses_cal = any((r.get("p_cal") or "").strip() for r in rows[-200:])
+
+    if st == "OK":
+        return _ok("I12", t, f"gün düzeyi uyumlu (gözlenen %{obs*100:.1f} · "
+                             f"kalibratör %{pred*100:.1f}, t={tstat:+.2f}, {nd} gün)")
+    if not uses_cal:
+        return _warn("I12", t, f"kalibratör sapmış (t={tstat:+.2f}) ama canlıda "
+                               f"kullanılmıyor — boyutlandırma etkilenmiyor")
+    return _fail("I12", t,
+                 f"kalibratör %{pred*100:.1f} diyor, {nd} günde gözlenen %{obs*100:.1f} "
+                 f"(t={tstat:+.2f}) — Kelly bu sapmış olasılıkla boyutlandırıyor. "
+                 f"Çözüm: Doğrulama Çalıştır (walk-forward) ile kalibratörü tazele.")
+
+
 CHECKS = [i1_date_basis, i2_train_serve_skew, i3_tier_matches_confidence,
           i4_thresholds_from_config, i5_coverage_envelope, i6_calibrator_sane,
           i7_prediction_schema, i8_no_duplicates, i9_promotion_balance,
-          i10_jobs_not_overdue, i11_coverage_target]
+          i10_jobs_not_overdue, i11_coverage_target,
+          i12_calibrator_matches_reality]
 
 
 def run(send_syslog=None) -> dict:

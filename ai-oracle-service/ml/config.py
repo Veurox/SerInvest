@@ -180,6 +180,11 @@ RISK_FILTER_TOP_PCT     = 0.30   # gün-içi kesitsel skorda en iyi %30 geçer
 RISK_FILTER_SINCE       = "2026-08-14"
 RISK_FILTER_MIN_SYMBOLS = 20     # altında kesitsel sıralama anlamsız → filtre yok
 COVERAGE_TARGET         = (0.20, 0.40)   # AL kapsamı bu aralıkta kalmalı (I11)
+# Karar günü — TEK KAYNAK. Elle yazılan tarih, JOB_OVERDUE_HOURS'takiyle aynı
+# hatanın kapısıdır: admin_server.py'de ayrıca "2027-02-12" yazıyordu, biri
+# değişse ikisi ayrışırdı. Önceden çivilenmiş bir tarihin iki farklı yerde
+# yaşaması, önceden kaydın kendisini anlamsızlaştırır.
+RISK_FILTER_DECISION_DATE = "2027-02-12"
 
 MIN_TRAIN_ROWS = 2000        # bu kadar örnek yoksa model eğitilmez
 MAX_TRAIN_ROWS = 60000       # kayan pencere tavanı (RAM güvenliği — 137 OOM'a karşı)

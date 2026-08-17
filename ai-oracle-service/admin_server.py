@@ -567,8 +567,8 @@ def _admin_make_app():
             KELLY_FRACTION, META_MIN_AUC, META_VETO_P, MIN_META_SAMPLES,
             PROMOTE_MIN_EDGE, PROMOTE_MIN_FRESH_DAYS, PROMOTE_MIN_PRECISION,
             PROMOTE_MIN_SAMPLES, PROMOTE_WINDOWS, PSI_ALERT, PSI_WATCH,
-            COVERAGE_TARGET, RISK_FILTER_MIN_SYMBOLS, RISK_FILTER_ON,
-            RISK_FILTER_TOP_PCT,
+            COVERAGE_TARGET, RISK_FILTER_DECISION_DATE, RISK_FILTER_MIN_SYMBOLS,
+            RISK_FILTER_ON, RISK_FILTER_TOP_PCT,
             SL_ATR_MULT, STRONG_BUY_P, TP_ATR_MULT, TRANSACTION_COST_PCT,
         )
         from config import CYCLE_MIN
@@ -589,13 +589,14 @@ def _admin_make_app():
                 "min_symbols": RISK_FILTER_MIN_SYMBOLS,
                 "coverage_target": list(COVERAGE_TARGET),
                 "criteria": ["düşük oynaklık (atr_pct)", "52h zirveye yakınlık"],
-                "decision_date": "2027-02-12",
+                "decision_date": RISK_FILTER_DECISION_DATE,
                 "proven": False,   # Sharpe farkı 1 standart hatanın içinde
             },
             "drift":      {"min_rows": monitoring.MIN_LIVE_ROWS,
                            "min_days": monitoring.MIN_LIVE_DAYS,
                            "psi_watch": PSI_WATCH, "psi_alert": PSI_ALERT},
-            "calibration": {"min_required": monitoring.MIN_EVAL_ROWS},
+            "calibration": {"min_required": monitoring.MIN_EVAL_ROWS,
+                            "min_days": monitoring.MIN_EVAL_DAYS},
             "meta":       {"min_samples": MIN_META_SAMPLES,
                            "min_auc": META_MIN_AUC, "veto_p": META_VETO_P},
             "promotion":  {"min_edge": PROMOTE_MIN_EDGE,
@@ -1027,6 +1028,25 @@ def _admin_make_app():
             return jsonify({"error": f"bilinmeyen defter: {book}"}), 400
         try:
             return jsonify(paper_trading.get_summary(book=book))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── GET /admin/filter-decision ────────────────────────────────────────────
+    @app.get("/admin/filter-decision")
+    def admin_filter_decision():
+        """
+        Risk filtresi kararının ÖLÇÜTLERİ (docs/PLAN_2026-08.md §A0).
+
+        Neden ayrı uç nokta: ölçütler önceden çivilenmişti ama hiçbir kod onları
+        hesaplamıyordu (08/2026 denetim bulgusu). Karar günü elle hesaplamak,
+        tam o anda "şöyle hesaplayalım" kararının sızmasına kapı açar.
+
+        `worst_month_norm` maruziyete göre normalizedir: ana defter Kelly ile
+        ~%44, gölge eşit ağırlıkla ~%75 sermaye kullanıyor; ham "en kötü ay"
+        karşılaştırması bu yüzden filtrenin lehine yapısal olarak yanlı olurdu.
+        """
+        try:
+            return jsonify(paper_trading.filter_decision())
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 

@@ -690,9 +690,16 @@ def _run_ml_cycle_locked(model_holder: list):
                         })
 
                     # ── Gölge defter (Faz A1): FİLTRESİZ + EŞİT AĞIRLIK ────────
-                    # İki defterin tek farkı risk filtresi olmalı ki 2027-02-12'de
-                    # ölçülen şey filtrenin etkisi olsun. Boyut eşit ağırlık:
-                    # taban tanımı experiment_lowvol.py ile aynı tutuluyor.
+                    # Boyut eşit ağırlık: taban tanımı experiment_lowvol.py ile aynı
+                    # tutuluyor ki canlı ölçüm çevrimdışı deneyle aynı dili konuşsun.
+                    #
+                    # DİKKAT — iki defterin farkı YALNIZCA risk filtresi DEĞİL:
+                    # ana defter Kelly ile boyutlandırdığı için sermayenin ~%44'ünü,
+                    # gölge eşit ağırlıkla ~%75'ini sahaya sürüyor (ölçüm: 08/2026).
+                    # Sharpe bu sabit kaldıraç farkına duyarsızdır (oran sadeleşir),
+                    # ama "en kötü ay" duyarlıdır ve ham hâliyle ana defterin lehine
+                    # yapısal olarak yanlıdır. Bu yüzden 2027-02-12 ölçütü maruziyete
+                    # göre normalize edilir — bkz. docs/PLAN_2026-08.md §A0.
                     paper_trading.on_signal(
                         shadow_state, sym, close, rd_nofilter, p_c,
                         SHADOW_POSITION_PCT, tp, sl,

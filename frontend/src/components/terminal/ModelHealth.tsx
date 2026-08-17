@@ -20,7 +20,10 @@ interface DriftResp {
   status: string; message?: string
   drift?: DriftInfo
   calibration?: { status: string; message?: string; ece?: number | null
-                  n_evaluated?: number; min_required?: number }
+                  n_evaluated?: number; min_required?: number
+                  n_days?: number; min_days?: number
+                  day_level?: { observed_up: number; predicted_cal_p: number
+                                t: number; gap: number } | null }
 }
 
 function dotFor(status?: string): string {
@@ -40,6 +43,16 @@ function driftProgress(d: DriftInfo): string {
   const daysOk = d.min_days == null || (d.n_live_days ?? 0) >= d.min_days
   if (!daysOk) return `${d.n_live_days ?? 0}/${d.min_days} gün`
   if (!rowsOk) return `${d.n_live ?? 0}/${d.min_rows} satır`
+  return 'hesaplanıyor'
+}
+
+/** Kalibrasyonda da iki kapı var (sonuçlanmış tahmin + bağımsız gün).
+ *  Aynı gerekçe: 401/150 satır dolmuşken asıl engel 8/10 gün olabilir. */
+function calibProgress(c: NonNullable<DriftResp['calibration']>): string {
+  const daysOk = c.min_days == null || (c.n_days ?? 0) >= c.min_days
+  if (!daysOk) return `${c.n_days ?? 0}/${c.min_days} gün`
+  if (c.min_required != null && (c.n_evaluated ?? 0) < c.min_required)
+    return `${c.n_evaluated ?? 0}/${c.min_required} tahmin`
   return 'hesaplanıyor'
 }
 
@@ -92,12 +105,16 @@ export function ModelHealth() {
             {dr?.drift?.status === 'COLLECTING' ? driftProgress(dr.drift) : dr?.drift?.status ?? '—'}
           </dd>
 
-          <dt>Kalibrasyon (ECE)</dt>
+          {/* Başlık ECE değil: ECE 401 tahmini bağımsız sayıyordu, oysa 10 güne
+              yayılıyorlardı. Karar artık gün ortalamaları üzerinde t-testi. */}
+          <dt>Kalibrasyon (gün düzeyi)</dt>
           <dd title={dr?.calibration?.message ?? ''}>
             <span className={`t-dot ${dotFor(dr?.calibration?.status)}`} />
             {dr?.calibration?.status === 'COLLECTING'
-              ? `${dr.calibration.n_evaluated ?? 0}/${dr.calibration.min_required ?? '?'}`
-              : dr?.calibration?.ece != null ? dr.calibration.ece.toFixed(3) : dr?.calibration?.status ?? '—'}
+              ? calibProgress(dr.calibration)
+              : dr?.calibration?.day_level
+              ? `t=${dr.calibration.day_level.t > 0 ? '+' : ''}${dr.calibration.day_level.t.toFixed(2)} · ${dr.calibration.n_days ?? '?'} gün`
+              : dr?.calibration?.status ?? '—'}
           </dd>
         </dl>
 

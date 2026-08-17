@@ -98,21 +98,28 @@ def main():
     threading.Thread(target=lambda: _safe(ml_live.promotion_catchup, "boot promote"),
                      daemon=True).start()
 
-    # 1b3. ÖZ DENETİM — değişmezler (docs/SAGLAMLIK_PLANI.md Katman 1).
-    #      Sessiz başarısızlıkları yakalar: train/serve sapması, tarih bazı,
-    #      kademe-güven çelişkisi, mükerrer kayıt, kapsam zarfı, terfi terazisi.
-    import selftest
-    _safe(lambda: selftest.run(send_syslog=send_syslog), "boot selftest")
-
-    # 1c. Faz 4 sağlık kontrolü — BOOT CATCH-UP (07/2026 bulgusu).
-    #     schedule 19:20'de tetikler ama bilgisayar o saatte kapalıysa veya konteyner
-    #     sonra başlarsa o gün HİÇ çalışmıyordu → drift_report 15 gün bayat kalmıştı.
-    #     Boot'ta bir kez çalıştırmak raporları her açılışta tazeler.
+    # 1b3. Faz 4 sağlık kontrolü — BOOT CATCH-UP (07/2026 bulgusu).
+    #      schedule 19:20'de tetikler ama bilgisayar o saatte kapalıysa veya konteyner
+    #      sonra başlarsa o gün HİÇ çalışmıyordu → drift_report 15 gün bayat kalmıştı.
+    #      Boot'ta bir kez çalıştırmak raporları her açılışta tazeler.
     import ml.monitoring as monitoring
     try:
         monitoring.run_daily_checks(send_syslog=send_syslog)
     except Exception as e:
         print(f"[boot monitor] {e}")
+
+    # 1c. ÖZ DENETİM — değişmezler (docs/SAGLAMLIK_PLANI.md Katman 1).
+    #     Sessiz başarısızlıkları yakalar: train/serve sapması, tarih bazı,
+    #     kademe-güven çelişkisi, mükerrer kayıt, kapsam zarfı, terfi terazisi.
+    #
+    #     SAĞLIK KONTROLÜNDEN SONRA ÇALIŞMAK ZORUNDA (08/2026 denetim bulgusu).
+    #     Önce çalıştığında I10 "health 3.8 gün gecikmiş" diyordu: bir önceki
+    #     kapanıştan kalan bayat drift_report'u okuyor, rapor 2 saniye sonra
+    #     tazeleniyordu. Sonuç diske yazıldığı ve durum çubuğu ÖNBELLEKTEN
+    #     okuduğu için bu sahte uyarı akşam 19:25'e kadar ekranda kalıyordu.
+    #     Zamanlayıcıda da aynı sıra var: sağlık 19:20, öz denetim 19:25.
+    import selftest
+    _safe(lambda: selftest.run(send_syslog=send_syslog), "boot selftest")
 
     # 2. Periyodik analiz döngüsü — her CYCLE_MIN dakikada bir
     schedule.every(CYCLE_MIN).minutes.do(ml_live.run_ml_cycle, model_holder=model_holder)

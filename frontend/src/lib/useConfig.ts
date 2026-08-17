@@ -18,7 +18,7 @@ export interface AppConfig {
   }
   evaluation:  { min_age_days: number }
   drift:       { min_rows: number; min_days: number; psi_watch: number; psi_alert: number }
-  calibration: { min_required: number }
+  calibration: { min_required: number; min_days: number }
   meta:        { min_samples: number; min_auc: number; veto_p: number }
   promotion:   { min_edge: number; min_samples: number; min_precision: number
                  min_fresh_days: number; windows: number }
@@ -40,7 +40,7 @@ export const DEFAULTS: AppConfig = {
            tp_atr_mult: 3, sl_atr_mult: 2, transaction_cost_pct: 0.002, kelly_fraction: 0.25 },
   evaluation:  { min_age_days: 20 },
   drift:       { min_rows: 200, min_days: 20, psi_watch: 0.10, psi_alert: 0.25 },
-  calibration: { min_required: 150 },
+  calibration: { min_required: 150, min_days: 10 },
   meta:        { min_samples: 300, min_auc: 0.55, veto_p: 0.40 },
   promotion:   { min_edge: 0.02, min_samples: 200, min_precision: 0.50,
                  min_fresh_days: 30, windows: 3 },
