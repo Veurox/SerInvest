@@ -26,7 +26,7 @@ type ViewId = 'ai' | 'dip' | 'temel' | 'tum'
 const VIEWS: { id: ViewId; label: string; hint: string }[] = [
   { id: 'ai',    label: 'AI Tavsiye',   hint: 'Modelin ALIM dediği hisseler' },
   { id: 'dip',   label: 'Dip Fırsatı',  hint: 'Trend sağlam, geri çekilmiş' },
-  { id: 'temel', label: 'Temel Analiz', hint: 'F/K, PD/DD, ROE' },
+  { id: 'temel', label: 'Temel Analiz', hint: 'Temel skor, F/K, PD/DD, ROE' },
   { id: 'tum',   label: 'Tümü',         hint: 'Bütün kolonlar' },
 ]
 
@@ -57,6 +57,7 @@ const COLUMN_LABELS: Record<string, string> = {
   close: 'Fiyat', chg: 'Değişim',
   rec: 'AI Kararı', conf: 'Güven', target: 'Hedef', stop: 'Stop', rr: 'R:R',
   dipScore: 'Dip Skoru', pullback: 'Geri çekilme',
+  fundScore: 'Temel Skor',
   pe: 'F/K', pb: 'PD/DD', roe: 'ROE', divy: 'Temettü', rsi: 'RSI',
 }
 
@@ -222,6 +223,24 @@ export default function ScreenerPage() {
     ]
 
     const temel: Column<Row>[] = [
+      // Faz F birleşmesinde kaybolmuştu (17.08.2026 kullanıcı sorusu ortaya
+      // çıkardı): arka uç 9 metrikten ağırlıklı 0-1 skoru zaten hesaplıyor
+      // ama tablo yalnız ham oranları gösteriyordu — "en iyi hangisi?"
+      // sorusunun cevabı ekranda yoktu. 0.50 nötrdür: ya gerçekten vasat
+      // ya da veri %55 tamamlığın altında (fundamental-service böyle döner).
+      { key: 'fundScore', header: 'Temel Skor', numeric: true, width: 88,
+        sortValue: r => r.fund?.fundamentalScore ?? null,
+        render: r => {
+          const s = r.fund?.fundamentalScore
+          if (s == null) return '—'
+          const color = s >= 0.60 ? 'var(--profit)' : s <= 0.40 ? 'var(--loss)' : 'var(--text-muted)'
+          return (
+            <b style={{ color }}
+               title="9 temel metrikten ağırlıklı skor (F/K, PD/DD, ROE, borç, büyüme, temettü, FAVÖK). 0.50 = nötr — vasat ya da veri yetersiz.">
+              {s.toFixed(2)}
+            </b>
+          )
+        } },
       { key: 'pe', header: 'F/K', numeric: true, width: 70,
         sortValue: r => r.fund?.peRatio ?? null, render: r => num(r.fund?.peRatio, 1) },
       { key: 'pb', header: 'PD/DD', numeric: true, width: 70,
@@ -401,8 +420,9 @@ export default function ScreenerPage() {
         columns={columns}
         rowKey={r => r.sym}
         onRowClick={r => openChart(r.sym)}
-        defaultSort={view === 'dip' ? { key: 'dipScore', dir: 'desc' }
-                   : view === 'ai'  ? { key: 'conf', dir: 'desc' }
+        defaultSort={view === 'dip'   ? { key: 'dipScore', dir: 'desc' }
+                   : view === 'ai'    ? { key: 'conf', dir: 'desc' }
+                   : view === 'temel' ? { key: 'fundScore', dir: 'desc' }
                    : { key: 'sym', dir: 'asc' }}
         maxHeight="calc(100vh - 320px)"
         empty={view === 'dip' && dips.size === 0
