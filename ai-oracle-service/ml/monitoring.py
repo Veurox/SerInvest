@@ -17,6 +17,7 @@ Her ikisi de veri yokken zarifçe "yetersiz veri" der — asla hata fırlatmaz.
 """
 import csv
 import datetime
+import json
 
 import numpy as np
 import pandas as pd
@@ -24,6 +25,7 @@ import pandas as pd
 import ml.atomic as atomic
 from ml.config import (
     CALIB_REPORT_FILE,
+    CALIBRATOR_META_FILE,
     DRIFT_REPORT_FILE,
     DRIFT_WINDOW_DAYS,
     FEATURE_LOG_FILE,
@@ -224,26 +226,49 @@ def calibration_report(n_bins: int = 5) -> dict:
         if not PREDICTION_LOG.exists():
             atomic.write_json(CALIB_REPORT_FILE, report)
             return report
+        # KAPSAM: yalnız MEVCUT kalibratörün ürettiği tahminler (17.08.2026).
+        # I11'in RISK_FILTER_SINCE deseninin aynısı: kalibratör tazelendikten
+        # sonra eski kalibratörün tahminlerini yenisinin suçu gibi saymak hem
+        # yanlış hem düzeltilemez olur — eski satırların p_cal'i eski eğriden.
+        # fitted_at yoksa kısıt uygulanmaz (kalibratörsüz kimlik fallback).
+        fitted_at = ""
+        try:
+            if CALIBRATOR_META_FILE.exists():
+                fitted_at = json.loads(
+                    CALIBRATOR_META_FILE.read_text(encoding="utf-8")
+                ).get("fitted_at") or ""
+        except Exception:
+            fitted_at = ""
+        report["calibrator_fitted_at"] = fitted_at or None
+
         p_raw, p_cal, y, days = [], [], [], []
+        n_pre_fit = 0
         with open(PREDICTION_LOG, "r", encoding="utf-8") as f:
             for r in csv.DictReader(f):
                 ev = (r.get("eval") or "").split("|")[0].strip()
                 if ev not in ("UP", "DOWN"):
+                    continue
+                ts = r.get("timestamp") or ""
+                if fitted_at and ts < fitted_at:
+                    n_pre_fit += 1
                     continue
                 try:
                     p_raw.append(float(r["p_up"]))
                     pc = r.get("p_cal")
                     p_cal.append(float(pc) if pc not in (None, "") else float(r["p_up"]))
                     y.append(1 if ev == "UP" else 0)
-                    days.append((r.get("timestamp") or "")[:10])
+                    days.append(ts[:10])
                 except Exception:
                     continue
+        report["n_pre_fit_excluded"] = n_pre_fit
 
         n = len(y)
         report["n_evaluated"] = n
         if n < MIN_EVAL_ROWS:
             report["status"] = "COLLECTING"
-            report["message"] = f"değerlendirilmiş tahmin birikiyor ({n}/{MIN_EVAL_ROWS})"
+            ek = (f" — kalibratör {fitted_at[:10]} tarihinde tazelendi, eski "
+                  f"kalibratörün {n_pre_fit} tahmini kapsam dışı") if n_pre_fit else ""
+            report["message"] = f"değerlendirilmiş tahmin birikiyor ({n}/{MIN_EVAL_ROWS}){ek}"
             atomic.write_json(CALIB_REPORT_FILE, report)
             return report
 

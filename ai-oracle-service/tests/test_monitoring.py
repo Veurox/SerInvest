@@ -100,6 +100,15 @@ def test_min_eval_days_guard_exists():
 
 # ── Kalibrasyon: gün düzeyi karar (havuzlanmış anlamlılık hatasına karşı) ─────
 
+@pytest.fixture(autouse=True)
+def _no_real_calibrator_meta(tmp_path, monkeypatch):
+    """Sahte-veri testleri konteynerdeki GERÇEK calibrator_meta.json'ı görmemeli:
+    fitted_at kapsam kısıtı gerçek tarihle sahte satırları elerdi. Kapsam
+    kısıtının kendisi ayrı testte, kendi meta dosyasıyla sınanır."""
+    monkeypatch.setattr(monitoring, "CALIBRATOR_META_FILE",
+                        tmp_path / "yok_calibrator_meta.json")
+
+
 def _write_preds(path, days, per_day, up_rate, p_up=0.84, p_cal=0.5331):
     """Sahte predictions.csv — her gün `per_day` sembol, `up_rate` oranında UP."""
     import csv as _csv
@@ -178,3 +187,27 @@ def test_calibration_binomial_floor_does_not_mask_real_gap(tmp_path, monkeypatch
     monkeypatch.setattr(monitoring, "CALIB_REPORT_FILE", tmp_path / "calib.json")
     dl = monitoring.calibration_report()["day_level"]
     assert dl["t"] < -2.0           # %20 ile %53 arası fark hâlâ yakalanıyor
+
+
+def test_calibration_scoped_to_current_calibrator(tmp_path, monkeypatch):
+    """
+    Kalibratör tazelendikten sonra ESKİ kalibratörün tahminleri yenisinin
+    suçu sayılmamalı (I11'in RISK_FILTER_SINCE deseninin aynısı). 17.08.2026:
+    sapma kanıtı Temmuz tahminlerinden geliyordu; tazeleme sonrası rapor o
+    satırları saymaya devam etseydi yeni kalibratör sonsuza dek "SAPMIŞ"
+    görünürdü — düzeltilemez bir suçlama.
+    """
+    import json as _json
+    p = tmp_path / "predictions.csv"
+    _write_preds(p, days=12, per_day=40, up_rate=0.20, p_cal=0.5331)
+    meta = tmp_path / "calibrator_meta.json"
+    # Kalibratör 8. günün sabahında tazelenmiş olsun
+    meta.write_text(_json.dumps({"fitted_at": "2026-07-08T00:00:00"}), encoding="utf-8")
+    monkeypatch.setattr(monitoring, "PREDICTION_LOG", p)
+    monkeypatch.setattr(monitoring, "CALIB_REPORT_FILE", tmp_path / "calib.json")
+    monkeypatch.setattr(monitoring, "CALIBRATOR_META_FILE", meta)
+    rep = monitoring.calibration_report()
+    assert rep["calibrator_fitted_at"] == "2026-07-08T00:00:00"
+    assert rep["n_pre_fit_excluded"] == 7 * 40      # 1-7. günler kapsam dışı
+    assert rep["n_evaluated"] == 5 * 40             # yalnız 8-12. günler
+    assert rep["status"] == "COLLECTING"            # 5 gün < MIN_EVAL_DAYS

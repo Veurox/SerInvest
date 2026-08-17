@@ -288,11 +288,26 @@ demiyor.
 - Standart hataya **binom tabanı**: günlerin oranı birebir aynı çıktığında sd
   kayan nokta artığı kadar kalıyor, se ~1e-17 oluyor ve t 1e14'e patlıyordu.
 
-**Açık kalan karar (kullanıcıya ait):** Kelly/EV, `MISCALIBRATED` durumunda
-durdurulmalı mı? Bu **işlem davranışını değiştirir** (bugün açık 8 pozisyonun
-boyutu sıfırlanırdı), o yüzden tek başıma yapmadım. Kalibratörü tazelemenin
-yolu zaten var: `validate` (walk-forward) — ama **40 gündür çalışmamış** ve
-telafisi yok (`catchup: false`).
+**Karar (17.08.2026, kullanıcı yetki verdi — "önerilerine göre uygula"):**
+Kelly'ye kapı eklemek yerine kök neden çözüldü: kalibratör walk-forward ile
+tazelendi (24 adım, 19.725 OOS tahmin, yeni dönem dahil).
+
+| | Eski (08.07) | Yeni (17.08) |
+|---|---|---|
+| Kalibre tavan | 0,5331 | **0,5251** |
+| Fit verisi | Temmuz'a kadar | Ağustos ortasına kadar |
+
+Tavan p için EV hâlâ pozitif (+0,53R) → sistem işlem açmaya devam eder, biraz
+daha küçük boyutla. Bu bilinçli: yeni kalibratör 19.725 OOS örnekle fit edildi,
+10 günlük kötü canlı dönem o havuzda azınlıkta. Ölçüm ne derse o.
+
+**Kapsam kuralı (yeni):** kalibrasyon raporu artık yalnız **mevcut kalibratörün
+ürettiği** tahminleri yargılar (`fitted_at` sonrası — I11'in `RISK_FILTER_SINCE`
+deseninin aynısı). Eski kalibratörün 401 tahmini kapsam dışı; onları yenisinin
+suçu saymak düzeltilemez bir suçlama olurdu. I12 bu yüzden FAIL'den SKIP'e
+döndü: "yeni kalibratör henüz ölçülmedi, birikiyor". Değerlendirme ~20 gün
+gecikmeli aktığı için ilk dürüst okuma Eylül ortasında gelir; sapma tekrar
+çıkarsa I12 yine FAIL verir.
 
 ---
 
