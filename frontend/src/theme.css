@@ -33,7 +33,7 @@
   --border-subtle:  rgba(15, 23, 42, 0.06);
   --border-default: #e2e8f0;
   --border-strong:  #cbd5e1;
-  --border-focus:   #1d4ed8;
+  --border-focus:   #b45309;
 
   /* Text */
   --text-primary:   #0f172a;
@@ -53,9 +53,9 @@
   --loss-bg:        rgba(185, 28, 28, 0.08);
   --loss-border:    rgba(185, 28, 28, 0.26);
 
-  --warning:        #d97706;
-  --warning-bg:     rgba(217, 119, 6, 0.10);
-  --warning-border: rgba(217, 119, 6, 0.30);
+  --warning:        #a16207;
+  --warning-bg:     rgba(161, 98, 7, 0.10);
+  --warning-border: rgba(161, 98, 7, 0.30);
 
   /* Bilgi/veri serisi = CAMGÖBEĞİ. Vurgu lacivert olunca ikisi çakışmasın diye
      ayrıldı: lacivert = arayüz (seçim, aktif sekme), camgöbeği = veri (çizgi). */
@@ -63,14 +63,16 @@
   --info-bg:        rgba(8, 145, 178, 0.08);
   --info-border:    rgba(8, 145, 178, 0.25);
 
-  /* Vurgu = LACİVERT (08/2026 görsel kimlik kararı: modern kurumsal).
-     Önce kehribardı; kehribar Bloomberg çağrışımı yapıyor ama uyarı rengiyle
-     (--warning) çakışıyordu ve "vurgu mu, uyarı mı?" belirsizliği yaratıyordu.
-     Lacivert marka/seçim rengi, kehribar yalnız uyarı olarak kaldı. */
-  --accent:         #1d4ed8;
-  --accent-soft:    #3b82f6;
-  --accent-bg:      rgba(29, 78, 216, 0.08);
-  --accent-border:  rgba(29, 78, 216, 0.28);
+  /* Vurgu = KEHRİBAR (17.08.2026 kullanıcı kararı — parlak mavi sevilmedi).
+     Tarihçe: vurgu önce kehribardı, uyarıyla çakıştığı için laciverte alınmıştı.
+     Şimdi tersine çevrildi ve çakışma KÖKTEN çözüldü: uyarı SARIYA kaydı ve
+     yeni keskin tasarımda vurgu dolgulu çip değil, yapısal çizgi/kenarlık
+     (aktif sekme alt çizgisi, odak kenarlığı). "Vurgu mu uyarı mı" karışması
+     ancak ikisi de renkli dolgu çipiyken mümkündü. */
+  --accent:         #b45309;
+  --accent-soft:    #d97706;
+  --accent-bg:      rgba(180, 83, 9, 0.08);
+  --accent-border:  rgba(180, 83, 9, 0.30);
 
   /* Sinyal renkleri */
   --signal-strong-buy:  #059669;
@@ -120,7 +122,7 @@
   --border-subtle:  rgba(255, 255, 255, 0.06);
   --border-default: #21262d;
   --border-strong:  #30363d;
-  --border-focus:   #60a5fa;
+  --border-focus:   #f59e0b;
 
   --text-primary:   #f1f5f9;
   --text-secondary: #cbd5e1;
@@ -137,19 +139,19 @@
   --loss-bg:        rgba(244, 63, 94, 0.12);
   --loss-border:    rgba(244, 63, 94, 0.30);
 
-  --warning:        #f59e0b;
-  --warning-bg:     rgba(245, 158, 11, 0.12);
-  --warning-border: rgba(245, 158, 11, 0.30);
+  --warning:        #facc15;
+  --warning-bg:     rgba(250, 204, 21, 0.10);
+  --warning-border: rgba(250, 204, 21, 0.30);
 
-  /* Bkz. açık temadaki not: vurgu = arayüz (lacivert), bilgi = veri (camgöbeği). */
+  /* Bkz. açık temadaki not: vurgu = arayüz (kehribar), bilgi = veri (camgöbeği). */
   --info:           #22d3ee;
   --info-bg:        rgba(34, 211, 238, 0.10);
   --info-border:    rgba(34, 211, 238, 0.28);
 
-  --accent:         #60a5fa;
-  --accent-soft:    #93c5fd;
-  --accent-bg:      rgba(96, 165, 250, 0.12);
-  --accent-border:  rgba(96, 165, 250, 0.32);
+  --accent:         #f59e0b;
+  --accent-soft:    #fbbf24;
+  --accent-bg:      rgba(245, 158, 11, 0.10);
+  --accent-border:  rgba(245, 158, 11, 0.32);
 
   --signal-strong-buy:  #10b981;
   --signal-buy:         #84cc16;

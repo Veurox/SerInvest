@@ -43,40 +43,6 @@
   overflow-x: hidden;
 }
 
-/* ── Sol araç şeridi ──────────────────────────────────────────────────────── */
-.rail {
-  flex: 0 0 42px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 6px 0;
-  border-right: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-}
-.rail__btn {
-  width: 30px; height: 30px;
-  display: grid; place-items: center;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: background .12s, color .12s, border-color .12s;
-}
-.rail__btn:hover { background: var(--bg-glass); color: var(--text-secondary); }
-.rail__btn.is-active {
-  background: var(--accent-bg);
-  border-color: var(--accent-border);
-  color: var(--accent);
-}
-.rail__btn:disabled { opacity: .35; cursor: default; }
-.rail__sep {
-  width: 20px; height: 1px;
-  background: var(--border-subtle);
-  margin: 5px 0;
-}
-
 /* ── Sağ panel yığını ─────────────────────────────────────────────────────── */
 .dock {
   flex: 0 0 auto;
@@ -137,62 +103,86 @@
 .statusbar__dot { width: 6px; height: 6px; border-radius: 50%; }
 .statusbar__spacer { margin-left: auto; }
 
-/* ── Çalışma alanı sekmeleri (birincil) ───────────────────────────────────── */
-.ws-tabs {
+/* ── Gezinme çubuğu — TEK satır, keskin (17.08.2026 yeniden tasarım) ────────
+   Eski üç katman (kopya ikon şeridi + iki sekme satırı + yuvarlak haplar)
+   teke indi. Hap ve dolgu yok; hiyerarşi tipografiyle kurulur:
+   çalışma alanı = BÜYÜK HARF kalın, bölüm = normal. Aktiflik = 2px alt çizgi. */
+.ws-bar {
   display: flex;
-  gap: 2px;
-  padding: 0 10px;
+  align-items: stretch;
+  height: 36px;
+  padding: 0 8px;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--bg-surface);
   overflow-x: auto;
   scrollbar-width: none;
   flex: 0 0 auto;
 }
-.ws-tabs::-webkit-scrollbar { display: none; }
+.ws-bar::-webkit-scrollbar { display: none; }
+
 .ws-tab {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 14px;
-  border: none; background: none;
+  padding: 0 12px;
+  border: none; background: none; border-radius: 0;
   border-bottom: 2px solid transparent;
   color: var(--text-muted);
-  font-size: 13px; font-weight: 600;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .07em; text-transform: uppercase;
   cursor: pointer; white-space: nowrap;
   transition: color .12s, border-color .12s;
 }
 .ws-tab:hover { color: var(--text-secondary); }
 .ws-tab.is-active { color: var(--text-primary); border-bottom-color: var(--accent); }
 
-/* İkincil (bölüm) sekmeleri — henüz birleşmemiş sayfalara erişim */
-.ws-subtabs {
-  display: flex; gap: 4px; flex-wrap: wrap;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-surface-2);
+.ws-bar__sep {
+  width: 1px; height: 16px;
+  align-self: center;
+  background: var(--border-strong);
+  margin: 0 8px;
   flex: 0 0 auto;
 }
-.ws-subtab {
-  padding: 3px 10px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: transparent;
+
+.ws-sec {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 0 10px;
+  border: none; background: none; border-radius: 0;
+  border-bottom: 2px solid transparent;
   color: var(--text-muted);
-  font-size: 11.5px; font-weight: 500;
+  font-size: 12px; font-weight: 500;
   cursor: pointer; white-space: nowrap;
-  transition: background .12s, color .12s, border-color .12s;
+  transition: color .12s, border-color .12s;
 }
-.ws-subtab:hover { color: var(--text-secondary); background: var(--bg-glass); }
-.ws-subtab.is-active {
-  color: var(--accent);
-  background: var(--accent-bg);
-  border-color: var(--accent-border);
-  font-weight: 700;
+.ws-sec:hover { color: var(--text-secondary); }
+.ws-sec.is-active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
 }
+.ws-sec__n {
+  font-size: 10px; font-weight: 700;
+  line-height: 14px;
+  padding: 0 4px;
+  color: var(--text-muted);
+  border: 1px solid var(--border-strong);
+}
+.ws-sec.is-active .ws-sec__n { color: var(--accent); border-color: var(--accent-border); }
+
+.ws-bar__spacer { margin-left: auto; }
+.ws-tool {
+  width: 32px;
+  display: grid; place-items: center;
+  border: none; background: none; border-radius: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color .12s, background .12s;
+}
+.ws-tool:hover { background: var(--bg-glass); color: var(--text-secondary); }
+.ws-tool.is-active { color: var(--accent); }
 
 /* ── Yoğunluk katmanı ─────────────────────────────────────────────────────── */
 /* Kabuk içindeki sayfa gövdesi: eski geniş dolgular daraltılır. */
 .shell .main { padding: 12px 14px; }
 
 @media (max-width: 900px) {
-  .rail { display: none; }
   .dock { display: none; }
 }

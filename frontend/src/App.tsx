@@ -16,7 +16,6 @@ import type {
 } from './lib/types'
 import { StatusBanner } from './components/common/StatusBanner'
 // ── Uygulama kabuğu (ULTRAPLAN Faz 1) ───────────────────────────────────────
-import { SideRail } from './shell/SideRail'
 import { WorkspaceTabs } from './shell/WorkspaceTabs'
 import { RightDock, DockWidget } from './shell/RightDock'
 import { StatusBar } from './shell/StatusBar'
@@ -414,17 +413,19 @@ export default function App() {
       />
 
       <div className="shell__body app-body">
-        {/* Sol araç şeridi — çalışma alanı geçişi + panel kontrolü */}
-        <SideRail
-          dockOpen={sidebarOpen}
-          onToggleDock={() => setSidebarOpen(o => !o)}
-          onOpenPalette={() => setPaletteOpen(true)}
-        />
-        {/* Orta sütun: sekmeler sabit, yalnız içerik kayar */}
+        {/* Orta sütun: sekmeler sabit, yalnız içerik kayar.
+            Sol ikon şeridi 17.08.2026'da kaldırıldı: 4 ikonu üst sekmelerin
+            birebir kopyasıydı, 3 çizim aracı devre dışıydı. İşlevsel iki
+            düğmesi (palet, sağ panel) gezinme çubuğunun sağ ucuna taşındı. */}
         <div className="shell__center">
-          <WorkspaceTabs badges={{
-            oracle: oracle.length, news: news.length, fundamentals: fundamentals.length,
-          }} />
+          <WorkspaceTabs
+            badges={{
+              oracle: oracle.length, news: news.length, fundamentals: fundamentals.length,
+            }}
+            dockOpen={sidebarOpen}
+            onToggleDock={() => setSidebarOpen(o => !o)}
+            onOpenPalette={() => setPaletteOpen(true)}
+          />
 
           <main className="main shell__main">
             {loading && (
