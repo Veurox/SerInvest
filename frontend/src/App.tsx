@@ -35,7 +35,8 @@ export interface SharedData {
 
 // Route sırası — klavye kısayolları (1-8) bu sırayı kullanır.
 // Klavye kısayolları (1-8) bu sırayı kullanır — nav sırasıyla hizalı kalmalı.
-const ROUTES = ['/', '/terminal', '/model-portfoy', '/oracle', '/portfolio', '/history', '/news', '/fundamental', '/dip-radar', '/degerlendirme', '/model']
+// Faz F: /oracle, /fundamental, /dip-radar birleşip /tarayici oldu.
+const ROUTES = ['/', '/terminal', '/coklu-grafik', '/tarayici', '/portfolio', '/model-portfoy', '/history', '/news', '/degerlendirme', '/model']
 
 export default function App() {
   const navigate = useNavigate()
@@ -49,6 +50,7 @@ export default function App() {
   const [lastUpdate, setLastUpdate]     = useState('')
   const [sysStatus, setSysStatus]       = useState<SystemStatus | null>(null)
   const [paletteOpen, setPaletteOpen]   = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)   // Faz H1 — "?" listesi
   const [marketOpen, setMarketOpen]     = useState(isMarketOpen())
   const seenOracleIds = useRef<Set<string>>(
     new Set(JSON.parse(localStorage.getItem('si_seen_oracle') ?? '[]') as string[])
@@ -89,7 +91,27 @@ export default function App() {
         }, 50)
         return
       }
-      if (isTyping) return
+      if (isTyping) {
+        // Esc metin kutusundan çıkar — fare olmadan kutuya kilitlenip kalmamak için
+        if (e.key === 'Escape') (e.target as HTMLElement)?.blur()
+        return
+      }
+
+      // ── Faz H1 ────────────────────────────────────────────────────────────
+      // `/` → sayfadaki arama kutusuna odaklan. Terminal alışkanlığı; hangi
+      // sayfada olursan ol arama kutusu neredeyse oraya gider.
+      if (e.key === '/') {
+        const box = document.querySelector<HTMLInputElement>(
+          'input[placeholder*="ara" i], input[type="search"]')
+        if (box) { e.preventDefault(); box.focus(); box.select(); return }
+      }
+      // `?` → kısayol listesi
+      if (e.key === '?') { e.preventDefault(); setShortcutsOpen(s => !s); return }
+      // Esc → açık olan katmanı kapat (kısayol listesi → grafik çekmecesi)
+      if (e.key === 'Escape') {
+        if (shortcutsOpen) { setShortcutsOpen(false); return }
+        if (paletteOpen)   { setPaletteOpen(false); return }
+      }
 
       const num = parseInt(e.key, 10)
       if (!isNaN(num) && num >= 1 && num <= ROUTES.length) {
@@ -99,7 +121,9 @@ export default function App() {
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [navigate])
+    // shortcutsOpen/paletteOpen bağımlılığa DAHİL: aksi hâlde Esc kapatma dalı
+    // eski durumu görür ve açık katmanı kapatmaz.
+  }, [navigate, shortcutsOpen, paletteOpen])
 
   // ── Command Palette komutları ──────────────────────────────────────
   const adminCommand = async (path: string, name: string) => {
@@ -120,11 +144,11 @@ export default function App() {
     { id: 'nav-overview',    group: 'Navigasyon', icon: <Icon name="overview" size={16} />, label: 'Piyasa Genel',    hint: '1', action: () => navigate('/') },
     // Fırsat Radarı → AI Tavsiye ile birleşti (07/2026: ikisi aynı listeyi üretiyordu)
     { id: 'nav-oracle',      group: 'Navigasyon', icon: <Icon name="sparkle" size={16} />, label: 'AI Tavsiye',       hint: '2',
-      keywords: ['fırsat', 'radar', 'sinyal', 'öneri', 'tavsiye'], action: () => navigate('/oracle') },
+      keywords: ['fırsat', 'radar', 'sinyal', 'öneri', 'tavsiye'], action: () => navigate('/tarayici') },
     { id: 'nav-portfolio',   group: 'Navigasyon', icon: <Icon name="briefcase" size={16} />, label: 'Portföyüm',        hint: '4', action: () => navigate('/portfolio') },
     { id: 'nav-history',     group: 'Navigasyon', icon: <Icon name="history" size={16} />, label: 'Tahmin Geçmişi',  hint: '5', action: () => navigate('/history') },
     { id: 'nav-news',        group: 'Navigasyon', icon: <Icon name="news" size={16} />, label: 'Haberler',         hint: '6', action: () => navigate('/news') },
-    { id: 'nav-fundamental', group: 'Navigasyon', icon: <Icon name="fundamental" size={16} />, label: 'Temel Analiz',     hint: '7', action: () => navigate('/fundamental') },
+    { id: 'nav-fundamental', group: 'Navigasyon', icon: <Icon name="fundamental" size={16} />, label: 'Temel Analiz',     hint: '7', action: () => navigate('/tarayici?g=temel') },
     { id: 'nav-model',       group: 'Navigasyon', icon: <Icon name="mlops" size={16} />, label: 'Model (durum + kontroller)', hint: '8', action: () => navigate('/model') },
     { id: 'nav-model-portfoy', group: 'Navigasyon', icon: <Icon name="bot" size={16} />, label: 'Model Portföyü',  hint: '9',
       keywords: ['model', 'portföy', 'paper', 'otonom', 'sanal'], action: () => navigate('/model-portfoy') },
@@ -342,6 +366,45 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {/* Kısayol listesi (Faz H1) — "?" ile açılır, Esc veya tıklama ile kapanır.
+          Kısayolları keşfedilebilir yapmak şart: yazılı olmayan kısayol yok
+          sayılır. */}
+      {shortcutsOpen && (
+        <div className="sc-overlay" onClick={() => setShortcutsOpen(false)}>
+          <div className="sc-box" onClick={e => e.stopPropagation()}>
+            <div className="sc-box__head">
+              Klavye kısayolları
+              <button onClick={() => setShortcutsOpen(false)} aria-label="Kapat">×</button>
+            </div>
+            {[
+              { g: 'Genel', items: [
+                ['/', 'Sayfadaki arama kutusuna git'],
+                ['?', 'Bu listeyi aç / kapat'],
+                ['Esc', 'Açık katmanı kapat · metin kutusundan çık'],
+                ['Ctrl+P', 'Komut paleti'],
+                ['Ctrl+K', 'Hisse ara'],
+                ['1 – 9', 'Sayfalar arasında geçiş'],
+              ]},
+              { g: 'Çoklu Grafik', items: [
+                ['1 – 8', 'Kaç grafik gösterilsin'],
+                ['C', 'Mum ↔ çizgi'],
+                ['← →', 'Hücreler arasında gez'],
+                ['Enter', 'Seçili hücrenin detayını aç'],
+              ]},
+            ].map(sec => (
+              <div key={sec.g} className="sc-sec">
+                <div className="sc-sec__title">{sec.g}</div>
+                {sec.items.map(([k, d]) => (
+                  <div key={k} className="sc-row">
+                    <kbd>{k}</kbd><span>{d}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Command Palette — global */}
       <CommandPalette

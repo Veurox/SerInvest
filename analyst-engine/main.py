@@ -545,16 +545,28 @@ class NewsAnalyzer:
         analiz zamanı ("timestamp" alanı) ingest_ts olarak ayrıca gönderilir.
         feedparser *_parsed alanları UTC struct_time döner. Yoksa şimdiki zaman.
         """
+        now = datetime.datetime.now(datetime.timezone.utc)
         for attr in ("published_parsed", "updated_parsed"):
             st = entry.get(attr)
             if st:
                 try:
-                    return datetime.datetime.fromtimestamp(
+                    ts = datetime.datetime.fromtimestamp(
                         calendar.timegm(st), tz=datetime.timezone.utc
-                    ).isoformat()
+                    )
+                    # GELECEK TARİHLİ KAYIT KIRPILIR (08/2026 B1 denetimi).
+                    # Bulgu: 30 günde 182 kayıtta (%2) published_at > ingest_at;
+                    # tamamı tek kaynaktan (CNN Türk) ve fark tam 3 saate kadar
+                    # çıkıyor — kaynak saat dilimi bilgisi olmayan bir pubDate
+                    # veriyor, yerel saat (UTC+3) UTC sanılıyor.
+                    #
+                    # Neden kırpmak DOĞRU çözüm: noktasal-zamanlılığın kuralı
+                    # "bir bilgiyi ALDIĞINDAN önce bilmiş sayılamazsın". Kaynak
+                    # ne derse desin, o haberi şimdi öğrendik. Kırpmazsak eğitim
+                    # verisinde 3 saatlik gizli geleceğe bakma sızıntısı olur.
+                    return min(ts, now).isoformat()
                 except Exception:
                     pass
-        return datetime.datetime.now(datetime.timezone.utc).isoformat()
+        return now.isoformat()
 
     def fetch_and_analyze(self) -> list[dict]:
         messages = []

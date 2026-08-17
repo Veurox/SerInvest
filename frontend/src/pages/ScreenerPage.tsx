@@ -16,6 +16,7 @@ import type { SharedData } from '../App'
 import { PageHeader, Icon, DataTable, type Column } from '../components/ui'
 import { EvidenceBanner } from '../components/finance'
 import { API } from '../lib/api'
+import { downloadCsv } from '../lib/format'
 import { COMPANY_NAMES } from '../lib/companies'
 import { scoreDip, isDipCandidate, type ChartPoint, type DipScore } from '../lib/dipDetector'
 import type { PriceData, OracleAnalysis, FundamentalData } from '../lib/types'
@@ -41,6 +42,32 @@ interface Row {
 const nf = (d = 2) => new Intl.NumberFormat('tr-TR', { minimumFractionDigits: d, maximumFractionDigits: d })
 const num = (v: number | null | undefined, d = 2) => v == null ? '—' : nf(d).format(v)
 
+// ── Kayıtlı görünümler ───────────────────────────────────────────────────────
+// Hazır görünümler (AI/Dip/Temel) sabittir; bunlar KULLANICININ kendi
+// kombinasyonu: görünüm + arama + güven eşiği + gizlediği kolonlar.
+const LS_VIEWS = 'si_screener_views'
+
+interface SavedView {
+  name: string; view: ViewId; q: string; minConf: number; hidden: string[]
+}
+
+// Kolon seçicide gizlenmiş kolonların adını göstermek için — kolon listesi
+// görünüme göre değiştiği için gizlenen kolonun başlığı o an elde olmuyor.
+const COLUMN_LABELS: Record<string, string> = {
+  close: 'Fiyat', chg: 'Değişim',
+  rec: 'AI Kararı', conf: 'Güven', target: 'Hedef', stop: 'Stop', rr: 'R:R',
+  dipScore: 'Dip Skoru', pullback: 'Geri çekilme',
+  pe: 'F/K', pb: 'PD/DD', roe: 'ROE', divy: 'Temettü', rsi: 'RSI',
+}
+
+function readSaved(): SavedView[] {
+  try {
+    const raw = localStorage.getItem(LS_VIEWS)
+    const v = raw ? JSON.parse(raw) : []
+    return Array.isArray(v) ? v : []
+  } catch { return [] }
+}
+
 /** Aynı anda en fazla `n` istek — 96 sembolü paralel indirmek tarayıcıyı boğar. */
 async function pool<T>(items: T[], fn: (x: T) => Promise<void>, n = 5) {
   const q = [...items]
@@ -59,6 +86,10 @@ export default function ScreenerPage() {
   const [dips, setDips] = useState<Map<string, DipScore>>(new Map())
   const [scanning, setScanning] = useState(false)
   const [progress, setProgress] = useState({ done: 0, total: 0 })
+  const [minConf, setMinConf] = useState(0)          // güven filtresi (0 = kapalı)
+  const [hidden, setHidden] = useState<Set<string>>(new Set())
+  const [picker, setPicker] = useState(false)
+  const [saved, setSaved] = useState<SavedView[]>(() => readSaved())
 
   // Sembol → en son analiz / temel veri
   const oracleBy = useMemo(() => {
@@ -93,7 +124,11 @@ export default function ScreenerPage() {
         if (view === 'temel') return !!r.fund
         return true
       })
-  }, [assets, oracleBy, fundBy, dips, view, q])
+      // Güven eşiği: modelin ham çıktısı üzerinde. Uyarı şeridi bunun
+      // doğrulanmış bir olasılık OLMADIĞINI söylüyor; filtre yine de kullanışlı
+      // çünkü listeyi daraltıyor.
+      .filter(r => minConf === 0 || (r.oracle?.confidence ?? 0) >= minConf)
+  }, [assets, oracleBy, fundBy, dips, view, q, minConf])
 
   // Dip taraması — yalnız o görünümde ve elle tetiklenince
   const scanDips = async () => {
@@ -209,11 +244,56 @@ export default function ScreenerPage() {
         ) },
     ]
 
-    if (view === 'ai')    return [...base, ...ai, ...rsi]
-    if (view === 'dip')   return [...base, ...dip, ...rsi, ...ai.slice(0, 2)]
-    if (view === 'temel') return [...base, ...temel, ...ai.slice(0, 2)]
-    return [...base, ...ai, ...dip, ...temel, ...rsi]
-  }, [view])
+    const set = view === 'ai'    ? [...base, ...ai, ...rsi]
+              : view === 'dip'   ? [...base, ...dip, ...rsi, ...ai.slice(0, 2)]
+              : view === 'temel' ? [...base, ...temel, ...ai.slice(0, 2)]
+              : [...base, ...ai, ...dip, ...temel, ...rsi]
+    // Sembol kolonu gizlenemez — satırın kimliği o.
+    return set.filter(c => c.key === 'sym' || !hidden.has(c.key))
+  }, [view, hidden])
+
+  // Kolon seçicinin listesi: görünümün TÜM kolonları (gizlenmişler dahil)
+  const allColumns = useMemo(() => {
+    const seen = new Map<string, string>()
+    for (const c of columns) seen.set(c.key, c.header)
+    // Gizlenmiş kolonların başlığını da bilmemiz gerek; sabit bir sözlükten al.
+    for (const [k, h] of Object.entries(COLUMN_LABELS)) if (!seen.has(k)) seen.set(k, h)
+    return [...seen.entries()]
+  }, [columns])
+
+  const exportCsv = () => {
+    const cols = columns
+    downloadCsv(
+      cols.map(c => c.header),
+      rows.map(r => cols.map(c => {
+        // Kolonun sortValue'su varsa ham değeri yaz — CSV'ye JSX değil sayı gider.
+        const v = c.sortValue ? c.sortValue(r) : null
+        if (v != null) return v as string | number
+        // sortValue yoksa sembol gibi metin kolonudur
+        return c.key === 'sym' ? r.sym : ''
+      })),
+      `tarayici-${view}-${new Date().toISOString().slice(0, 10)}.csv`,
+    )
+  }
+
+  const saveView = () => {
+    const name = prompt('Görünüm adı:')?.trim()
+    if (!name) return
+    const next = [...saved.filter(v => v.name !== name),
+                  { name, view, q, minConf, hidden: [...hidden] }]
+    setSaved(next)
+    localStorage.setItem(LS_VIEWS, JSON.stringify(next))
+  }
+
+  const loadView = (v: SavedView) => {
+    setView(v.view); setQ(v.q); setMinConf(v.minConf); setHidden(new Set(v.hidden))
+  }
+
+  const deleteView = (name: string) => {
+    const next = saved.filter(v => v.name !== name)
+    setSaved(next)
+    localStorage.setItem(LS_VIEWS, JSON.stringify(next))
+  }
 
   return (
     <div style={{ paddingTop: 'var(--space-2)' }}>
@@ -254,6 +334,61 @@ export default function ScreenerPage() {
         {view === 'dip' && !scanning && dips.size === 0 && (
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
             Dip taraması sembol başına 1 yıllık grafik indirir — bu yüzden elle başlatılır.
+          </span>
+        )}
+
+        {/* Güven eşiği — modelin ham çıktısı üzerinde, listeyi daraltmak için */}
+        <span className="mc-bar__label">Min güven</span>
+        <span className="mc-seg" role="group" aria-label="Asgari güven">
+          {[0, 0.55, 0.6, 0.7].map(c => (
+            <button key={c} aria-pressed={minConf === c} onClick={() => setMinConf(c)}>
+              {c === 0 ? 'Tümü' : `%${(c * 100).toFixed(0)}`}
+            </button>
+          ))}
+        </span>
+
+        {/* Kolon seçici */}
+        <span style={{ position: 'relative' }}>
+          <button onClick={() => setPicker(p => !p)} className="scr-btn">
+            Kolonlar {hidden.size > 0 && <b>({allColumns.length - hidden.size}/{allColumns.length})</b>}
+          </button>
+          {picker && (
+            <div className="scr-pop" onMouseLeave={() => setPicker(false)}>
+              {allColumns.map(([key, label]) => (
+                <label key={key} className="scr-pop__row">
+                  <input type="checkbox" checked={!hidden.has(key)} disabled={key === 'sym'}
+                         onChange={() => setHidden(h => {
+                           const n = new Set(h)
+                           n.has(key) ? n.delete(key) : n.add(key)
+                           return n
+                         })} />
+                  {label}
+                </label>
+              ))}
+              {hidden.size > 0 && (
+                <button className="scr-pop__clear" onClick={() => setHidden(new Set())}>
+                  Tümünü göster
+                </button>
+              )}
+            </div>
+          )}
+        </span>
+
+        <button onClick={exportCsv} className="scr-btn" title={`${rows.length} satır, ${columns.length} kolon`}>
+          CSV
+        </button>
+        <button onClick={saveView} className="scr-btn">Görünümü kaydet</button>
+
+        {saved.length > 0 && (
+          <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+            {saved.map(v => (
+              <span key={v.name} className="scr-chip">
+                <button onClick={() => loadView(v)} title={`${v.view} · ${v.hidden.length} kolon gizli`}>
+                  {v.name}
+                </button>
+                <button onClick={() => deleteView(v.name)} aria-label={`${v.name} görünümünü sil`}>×</button>
+              </span>
+            ))}
           </span>
         )}
       </div>

@@ -561,3 +561,133 @@ select option:hover {
 .mtab > :first-child { font-size: 13.5px; font-weight: 700; }
 .mtab__q { font-size: 10.5px; color: var(--text-disabled); font-weight: 400; }
 .mtab--on .mtab__q { color: var(--text-muted); }
+
+/* ── Tarayıcı araç çubuğu (Faz F) ─────────────────────────────────────────── */
+.scr-btn {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 5px 10px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+}
+.scr-btn:hover { color: var(--accent); border-color: var(--accent-border); }
+.scr-btn b { font-weight: 700; color: var(--accent); margin-left: 3px; }
+
+/* Kolon seçici — fare çıkınca kapanır (Esc'e gerek kalmadan) */
+.scr-pop {
+  position: absolute;
+  z-index: 40;
+  top: 100%; left: 0;
+  min-width: 170px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong, var(--border-default));
+  box-shadow: var(--shadow-md);
+}
+.scr-pop__row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 6px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.scr-pop__row:hover { background: var(--bg-glass); }
+.scr-pop__row input { cursor: pointer; }
+.scr-pop__row input:disabled { cursor: not-allowed; opacity: .45; }
+.scr-pop__clear {
+  width: 100%;
+  margin-top: 4px;
+  padding: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--accent);
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* Kayıtlı görünüm çipi */
+.scr-chip {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+}
+.scr-chip button {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 7px;
+  cursor: pointer;
+  color: var(--accent);
+  background: transparent;
+  border: none;
+}
+.scr-chip button:last-child {
+  padding: 4px 6px;
+  color: var(--text-muted);
+  border-left: 1px solid var(--accent-border);
+}
+.scr-chip button:last-child:hover { color: var(--loss); }
+
+/* ── Kısayol listesi (Faz H1) ─────────────────────────────────────────────── */
+.sc-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  display: grid; place-items: center;
+  background: var(--bg-overlay);
+  padding: var(--space-4);
+}
+.sc-box {
+  width: min(520px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong, var(--border-default));
+  box-shadow: var(--shadow-lg);
+}
+.sc-box__head {
+  display: flex; align-items: center;
+  padding: 10px 14px;
+  font-size: 13px; font-weight: 700;
+  color: var(--text-primary);
+  background: var(--bg-surface-2);
+  border-bottom: 1px solid var(--border-default);
+}
+.sc-box__head button {
+  margin-left: auto;
+  width: 22px; height: 22px;
+  font-size: 16px; line-height: 1;
+  cursor: pointer;
+  color: var(--text-muted);
+  background: transparent; border: none;
+}
+.sc-box__head button:hover { color: var(--loss); }
+.sc-sec { padding: 8px 14px 10px; }
+.sc-sec__title {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+}
+.sc-row {
+  display: grid; grid-template-columns: 86px 1fr; gap: 10px;
+  align-items: baseline;
+  padding: 3px 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.sc-row kbd {
+  font-family: var(--t-mono);
+  font-size: 10.5px; font-weight: 700;
+  padding: 2px 6px;
+  text-align: center;
+  color: var(--text-primary);
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-default);
+}

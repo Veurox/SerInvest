@@ -190,6 +190,54 @@ aylarca sürmesi gerekir — Faz 1 altyapısı bunu zaten topluyor.
 
 ---
 
+## 8.1 Meta-labeling neden kapatıldı (13.08.2026)
+
+`META_ENABLED = False`. **Kod silinmedi.**
+
+Meta katmanın işi "modelin AL sinyallerinden hangileri tutar" sorusunu haber ve
+rejim bağlamıyla cevaplamaktı. Ama §2'de ölçüldüğü gibi ana model zaten hisse
+**sıralayamıyor** (gün-içi Spearman −0.007, t = −0.78, 485 gün). Sıralayamayan
+bir sinyal kümesini veto etmek ölçülebilir katkı üretmiyor; karar zincirine bir
+kat daha karmaşıklık ve bir log dosyası daha ekliyordu.
+
+**Plandan bilinçli sapma:** `docs/PLAN_2026-08.md` §G "meta_log.csv yazımı durur"
+diyordu; **durdurulmadı.** O log meta katmanın gelecekteki eğitim verisidir;
+yazımı durdurmak 180 güne ulaşma saatini sıfırlar ve katmanı hiç ölçemez hâle
+getirirdi. Yazım sürüyor, yalnız veto ve boyut çarpanı devre dışı.
+
+**Ne zaman tekrar açılır:** haber özelliği derinliği 180 güne ulaşınca
+(`GET /admin/data-depth`, Model → Kanıt sekmesinde görünür) katmanın katkısı
+ölçülebilir hâle gelir. 13.08.2026'da 18 gündü.
+
+---
+
+## 8.2 Noktasal-zamanlılık denetimi (B1) — bulunan sızıntı
+
+Son 30 günün 9.163 haber kaydı denetlendi. `event_ts` (PublishedAt) ve
+`ingest_ts` (CreatedAt) her kayıtta dolu; yakalama kesintisiz çalışıyor.
+
+**Ama 182 kayıtta (%1,99) `published_at > ingest_at`** — haber, alındığından
+*sonra* yayınlanmış görünüyor. Fiziksel olarak imkânsız.
+
+| | |
+|---|---|
+| Etkilenen kaynak | **yalnız CNN Türk Ekonomi** (182/182) |
+| En büyük ileri fark | **180 dakika** (tam 3 saat) |
+| Ortalama | 138 dakika |
+
+Teşhis: kaynak, saat dilimi bilgisi olmayan bir `pubDate` yayınlıyor;
+`feedparser` bunu UTC sanıyor, oysa yerel saat (UTC+3). Ayrıştırma kodumuz
+doğru — veri kalitesi sorunu.
+
+**Neden önemli:** eğitimde as-of join `published_at` ile yapılıyor. Kırpılmazsa
+o kaynağın haberleri 3 saat erken "biliniyor" sayılır — gizli geleceğe bakma
+sızıntısı.
+
+**Düzeltme:** `_entry_published_utc` artık `min(published, now)` döndürüyor.
+Gerekçe ilkenin kendisi: *bir bilgiyi aldığından önce bilmiş sayılamazsın.*
+
+---
+
 ## 9. Buradan sonrası — üç dürüst seçenek
 
 1. **Arayüzü gerçeğe uydur.** Bugün 50 hissenin 49'una "GÜÇLÜ ALIM · %53 güven"
