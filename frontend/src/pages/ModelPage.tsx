@@ -6,7 +6,7 @@
 // Bu yüzden üstteki durum kartı sayıları CÜMLEYE çevirir; ham metrikler
 // "İleri metrikler" panelinde gizlidir.
 // =============================================================================
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ADMIN, API, adminFetch } from '../lib/api'
 import { useConfig } from '../lib/useConfig'
 import { PageHeader, Icon } from '../components/ui'
@@ -30,6 +30,25 @@ interface DriftResp {
                   n_days?: number; min_days?: number
                   day_level?: { observed_up: number; predicted_cal_p: number
                                 t: number; gap: number } | null }
+}
+
+/** /admin/job-progress — done/total GERÇEK iş birimidir (sembol/adım/pencere).
+ *  total null ise birim sayılamıyor: yüzde uydurmak yerine aşama gösterilir. */
+interface JobProgress {
+  running: boolean; task: string | null; stage: string | null
+  done: number; total: number | null; started_at: string | null
+  last: { task: string; ok: boolean; message: string
+          finished_at: string; duration_s: number | null } | null
+}
+
+const TASK_LABELS: Record<string, string> = {
+  analiz: 'Analiz döngüsü', degerlendirme: 'Değerlendirme', terfi: 'Terfi kontrolü',
+  dogrulama: 'Doğrulama (walk-forward)', 'veri-egitim': 'Veri + eğitim',
+}
+/** Düğme yolu → görev adı: koşan işin kartını vurgulamak için. */
+const PATH_TASK: Record<string, string> = {
+  'analyze-now': 'analiz', 'evaluate-now': 'degerlendirme', retrain: 'terfi',
+  walkforward: 'dogrulama', 'reset-model': 'veri-egitim',
 }
 
 // ── Katlanır bölüm ───────────────────────────────────────────────────────────
@@ -88,6 +107,7 @@ export default function ModelPage() {
   const [feats, setFeats] = useState<{ features: { name: string; pct: number }[]; groups: Record<string, number> } | null>(null)
   const [busy, setBusy]   = useState(false)
   const [allLogs, setAllLogs] = useState(false)
+  const [prog, setProg]   = useState<JobProgress | null>(null)
 
   const load = useCallback(() => {
     const g = (p: string, set: (v: any) => void) =>
@@ -103,6 +123,26 @@ export default function ModelPage() {
   }, [])
 
   useEffect(() => { load(); const t = setInterval(load, 60_000); return () => clearInterval(t) }, [load])
+
+  // İş ilerlemesi: 2 sn'de bir yokla — koşan işin çubuğu ve son işin karnesi.
+  useEffect(() => {
+    let stop = false
+    const tick = () => adminFetch(`${ADMIN}/job-progress`)
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (!stop && j && !j.error) setProg(j) })
+      .catch(() => {})
+    tick()
+    const t = setInterval(tick, 2000)
+    return () => { stop = true; clearInterval(t) }
+  }, [])
+
+  // İş bitince sayfa verilerini tazele — sonuç (yeni tahminler, yeni model
+  // künyesi) çubuğun kaybolmasıyla AYNI anda görünsün, 60 sn'lik turu beklemesin.
+  const wasRunning = useRef(false)
+  useEffect(() => {
+    if (wasRunning.current && !prog?.running) load()
+    wasRunning.current = !!prog?.running
+  }, [prog?.running, load])
 
   const act = async (path: string, label: string) => {
     setBusy(true)
@@ -239,19 +279,79 @@ export default function ModelPage() {
             { p: 'retrain',      t: 'Terfi kontrolü',      d: 'Rakip model şampiyonu geçiyor mu? Geçerse yerine geçer' },
             { p: 'walkforward',  t: 'Doğrulama çalıştır',  d: 'Geçmiş veride dürüst sınav + kalibratörü tazeler (~2-5 dk)' },
             { p: 'reset-model',  t: 'Veriyi yenile + eğit', d: 'Veri setini sıfırdan kur ve modeli yeniden eğit (~4-6 dk)', warn: true },
-          ].map(b => (
-            <button key={b.p} disabled={busy} onClick={() => act(b.p, b.t)}
-              style={{
-                textAlign: 'left', padding: '9px 11px', borderRadius: 5, cursor: busy ? 'wait' : 'pointer',
-                border: `1px solid ${b.warn ? 'var(--loss-border)' : 'var(--border-default)'}`,
-                background: b.warn ? 'var(--loss-bg)' : 'var(--bg-surface-2)',
-                opacity: busy ? 0.6 : 1,
-              }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: b.warn ? 'var(--loss)' : 'var(--text-primary)' }}>{b.t}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4, marginTop: 2 }}>{b.d}</div>
-            </button>
-          ))}
+          ].map(b => {
+            const running = !!prog?.running
+            const isActive = running && prog?.task === PATH_TASK[b.p]
+            const off = busy || running
+            return (
+              <button key={b.p} disabled={off} onClick={() => act(b.p, b.t)}
+                style={{
+                  textAlign: 'left', padding: '9px 11px', borderRadius: 2,
+                  cursor: off ? 'wait' : 'pointer',
+                  border: `1px solid ${isActive ? 'var(--accent-border)'
+                                     : b.warn ? 'var(--loss-border)' : 'var(--border-default)'}`,
+                  background: isActive ? 'var(--accent-bg)'
+                            : b.warn ? 'var(--loss-bg)' : 'var(--bg-surface-2)',
+                  opacity: off && !isActive ? 0.55 : 1,
+                }}>
+                <div style={{ fontSize: 13, fontWeight: 700,
+                              color: isActive ? 'var(--accent)' : b.warn ? 'var(--loss)' : 'var(--text-primary)' }}>
+                  {b.t}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4, marginTop: 2 }}>{b.d}</div>
+              </button>
+            )
+          })}
         </div>
+
+        {/* Canlı ilerleme — done/total GERÇEK iş birimi (sembol/adım/pencere).
+            total yoksa yüzde uydurulmaz: aşama metni + kayan şerit gösterilir. */}
+        {prog?.running && (() => {
+          const pct = prog.total ? Math.min(100, Math.round(100 * prog.done / prog.total)) : null
+          const secs = prog.started_at
+            ? Math.max(0, Math.round((Date.now() - Date.parse(prog.started_at + 'Z')) / 1000)) : null
+          return (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+                            fontSize: 11.5, marginBottom: 4, gap: 10 }}>
+                <span style={{ fontWeight: 700 }}>
+                  {TASK_LABELS[prog.task ?? ''] ?? prog.task}
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>
+                    {' '}— {prog.stage ?? 'başlıyor'}
+                  </span>
+                </span>
+                <span className="t-num" style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                  {pct != null ? `%${pct} · ${prog.done}/${prog.total}` : 'sayısız aşama'}
+                  {secs != null ? ` · ${secs} sn` : ''}
+                </span>
+              </div>
+              <div className="jobbar">
+                {pct != null
+                  ? <div className="jobbar__fill" style={{ width: `${pct}%` }} />
+                  : <div className="jobbar__indet" />}
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* Son işin karnesi — "başarılı mı?" sorusunun kalıcı cevabı */}
+        {!prog?.running && prog?.last && (
+          <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'baseline',
+                        flexWrap: 'wrap', fontSize: 11.5, padding: '6px 9px',
+                        border: `1px solid ${prog.last.ok ? 'var(--profit-border)' : 'var(--loss-border)'}`,
+                        background: prog.last.ok ? 'var(--profit-bg)' : 'var(--loss-bg)' }}>
+            <b style={{ color: prog.last.ok ? 'var(--profit)' : 'var(--loss)', whiteSpace: 'nowrap' }}>
+              {prog.last.ok ? '✓' : '✕'} {TASK_LABELS[prog.last.task] ?? prog.last.task}
+              {prog.last.ok ? ' bitti' : ' BAŞARISIZ'}
+            </b>
+            <span style={{ color: 'var(--text-secondary)' }}>{prog.last.message}</span>
+            {prog.last.duration_s != null && (
+              <span className="t-num" style={{ color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                {prog.last.duration_s} sn
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── 2a. ÖZ DENETİM — değişmezler (sessiz hatalar burada görünür) ── */}

@@ -57,6 +57,7 @@ from ml.config import (COVERAGE_TARGET, EV_FILTER, META_ENABLED, META_VETO_P,
                        PROMOTE_WINDOWS, RISK_FILTER_ON)
 import ml.meta as meta
 import ml.monitoring as monitoring
+import ml.progress as progress
 import ml.registry as registry
 import ml.risk_filter as risk_filter
 from ml.features import compute_features, fetch_context, xsec_rank_frame, xsec_rank_latest
@@ -178,17 +179,32 @@ def _write_meta(model, data: pd.DataFrame, extra: dict | None = None):
 
 
 def train_champion(rebuild_data: bool = False):
-    """Tüm veri setiyle champion'ı eğitir ve kaydeder."""
-    data = prepare_training(_load_training_data(rebuild_data))
-    model = train_model(data[FEATURE_NAMES], data["label"].astype(int), enforce_min=True)
-    if model is None:
-        send_syslog("[ml v3] Champion eğitilemedi (yetersiz/tek-sınıf veri).", "ERROR")
-        return None
-    ML_DIR.mkdir(parents=True, exist_ok=True)
-    # Sürüm defteri: eskisini arşivle + atomik yaz (geri alınabilirlik, D1).
-    registry.save_champion(model, reason="yeniden eğitim")
-    _write_meta(model, data)
+    """Tüm veri setiyle champion'ı eğitir ve kaydeder.
+
+    İlerleme aşama metniyle raporlanır, YÜZDE YOK: veri seti kurulumu tek
+    parça bir indirme + etiketleme işi, sayılabilir birimi buradan görünmüyor.
+    Uydurma yüzde göstermektense aşama + geçen süre gösterilir."""
+    _ptok = progress.start("veri-egitim")
+    try:
+        progress.update(_ptok, stage=("veri seti sıfırdan kuruluyor (~3-4 dk)"
+                                      if rebuild_data else "veri seti yükleniyor"))
+        data = prepare_training(_load_training_data(rebuild_data))
+        progress.update(_ptok, stage=f"model eğitiliyor ({len(data):,} satır)")
+        model = train_model(data[FEATURE_NAMES], data["label"].astype(int), enforce_min=True)
+        if model is None:
+            send_syslog("[ml v3] Champion eğitilemedi (yetersiz/tek-sınıf veri).", "ERROR")
+            progress.finish(_ptok, False, "eğitilemedi: yetersiz veya tek-sınıf veri")
+            return None
+        ML_DIR.mkdir(parents=True, exist_ok=True)
+        # Sürüm defteri: eskisini arşivle + atomik yaz (geri alınabilirlik, D1).
+        progress.update(_ptok, stage="kaydediliyor (arşiv + atomik yazım)")
+        registry.save_champion(model, reason="yeniden eğitim")
+        _write_meta(model, data)
+    except Exception as e:
+        progress.finish(_ptok, False, str(e))
+        raise
     send_syslog(f"[ml v3] Champion eğitildi ve kaydedildi ({len(data):,} satır, 10g ufuk).", "SUCCESS")
+    progress.finish(_ptok, True, f"champion eğitildi — {len(data):,} satır")
     return model
 
 
@@ -538,6 +554,10 @@ def run_ml_cycle(model_holder: list):
         return
     try:
         _run_ml_cycle_locked(model_holder)
+    except Exception as e:
+        # Çubuk "koşuyor" diye asılı kalmasın — başarısızlık da bir sonuçtur.
+        progress.fail_running("analiz", str(e))
+        raise
     finally:
         _CYCLE_LOCK.release()
 
@@ -599,9 +619,17 @@ def _run_ml_cycle_locked(model_holder: list):
     paper_candidates: list[dict] = []   # AL adayları — döngü sonunda EV sırasıyla açılır
     shadow_candidates: list[dict] = []  # gölge defterin adayları (filtresiz)
 
+    # İlerleme: iki sembol döngüsü tek çubukta sayılır (toplam 2N gerçek birim).
+    # start_if_idle KİBARDIR: kullanıcı o an Doğrulama gibi bir iş başlatmışsa
+    # zamanlanmış döngü onun göstergesini çalmaz (jeton None → sessiz).
+    _ptok = progress.start_if_idle("analiz")
+    _pn = max(1, len(universe))
+    progress.update(_ptok, stage="özellikler indiriliyor", done=0, total=2 * _pn)
+
     # ── Faz 1: evrenin özellik fotoğrafı (ham) ────────────────────────────────
     snaps: dict[str, tuple] = {}
-    for sym, yf_sym in universe.items():
+    for _pi, (sym, yf_sym) in enumerate(universe.items()):
+        progress.update(_ptok, stage=f"özellikler: {sym}", done=_pi)
         try:
             s = fetch_snapshot(sym, yf_sym, ctx)
             if s is not None:
@@ -642,7 +670,8 @@ def _run_ml_cycle_locked(model_holder: list):
             risk_allowed = None
 
     count = buys = 0
-    for sym, snap in snaps.items():
+    for _pi, (sym, snap) in enumerate(snaps.items()):
+        progress.update(_ptok, stage=f"analiz: {sym}", done=_pn + _pi)
         yf_sym = universe[sym]
         try:
             result = analyze_symbol(model, sym, yf_sym, snap,
@@ -755,6 +784,7 @@ def _run_ml_cycle_locked(model_holder: list):
         print(f"  [Paper] snapshot hatası: {e}")
 
     send_syslog(f"[ml v3] Döngü bitti — {count}/{len(universe)} sembol, {buys} AL sinyali.", "SUCCESS")
+    progress.finish(_ptok, True, f"{count}/{len(universe)} sembol analiz edildi, {buys} AL sinyali")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -847,6 +877,26 @@ def evaluate_ml():
     with open(PREDICTION_LOG, "r", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
 
+    # İlerleme: birim = olgunlaşmış, henüz değerlendirilmemiş tahmin.
+    # 0 iş de bir SONUÇTUR — kullanıcı "bitti mi, başarılı mı" diye soruyor;
+    # "değerlendirilecek olgun tahmin yok" cevabı çubuğun karnesine yazılır.
+    def _is_todo(r: dict) -> bool:
+        if r.get("eval"):
+            return False
+        try:
+            return maturity(datetime.datetime.fromisoformat(r["timestamp"]), now)["matured"]
+        except Exception:
+            return False
+
+    _ptodo = sum(1 for r in rows if _is_todo(r))
+    _ptok = progress.start_if_idle("degerlendirme")
+    _pdone = 0
+    if _ptodo == 0:
+        progress.finish(_ptok, True, "değerlendirilecek olgun tahmin yok")
+        _ptok = None
+    else:
+        progress.update(_ptok, stage="olgun tahminler yargılanıyor", done=0, total=_ptodo)
+
     updated = False
     for row in rows:
         if row.get("eval"):
@@ -857,6 +907,8 @@ def evaluate_ml():
             continue
         if not maturity(ts, now)["matured"]:
             continue
+        _pdone += 1
+        progress.update(_ptok, stage=f"değerlendiriliyor: {row.get('symbol', '?')}", done=_pdone)
         try:
             entry   = float(row["close"])
             atr_pct = float(row.get("atr_pct") or 0.0) or None
@@ -886,6 +938,7 @@ def evaluate_ml():
 
     if updated:
         atomic.write_csv(PREDICTION_LOG, list(rows[0].keys()), rows)
+    progress.finish(_ptok, True, f"{_pdone} olgun tahmin yargılandı")
     rebuild_ml_stats()
 
     # Faz 3: yeni değerlendirmeler geldiyse meta-modeli eğitmeyi dene.
@@ -1009,6 +1062,24 @@ def _al_precision_on(model, df: pd.DataFrame) -> tuple[float | None, int]:
 
 
 def promote_if_better(test_window_days: int = 45) -> dict:
+    """İlerleme sarmalayıcısı — asıl mantık _promote_if_better_inner'da.
+    İç fonksiyonun 6 ayrı çıkışı var; karneyi tek noktada yazmak için sarıldı."""
+    _ptok = progress.start("terfi")
+    try:
+        res = _promote_if_better_inner(test_window_days, _ptok)
+    except Exception as e:
+        progress.finish(_ptok, False, str(e))
+        raise
+    ok = "error" not in res
+    msg = res.get("error") or res.get("reason") or (
+        "rakip şampiyonu geçti — terfi etti" if res.get("decision") == "promoted"
+        else "şampiyon korundu")
+    progress.finish(_ptok, ok, str(msg))
+    return res
+
+
+def _promote_if_better_inner(test_window_days: int = 45,
+                             _ptok: int | None = None) -> dict:
     """
     KORUMALI promosyon — DÜRÜST TERAZİ (07/2026 düzeltmesi).
 
@@ -1041,6 +1112,7 @@ def promote_if_better(test_window_days: int = 45) -> dict:
         _log_promotion(result)
         return result
 
+    progress.update(_ptok, stage="veri hazırlanıyor")
     try:
         # Rank gün-içi hesaplandığı için cutoff bölmesinden ÖNCE uygulanması sızıntı yaratmaz.
         data = prepare_training(_load_training_data(rebuild=False))
@@ -1055,6 +1127,7 @@ def promote_if_better(test_window_days: int = 45) -> dict:
         if str(cache_max) <= cutoff_s or stale_days > 7:
             send_syslog(f"[ml v3] Terfi için taze veri indiriliyor "
                         f"(önbellek {cache_max}, ~{stale_days} gün bayat)...", "INFO")
+            progress.update(_ptok, stage="taze veri indiriliyor (birkaç dk sürebilir)")
             data = prepare_training(_load_training_data(rebuild=True))
     except Exception as e:
         result["error"] = f"veri yüklenemedi: {e}"
@@ -1091,6 +1164,8 @@ def promote_if_better(test_window_days: int = 45) -> dict:
     wins = comparable = 0
 
     for k in range(n_win):
+        progress.update(_ptok, stage=f"pencere {k + 1}/{n_win}: rakip eğitilip sınanıyor",
+                        done=k, total=n_win)
         # Pencereler ŞAMPİYON KESİMİNDEN SONRA, kronolojik sırada
         w_start = cutoff + pd.Timedelta(days=k * win_len)
         w_end   = cutoff + pd.Timedelta(days=(k + 1) * win_len)

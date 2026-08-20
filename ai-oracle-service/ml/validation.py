@@ -31,6 +31,7 @@ from ml.config import (
     WF_STEP_DAYS,
 )
 from ml.model import train_model
+import ml.progress as progress
 
 
 def _gap_days() -> int:
@@ -73,12 +74,27 @@ def purged_walk_forward(data: pd.DataFrame, verbose: bool = True,
     step = datetime.timedelta(days=WF_STEP_DAYS)
     train_cutoff = min_d + datetime.timedelta(days=WF_INITIAL_TRAIN_DAYS)
 
+    # İlerleme: birim = yineleme. Toplam, döngüye girmeden aynı aritmetikle
+    # sayılır (tarih aralığı / adım) — gerçek sayı, tahmin değil. done fold
+    # yerine YİNELEME sayar: veri yetersizliğinden atlanan adım da zaman
+    # çizgisinde ilerlemedir, çubuk onda da yürümeli.
+    _ptok = progress.start("dogrulama")
+    _pn = 0
+    _tc = train_cutoff
+    while _tc + gap < max_d:
+        _pn += 1
+        _tc += step
+    _pit = 0
+
     oos_p   = []   # tüm OOS P(yukarı)
     oos_y   = []   # tüm OOS gerçek etiket
     steps   = []
     fold    = 0
 
     while train_cutoff + gap < max_d:
+        _pit += 1
+        progress.update(_ptok, stage=f"adım {_pit}/{_pn}: eğit + sına",
+                        done=_pit - 1, total=_pn)
         test_start = train_cutoff + gap
         test_end   = test_start + step
 
@@ -118,12 +134,14 @@ def purged_walk_forward(data: pd.DataFrame, verbose: bool = True,
         train_cutoff += step
 
     if not oos_p:
+        progress.finish(_ptok, False, "yeterli adım üretilemedi")
         return {"error": "Yeterli adım üretilemedi"}
 
     P = np.concatenate(oos_p)
     Y = np.concatenate(oos_y)
 
     # ── Faz 2: Isotonic kalibratör (pooled OOS = tek dürüst kaynak) ──────────
+    progress.update(_ptok, stage="kalibratör fit ediliyor", done=_pn, total=_pn)
     if fit_calibration:
         try:
             from ml.calibration import fit_calibrator, save_calibrator
@@ -176,6 +194,9 @@ def purged_walk_forward(data: pd.DataFrame, verbose: bool = True,
             "profitable":          (buy_precision is not None and buy_precision > be_c),
         })
 
+    progress.finish(_ptok, True,
+                    f"{fold} adım, {len(P):,} OOS tahmin — yön doğruluğu %{overall_acc * 100:.1f}"
+                    + (f", kalibratör tazelendi" if fit_calibration else ""))
     return {
         "computed_at":        datetime.datetime.utcnow().isoformat(),
         "n_folds":            fold,

@@ -93,7 +93,7 @@
   --shadow-md:  0 3px 10px rgba(15, 23, 42, 0.09);
   --shadow-lg:  0 8px 22px rgba(15, 23, 42, 0.12);
   --shadow-xl:  0 14px 36px rgba(15, 23, 42, 0.15);
-  --shadow-accent: 0 0 0 1px rgba(29, 78, 216, 0.22);
+  --shadow-accent: 0 0 0 1px rgba(180, 83, 9, 0.22);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -166,7 +166,7 @@
   --shadow-md:  0 3px 10px rgba(0, 0, 0, 0.45);
   --shadow-lg:  0 8px 24px rgba(0, 0, 0, 0.55);
   --shadow-xl:  0 14px 40px rgba(0, 0, 0, 0.65);
-  --shadow-accent: 0 0 0 1px rgba(96, 165, 250, 0.30);
+  --shadow-accent: 0 0 0 1px rgba(245, 158, 11, 0.30);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -269,3 +269,31 @@ table .num, table .price, table .pct, table .pnl {
 .dir-down::before { content: '▼'; font-size: .78em; margin-right: .25em; }
 /* Glif zaten metinde varsa tekrarlamasın */
 .dir-up.no-glyph::before, .dir-down.no-glyph::before { content: none; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   İŞ İLERLEME ÇUBUĞU (Model sayfası eylemleri — 17.08.2026)
+   Dolu çubuk yalnız GERÇEK done/total ile çizilir. Birim sayılamıyorsa
+   (veri seti kurulumu gibi) yüzde uydurulmaz: kayan şerit "çalışıyor ama
+   ölçemiyorum" der. Keskin kimlik: köşe yarıçapı yok.
+   ───────────────────────────────────────────────────────────────────────── */
+.jobbar {
+  height: 6px;
+  background: var(--bg-surface-3);
+  overflow: hidden;
+  position: relative;
+}
+.jobbar__fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width .5s ease;
+}
+.jobbar__indet {
+  height: 100%;
+  width: 30%;
+  background: var(--accent);
+  animation: jobbar-slide 1.3s linear infinite;
+}
+@keyframes jobbar-slide {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(434%); }   /* (100/30 + 1) × %100 — tam geçiş */
+}

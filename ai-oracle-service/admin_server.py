@@ -35,6 +35,7 @@ from infra import (
     send_syslog,
 )
 import ml_live
+import ml.progress as progress
 import paper_trading
 from ml.config import (
     CHAMPION_FILE,
@@ -201,6 +202,7 @@ def _admin_make_app():
                     f"{(result.get('buy_precision') or 0):.1%}", "SUCCESS")
             except Exception as e:
                 print(f"[AdminWF] Hata: {e}")
+                progress.fail_running("dogrulama", str(e))
             finally:
                 _set_status(False, None)
 
@@ -223,6 +225,7 @@ def _admin_make_app():
                         _ADMIN_MODEL_HOLDER[0] = new_champ
             except Exception as e:
                 print(f"[AdminRetrain] Hata: {e}")
+                progress.fail_running("terfi", str(e))
             finally:
                 _set_status(False, None)
 
@@ -425,11 +428,27 @@ def _admin_make_app():
                     _ADMIN_MODEL_HOLDER[0] = m
             except Exception as e:
                 print(f"[AdminReset] Hata: {e}")
+                progress.fail_running("veri-egitim", str(e))
             finally:
                 _set_status(False, None)
 
         threading.Thread(target=_run, daemon=True).start()
         return jsonify({"ok": True, "message": "Veri yeniden kuruluyor + champion eğitiliyor (~4-6dk)"})
+
+    # ── GET /admin/job-progress ───────────────────────────────────────────────
+    @app.get("/admin/job-progress")
+    def admin_job_progress():
+        """
+        Koşan işin CANLI ilerlemesi + son biten işin karnesi (ml/progress.py).
+
+        Neden var (17.08.2026 kullanıcı isteği): eylem düğmeleri işi arka plan
+        thread'ine atıp anında dönüyordu; kullanıcı işin bitip bitmediğini,
+        başarılı olup olmadığını, ne kadar kaldığını GÖREMİYORDU. done/total
+        GERÇEK iş birimidir (sembol/adım/pencere) — zamana göre dolan sahte
+        çubuk değil. total=None ise birim sayılamıyor demektir; arayüz yüzde
+        uydurmak yerine aşama metni gösterir.
+        """
+        return jsonify(progress.snapshot())
 
     # ── POST /admin/analyze-now ───────────────────────────────────────────────
     @app.post("/admin/analyze-now")
@@ -937,6 +956,7 @@ def _admin_make_app():
                 ml_live.evaluate_ml()
             except Exception as e:
                 print(f"[AdminEvaluate] Hata: {e}")
+                progress.fail_running("degerlendirme", str(e))
             finally:
                 _set_status(False, None)
 
