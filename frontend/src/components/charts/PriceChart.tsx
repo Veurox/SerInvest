@@ -16,7 +16,7 @@ import {
   createChart, CandlestickSeries, LineSeries, HistogramSeries, CrosshairMode,
   type IChartApi, type ISeriesApi,
 } from 'lightweight-charts'
-import { cleanBars, toCandles, toLine, toVolume, type Bar } from '../../lib/bars'
+import { barAtOrBefore, cleanBars, toCandles, toLine, toVolume, type Bar } from '../../lib/bars'
 
 export type { Bar }
 
@@ -51,31 +51,41 @@ interface Props {
   precision?: number
   /** Crosshair hareket ettikçe o barın OHLC'si — başlıkta göstermek için. */
   onCrosshair?: (info: CrosshairInfo | null) => void
-  /** Grafikler arası zaman ekseni senkronizasyonu için grup anahtarı. */
-  syncGroup?: string
+  /**
+   * Fare/tekerlek ile kaydırma-yakınlaştırma. Pano ızgarasında KAPALI:
+   * 4-8 küçük hücrede tek tek fareyle uğraşmak zahmetliydi ve gövdedeki
+   * "detayı aç" tıklamasıyla çakışıyordu (sürükleme bırakılınca tarayıcı
+   * click üretir → panel açılırdı). Zaman kontrolü artık tek yerden.
+   */
+  interactive?: boolean
+  /**
+   * Dışarıdan dayatılan görünür zaman penceresi (epoch SANİYE).
+   * Pano modunda sayfa bunu tüm hücrelere aynı verir — hepsi aynı tarihte kalır.
+   */
+  visibleRange?: { from: number; to: number } | null
+  /**
+   * Komşu grafikten gelen crosshair zamanı (epoch SANİYE) — karşılaştırma için
+   * bu grafikte de aynı tarihe dikey çizgi çizilir. Faresi bu grafiğin üstünde
+   * olan hücreye GÖNDERİLMEZ (kendi gerçek crosshair'i zaten var).
+   */
+  crosshairAt?: number | null
+  /** Yüzde modunda eksen "%" ile biçimlenir (fiyat ondalığı yerine). */
+  percent?: boolean
   height?: number | string
 }
 
-// ── Grafikler arası crosshair/zaman senkronizasyonu ─────────────────────────
-// Çoklu ızgarada bir grafikte zoom yapınca diğerleri aynı aralığa gelsin.
-// Basit bir kayıt defteri; grafik sökülünce kendini siler.
-const SYNC: Record<string, Set<IChartApi>> = {}
-
-// Geri besleme kilidi MODÜL düzeyinde olmak ZORUNDA.
-// 08/2026 hatası: bayrak her grafiğin kendi kapanışındaydı. A grafiği B'ye
-// aralık yazınca B'nin kendi dinleyicisi tetikleniyor, B de A/C/D'ye yazıyordu
-// → döngü. Sonuç: zaman ekseninin görünür aralığı null kalıyor ve seride 64
-// geçerli mum olmasına rağmen HİÇBİR ŞEY çizilmiyordu.
-let syncApplying = false
-
-function joinSync(group: string | undefined, chart: IChartApi): () => void {
-  if (!group) return () => {}
-  ;(SYNC[group] ??= new Set()).add(chart)
-  return () => {
-    SYNC[group]?.delete(chart)
-    if (SYNC[group]?.size === 0) delete SYNC[group]
-  }
-}
+// Grafikler arası senkronizasyon ARTIK BURADA DEĞİL (17.08.2026 yeniden tasarım).
+//
+// Eskiden her grafik komşularına doğrudan aralık yazıyordu: modül düzeyinde bir
+// geri besleme kilidi, "kullanıcı gerçekten zoom yaptı mı" bayrağı ve verisiz
+// grafiği atlama kuralı gerekiyordu — üç ayrı hata bu makineden çıkmıştı.
+// Yeni model: pencereyi SAYFA tutar, her grafik ona itaat eder. Grafikler
+// birbirini hiç tanımaz, dolayısıyla döngü de imkânsızdır.
+//
+// Ayrıca senkron artık MANTIKSAL ARALIK (bar indeksi) değil ZAMAN üzerinden.
+// İndeks tabanlı hizalama, bar sayıları eşitken doğru görünüp farklı olduğunda
+// (yeni halka arz, işlem durdurma) grafikleri sessizce FARKLI TARİHLERE
+// kaydırıyordu. Tarih hizalaması bar sayısından bağımsızdır.
 
 const cssVar = (name: string, fallback: string) => {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -84,7 +94,8 @@ const cssVar = (name: string, fallback: string) => {
 
 export function PriceChart({
   bars, kind = 'candle', compact = false, showAxes = true, showVolume = true,
-  overlays = [], precision = 2, onCrosshair, syncGroup, height = '100%',
+  overlays = [], precision = 2, onCrosshair, interactive = true,
+  visibleRange = null, crosshairAt = null, percent = false, height = '100%',
 }: Props) {
   const boxRef    = useRef<HTMLDivElement>(null)
   const chartRef  = useRef<IChartApi | null>(null)
@@ -96,14 +107,13 @@ export function PriceChart({
   const cbRef = useRef(onCrosshair)
   cbRef.current = onCrosshair
 
-  // Kullanıcı bu grafikte gerçekten zoom/pan yaptı mı?
-  // 08/2026 hatası: senkronizasyon HER aralık değişimini yayıyordu —
-  // programatik fitContent dahil. Grafik yeniden kurulurken kabı henüz
-  // genişlik almamış oluyor, o anda hesaplanan bozuk aralık diğerlerine de
-  // dayatılıyor ve altı grafik birden tek muma sıkışıyordu.
-  // Artık yalnız KULLANICI kaynaklı değişim yayılır; makine kendi kendine
-  // yaptığı sığdırmayı komşularına empoze etmez.
-  const userZoomedRef = useRef(false)
+  // Temizlenmiş barlar ref'te: crosshair senkronunda o tarihin fiyatını
+  // bulmak için gerekiyor (setCrosshairPosition fiyat ister).
+  const cleanRef = useRef<ReturnType<typeof cleanBars>>([])
+  // Dışarıdan pencere dayatılıyor mu? ResizeObserver'ın sığdırma yapıp
+  // sayfanın penceresini ezmemesi için kurulum efektinden okunur.
+  const rangeRef = useRef<{ from: number; to: number } | null>(visibleRange)
+  rangeRef.current = visibleRange
 
   // ── Kurulum: yalnız görsel yapı değişince ─────────────────────────────────
   useEffect(() => {
@@ -143,12 +153,19 @@ export function PriceChart({
         vertLine: { color: text, width: 1, style: 2, labelBackgroundColor: cssVar('--bg-surface-3', '#1c222c') },
         horzLine: { color: text, width: 1, style: 2, labelBackgroundColor: cssVar('--bg-surface-3', '#1c222c') },
       },
-      handleScale: { axisPressedMouseMove: { time: true, price: false } },
+      handleScroll: interactive,
+      handleScale: interactive
+        ? { axisPressedMouseMove: { time: true, price: false } }
+        : false,
       autoSize: true,
     })
     chartRef.current = chart
 
-    const priceFormat = { type: 'price' as const, precision, minMove: 1 / 10 ** precision }
+    // Yüzde modunda eksen "+12.4%" okur; fiyat ondalığı burada anlamsızdır.
+    const priceFormat = percent
+      ? { type: 'custom' as const, minMove: 0.01,
+          formatter: (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(2)}%` }
+      : { type: 'price' as const, precision, minMove: 1 / 10 ** precision }
 
     mainRef.current = kind === 'candle'
       ? chart.addSeries(CandlestickSeries, {
@@ -198,45 +215,14 @@ export function PriceChart({
     ;(box as unknown as Record<string, unknown>).__chart = chart
     ;(box as unknown as Record<string, unknown>).__main = mainRef.current
 
-    const leaveSync = joinSync(syncGroup, chart)
-    // Zaman aralığı senkronizasyonu. Kilit modül düzeyinde (yukarıdaki nota bak):
-    // yayılım sırasında hiçbir grafiğin dinleyicisi yeni yayılım başlatamaz.
-    // Ayrıca yalnız VERİSİ OLAN grafiklere yazılır — veri gelmemiş grafiğe
-    // aralık dayatmak zaman eksenini geçersiz duruma sokuyordu.
-    const onRange = () => {
-      if (syncApplying || !syncGroup) return
-      if (!userZoomedRef.current) return   // programatik sığdırma yayılmaz
-      const range = chart.timeScale().getVisibleLogicalRange()
-      if (!range) return
-      syncApplying = true
-      try {
-        for (const other of SYNC[syncGroup] ?? []) {
-          if (other === chart) continue
-          try {
-            if (other.timeScale().getVisibleLogicalRange() == null) continue   // henüz verisiz
-            other.timeScale().setVisibleLogicalRange(range)
-          } catch { /* sökülmüş olabilir */ }
-        }
-      } finally {
-        syncApplying = false
-      }
-    }
-    chart.timeScale().subscribeVisibleLogicalRangeChange(onRange)
-
-    // Kullanıcı gerçekten zoom/pan yaptı mı? Yalnız bu olaylardan sonra
-    // senkronizasyon yayılır ve otomatik yeniden sığdırma durur.
-    const markUser = () => { userZoomedRef.current = true }
-    box.addEventListener('wheel', markUser, { passive: true })
-    box.addEventListener('mousedown', markUser)
-    box.addEventListener('touchstart', markUser, { passive: true })
-
     // Kap boyutu oturana kadar yeniden sığdır.
     // Asıl kusur buydu: grafik yeniden kurulurken kap henüz genişlik almamış
     // oluyor, o anda yapılan fitContent tek mumluk bir aralık üretiyordu.
-    // ResizeObserver gerçek genişlik gelince tekrar sığdırıyor — kullanıcı
-    // kendi zoom'unu yapmadıysa. Yaptıysa onun seçimine dokunulmaz.
+    // ResizeObserver gerçek genişlik gelince tekrar sığdırıyor.
+    // Dışarıdan pencere dayatılıyorsa (pano modu) sığdırma YAPILMAZ — sayfanın
+    // penceresini ezerdi.
     const ro = new ResizeObserver(() => {
-      if (userZoomedRef.current) return
+      if (rangeRef.current) return
       const el = boxRef.current
       if (!el || el.clientWidth < 40) return
       try { chart.timeScale().fitContent() } catch { /* sökülmüş olabilir */ }
@@ -245,17 +231,13 @@ export function PriceChart({
 
     return () => {
       ro.disconnect()
-      box.removeEventListener('wheel', markUser)
-      box.removeEventListener('mousedown', markUser)
-      box.removeEventListener('touchstart', markUser)
-      leaveSync()
       chart.remove()
       chartRef.current = null
       mainRef.current = null
       volRef.current = null
       overlayRefs.current = []
     }
-  }, [kind, compact, showAxes, showVolume, precision, syncGroup])
+  }, [kind, compact, showAxes, showVolume, precision, interactive, percent])
 
   // ── Veri ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -266,6 +248,7 @@ export function PriceChart({
     // tekilleştirme. Bozulursa grafik SESSİZCE boş çizilir, o yüzden ayrı.
     const clean = cleanBars(bars)
     if (clean.length === 0) return
+    cleanRef.current = clean
 
     if (kind === 'candle') {
       ;(main as ISeriesApi<'Candlestick'>).setData(toCandles(clean) as never)
@@ -281,14 +264,44 @@ export function PriceChart({
       ) as never)
     }
 
-    // Yeni veri = yeni sembol veya yeni zaman aralığı → kullanıcının önceki
-    // zoom'u artık geçerli değil; sıfırla ki tam dönem görünsün.
-    userZoomedRef.current = false
-    chartRef.current?.timeScale().fitContent()
+    // Yeni veri geldi: dışarıdan pencere dayatılmıyorsa tam dönemi göster.
+    // Dayatılıyorsa aşağıdaki pencere efekti zaten doğru aralığı uygular —
+    // burada fitContent çağırmak bir kare boyunca yanlış aralık gösterirdi.
+    if (!rangeRef.current) chartRef.current?.timeScale().fitContent()
     // Bağımlılıklar kurulum efektiyle AYNI olmak zorunda: kurulum yeniden
     // çalıştığında (düzen değişince compact/showVolume değişir) grafik sıfırdan
     // kurulur; veri efekti tetiklenmezse yeni grafik BOŞ kalırdı.
-  }, [bars, kind, compact, showAxes, showVolume, precision, syncGroup])
+  }, [bars, kind, compact, showAxes, showVolume, precision, interactive, percent])
+
+  // ── Dışarıdan dayatılan zaman penceresi (pano modu) ──────────────────────
+  // Sayfa tüm hücrelere AYNI zaman aralığını verir. Zaman üzerinden hizalama,
+  // bar sayıları farklı olsa bile (yeni halka arz, işlem durdurma) grafikleri
+  // aynı tarihte tutar — indeks tabanlı eski senkronun sessiz kusuru buydu.
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart) return
+    if (!visibleRange) return
+    try {
+      chart.timeScale().setVisibleRange({
+        from: visibleRange.from as never, to: visibleRange.to as never,
+      })
+    } catch { /* aralık bu serinin verisiyle kesişmiyor olabilir */ }
+  }, [visibleRange, bars, kind, compact, showAxes, showVolume, precision, interactive, percent])
+
+  // ── Komşudan gelen crosshair (karşılaştırma) ─────────────────────────────
+  // Fare bir hücrenin üstündeyken diğerlerinde de AYNI TARİHE dikey çizgi
+  // çizilir; "o gün bunlar ne yapıyordu" tek bakışta okunur.
+  useEffect(() => {
+    const chart = chartRef.current
+    const main = mainRef.current
+    if (!chart || !main) return
+    if (crosshairAt == null) { try { chart.clearCrosshairPosition() } catch { /**/ } return }
+
+    // O tarihteki (veya en yakın önceki) barın kapanışı — çizgiyi konumlamak için.
+    const hit = barAtOrBefore(cleanRef.current, crosshairAt, b => b.s)
+    if (!hit) return
+    try { chart.setCrosshairPosition(hit.c, hit.s as never, main) } catch { /**/ }
+  }, [crosshairAt, bars, kind, compact, showAxes, showVolume, precision, interactive, percent])
 
   // ── Referans çizgileri (AI hedef/stop) ───────────────────────────────────
   useEffect(() => {
@@ -312,7 +325,7 @@ export function PriceChart({
     )
     return () => { for (const l of lines) { try { main.removePriceLine(l) } catch { /* sökülmüş */ } } }
     // Kurulum efektiyle aynı bağımlılıklar — yukarıdaki nota bak.
-  }, [overlays, compact, kind, showAxes, showVolume, precision, syncGroup])
+  }, [overlays, compact, kind, showAxes, showVolume, precision, interactive, percent])
 
   return <div ref={boxRef} style={{ width: '100%', height }} />
 }

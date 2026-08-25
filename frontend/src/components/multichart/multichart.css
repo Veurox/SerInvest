@@ -300,3 +300,124 @@
   background: var(--warning-bg);
   border: 1px solid var(--warning-border);
 }
+
+/* ── Zaman fırçası çubuğu (17.08.2026: panonun tek kumandası) ─────────────
+   Pano hücrelerinde fareyle pan/zoom yok; zaman buradan yönetilir. Hedef,
+   küçük hücrede yapılan hassas fare işini TEK ve BÜYÜK bir kumandaya taşımak. */
+.mc-brushbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-top: none;
+  border-bottom: none;
+}
+.mc-brushbar__btn {
+  flex: 0 0 auto;
+  min-width: 26px; height: 22px;
+  padding: 0 7px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface-2);
+  color: var(--text-secondary);
+  font-size: 11px; font-weight: 700;
+  font-family: var(--t-mono);
+  cursor: pointer;
+  border-radius: 0;
+}
+.mc-brushbar__btn:hover:not(:disabled) { border-color: var(--accent-border); color: var(--accent); }
+.mc-brushbar__btn:disabled { opacity: .4; cursor: default; }
+
+.brush { flex: 1 1 auto; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.brush--off { opacity: .4; pointer-events: none; }
+.brush__track {
+  position: relative;
+  flex: 1 1 auto;
+  height: 22px;
+  min-width: 80px;
+  background: var(--bg-surface-3);
+  border: 1px solid var(--border-default);
+  cursor: pointer;
+}
+.brush__win {
+  position: absolute;
+  top: -1px; bottom: -1px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent);
+  cursor: grab;
+}
+.brush__win:active { cursor: grabbing; }
+/* Tutamaklar: kenarlardan sürükleyince pencere DARALIR/GENİŞLER (zoom). */
+.brush__grip {
+  position: absolute;
+  top: -1px; bottom: -1px;
+  width: 7px;
+  left: -4px;
+  background: var(--accent);
+  cursor: ew-resize;
+}
+.brush__grip--r { left: auto; right: -4px; }
+.brush__label {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-family: var(--t-mono);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ── Odak modu: tek hücre tam alan, TAM serbestlik ────────────────────────
+   Pano kasten kontrolsüzdür; inceleme işi buraya taşındı. */
+.mc-focus {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--border-default);
+}
+.mc-focus__bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  background: var(--bg-surface-2);
+  border-bottom: 1px solid var(--border-default);
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.mc-focus__bar b { color: var(--text-primary); font-size: 13px; letter-spacing: .04em; }
+.mc-focus__bar button {
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 11px; font-weight: 600;
+  padding: 3px 9px;
+  cursor: pointer;
+  border-radius: 0;
+}
+.mc-focus__bar button:hover { border-color: var(--accent-border); color: var(--accent); }
+.mc-focus__body { flex: 1 1 auto; min-height: 0; display: flex; }
+.mc-focus__body > .mc-tile { flex: 1 1 auto; min-width: 0; }
+
+/* Başlıktaki eylem düğmeleri (detay / odak) — gövde artık tıklanabilir değil,
+   bu yüzden gizli hedef yerine görünür düğmeler. */
+.mc-tile__act {
+  flex: 0 0 auto;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 9.5px; font-weight: 700;
+  letter-spacing: .04em;
+  padding: 1px 5px;
+  cursor: pointer;
+  border-radius: 0;
+  opacity: 0;
+  transition: opacity var(--transition-fast), color var(--transition-fast),
+              border-color var(--transition-fast);
+}
+.mc-tile:hover .mc-tile__act,
+.mc-tile--active .mc-tile__act { opacity: 1; }
+.mc-tile__act:hover { color: var(--accent); border-color: var(--accent-border); }
+
+/* Pano hücrelerinde imleç artık "tıklanabilir" demiyor — gövde bir düğme değil. */
+.mc-grid .mc-tile__body { cursor: default; }

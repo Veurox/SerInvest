@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { API } from '../../lib/api'
 import { PriceChart, type Bar, type CrosshairInfo, type Overlay } from '../charts/PriceChart'
+import { barAtOrBefore, toPercent } from '../../lib/bars'
 import type { OracleAnalysis, PriceData } from '../../lib/types'
 import { SymbolPicker } from './SymbolPicker'
 
@@ -32,6 +33,20 @@ interface Props {
   onOpenDetail: (symbol: string) => void
   onChangeSymbol: (symbol: string) => void
   onRemove: () => void
+  /** Pano modunda false: hücrede fareyle pan/zoom yok, kontrol tek yerden. */
+  interactive?: boolean
+  /** Sayfanın dayattığı ortak zaman penceresi (epoch SANİYE). */
+  visibleRange?: { from: number; to: number } | null
+  /** Yüzde-değişim karşılaştırma modu. */
+  percent?: boolean
+  /** Komşu hücreden gelen crosshair zamanı (epoch SANİYE). */
+  crosshairAt?: number | null
+  /** Bu hücrenin barlarının zaman aralığını sayfaya bildirir. */
+  onSpan?: (symbol: string, span: { from: number; to: number } | null) => void
+  /** Fare bu hücrede gezinirken tarihi sayfaya bildirir (crosshair senkronu). */
+  onHoverTime?: (t: number | null) => void
+  /** Hücreyi tam ekran odak moduna al. */
+  onFocus?: () => void
 }
 
 const num = (d: number) => new Intl.NumberFormat('tr-TR', { minimumFractionDigits: d, maximumFractionDigits: d })
@@ -46,6 +61,8 @@ const vol = (v: number | null) => {
 export function ChartTile({
   symbol, tf, kind, assets, analysis, density, active,
   onActivate, onOpenDetail, onChangeSymbol, onRemove,
+  interactive = true, visibleRange = null, percent = false,
+  crosshairAt = null, onSpan, onHoverTime, onFocus,
 }: Props) {
   const [bars, setBars] = useState<Bar[]>([])
   const [loading, setLoading] = useState(true)
@@ -68,9 +85,33 @@ export function ChartTile({
     return () => { stop = true }
   }, [symbol, tf])
 
+  // Bu hücrenin zaman aralığını sayfaya bildir: ortak pencere tüm hücrelerin
+  // birleşiminden hesaplanır (bar sayıları eşit olmasa da tarihler hizalı kalsın).
+  useEffect(() => {
+    if (!onSpan) return
+    if (bars.length === 0) { onSpan(symbol, null); return }
+    onSpan(symbol, {
+      from: Math.floor(bars[0].t / 1000),
+      to:   Math.floor(bars[bars.length - 1].t / 1000),
+    })
+  }, [bars, symbol, onSpan])
+
   const asset = assets.find(a => a.symbol === symbol)
   const dec = asset?.assetType === 'FOREX' ? 4 : 2
   const fmt = num(dec)
+
+  // Yüzde modunda seri pencerenin başından itibaren % değişime çevrilir.
+  // Kullanıcının mum/çizgi seçimi KORUNUR: OHLC'nin dördü de aynı tabana bölünür.
+  const shown = useMemo(() => (percent ? toPercent(bars) : bars), [bars, percent])
+
+  // Başlık okuması: kendi crosshair'i varsa onun zamanı, yoksa komşu hücreden
+  // gelen zaman. Değerler HER ZAMAN ham barlardan okunur — yüzde modunda
+  // grafiğin serisi % cinsindendir ve başlıkta fiyat göstermek istiyoruz.
+  const readTime = hover ? Math.floor(hover.time / 1000) : crosshairAt
+  const read = useMemo<Bar | null>(
+    () => (readTime == null ? null : barAtOrBefore(bars, readTime, b => Math.floor(b.t / 1000))),
+    [readTime, bars],
+  )
 
   const first = bars.length ? bars[0].c : null
   const last  = bars.length ? bars[bars.length - 1].c : null
@@ -124,14 +165,16 @@ export function ChartTile({
           {symbol}
         </button>
 
-        {hover ? (
-          // Crosshair okuması — borsa terminali standardı
+        {read ? (
+          // Crosshair okuması — borsa terminali standardı.
+          // Komşu hücreden gelen zamanla da dolar: fare TUPRS'ta gezinirken
+          // diğer 7 hücre de AYNI TARİHİN değerlerini gösterir.
           <span className="mc-ohlc">
-            <i>A</i>{fmt.format(hover.o ?? 0)}
-            <i>Y</i>{fmt.format(hover.h ?? 0)}
-            <i>D</i>{fmt.format(hover.l ?? 0)}
-            <i>K</i><b>{fmt.format(hover.c ?? 0)}</b>
-            {hover.v != null && <><i>H</i>{vol(hover.v)}</>}
+            <i>A</i>{fmt.format(read.o ?? read.c)}
+            <i>Y</i>{fmt.format(read.h ?? read.c)}
+            <i>D</i>{fmt.format(read.l ?? read.c)}
+            <i>K</i><b>{fmt.format(read.c)}</b>
+            {read.v != null && <><i>H</i>{vol(read.v)}</>}
           </span>
         ) : (
           <>
@@ -148,7 +191,7 @@ export function ChartTile({
           </>
         )}
 
-        {analysis && !hover && (
+        {analysis && !read && (
           <span className="mc-badge" style={{
             color: isBuy ? 'var(--profit)' : 'var(--text-muted)',
             borderColor: isBuy ? 'var(--profit-border)' : 'var(--border-default)',
@@ -164,6 +207,16 @@ export function ChartTile({
           </span>
         )}
 
+        {/* Detay artık AÇIK bir düğme. Eskiden gövdeye tıklamakla açılıyordu ve
+            kaydırmayla çakışıyordu; gizli bir hedef yerine görünür bir düğme. */}
+        <button className="mc-tile__act" onClick={e => { e.stopPropagation(); onOpenDetail(symbol) }}
+                title={`${symbol} detay paneli (göstergeler, AI hedef/stop)`}
+                aria-label={`${symbol} detaylarını aç`}>detay</button>
+
+        <button className="mc-tile__act" onClick={e => { e.stopPropagation(); onFocus?.() }}
+                title="Tam ekran odak (M) — burada serbestçe kaydır/yakınlaştır"
+                aria-label={`${symbol} odak modu`}>⛶</button>
+
         <button className="mc-tile__close" onClick={e => { e.stopPropagation(); onRemove() }}
                 title="Hücreyi kaldır" aria-label={`${symbol} hücresini kaldır`}>×</button>
 
@@ -176,31 +229,39 @@ export function ChartTile({
         )}
       </div>
 
+      {/* GÖVDE ARTIK BİR DÜĞME DEĞİL (17.08.2026 düzeltmesi).
+          Eskiden tüm gövde onClick ile detay panelini açıyordu; ama grafik
+          kaydırma SÜRÜKLEYEREK yapılıyor ve tarayıcı sürükleme bırakılınca da
+          click üretiyor → her kaydırma denemesi paneli açıyordu. Ölçüldü:
+          sürükleme öncesi panel kapalı, sonrası açık. Yani kaydırmak zor
+          değil, İMKÂNSIZDI. Artık: tek tık seçer, çift tık odak moduna alır,
+          detay başlıktaki açık düğmeden gelir. */}
       <div className="mc-tile__body"
-           onClick={() => onOpenDetail(symbol)}
-           onMouseLeave={() => setHover(null)}
-           role="button" tabIndex={0}
-           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenDetail(symbol) } }}
-           aria-label={`${symbol} detaylarını aç`}>
+           onDoubleClick={() => onFocus?.()}
+           onMouseLeave={() => { setHover(null); onHoverTime?.(null) }}
+           title={interactive ? undefined : 'Çift tık → tam ekran odak'}>
         {(loading || err) && (
           <div className="mc-tile__msg">{loading ? 'yükleniyor…' : `veri yok (${err})`}</div>
         )}
 
-        {bars.length > 0 && (
+        {shown.length > 0 && (
           <PriceChart
-            bars={bars}
+            bars={shown}
             kind={kind}
             compact={compact}
             showAxes                      /* her yoğunlukta açık — yön duygusu */
-            showVolume={density <= 6}
-            overlays={overlays}
+            showVolume={density <= 6 && !percent}
+            overlays={percent ? [] : overlays}
             precision={dec}
-            onCrosshair={setHover}
-            syncGroup={`mc-${tf}`}
+            percent={percent}
+            interactive={interactive}
+            visibleRange={visibleRange}
+            crosshairAt={crosshairAt}
+            onCrosshair={info => { setHover(info); onHoverTime?.(info ? Math.floor(info.time / 1000) : null) }}
           />
         )}
 
-        <span className="mc-tile__hint">detay için tıkla</span>
+        {!interactive && <span className="mc-tile__hint">çift tık → odak</span>}
       </div>
     </div>
   )
