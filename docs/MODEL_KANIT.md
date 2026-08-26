@@ -367,6 +367,101 @@ Ders: uyarı üreten katmanın kendi girdisinin tazeliğini garanti etmesi gerek
 
 ---
 
+## 8.6 Kalibratör kuyruğu ve üç ölçüm hatası (26.08.2026)
+
+Gidişat değerlendirmesi sırasında bulundu. Model kâğıt üzerinde **iyileşmiş**
+görünüyor (AUC 0,529 → 0,563; gün düzeyi lift +2,32 puan, t=2,13 — ilk kez
+sıfırdan ayrı), ama dört ayrı kusur çıktı.
+
+### Kalibratörün üst ucu uydurmaydı
+
+17.08 tazelemesinden sonra isotonic eğrisi:
+
+| ham p | kalibre p |
+|---|---|
+| 0,345 – 0,725 | **0,5251 (tamamen düz)** |
+| 0,875 | 0,965 |
+| ≥ 0,90 | **0,990** |
+
+Düz kısım dürüsttür — "bu aralıkta ayrım yok" der ve sıralama sonucuyla
+(Spearman ≈ 0) birebir tutarlıdır. Sorun uçtaydı: **350 canlı tahminin 52'si
+(%14,9) p_cal ≥ 0,90 aldı** ve Kelly bunları **%10 tavanına** taşıdı (0,5251'de
+%5,2 idi). Oysa o bölgeyi içeren üst kutunun (n=2466) gözlenen oranı **%57,2**.
+Isotonic kuyruğu ezberlemişti. %99'luk bir kalibre olasılık, AUC 0,56 olan bir
+modelle bağdaşmaz.
+
+**Düzeltme — desteklenmeyen basamak iddia edilmez.** Her isotonic basamağının
+arkasında en az `MIN_CALIB_SUPPORT` (200) satır **ve** `MIN_CALIB_SUPPORT_DAYS`
+(10) **bağımsız gün** olmalı. Gün kapısı şart: 200 satır tek haftadan gelebilir —
+PSI (600 satır / 8 gün) ve kalibrasyon raporu (401 satır / 10 gün) hatalarının
+aynısı. Bunun için OOS tarihleri walk-forward'dan kalibratöre kadar taşındı.
+
+Sonuç (26.08 fit, 19.726 OOS): **tavan 0,6425**, 161 OOS örneği tavana indi.
+
+| ham p | önce | sonra |
+|---|---|---|
+| 0,60 | 0,5378 | 0,5378 *(dürüst kısım korundu)* |
+| 0,85 | 0,7500 | **0,6425** |
+| 0,95 | 0,9900 | **0,6425** |
+
+EV +2,85R → +1,11R. **Not:** Kelly, p_cal ≥ 0,64'te `MAX_POSITION_PCT` tavanına
+dayandığı için en üstteki pozisyonlar hâlâ %10. Kırpma *iddiayı* düzeltti,
+*tavanı* değil — 0,6425 gerçekten 200+ satır ve 10+ günle desteklenen bir
+seviye. Tavanı düşürmek ayrı bir karardır ve kullanıcıya aittir.
+
+### I11 filtreyi yapmadığı şeyden suçluyordu
+
+26.08'de kapsam %0'a düştü ve I11 uyardı. Ama sebep filtre **değildi**: ham
+p'nin tamamı `BUY_THRESHOLD`'un (0,58) altındaydı — maksimum 0,5165 — yani
+filtre hiç devreye girmedi. Rejim kapısı da RISK_ON'du. Filtreyi kaldırsak o gün
+yine %0 olurdu.
+
+Bu önemli çünkü §A0'daki başarısızlık ölçütü "10 gün bant dışı → filtre
+KALDIRILIR" diyor. Ölçüm düzeltilmeseydi ölçüt, filtreyi ilgisiz bir sebeple
+kaldırabilirdi. Artık `rec_dir_nofilter` (filtre öncesi yön) loglanıyor ve I11
+bir günü ancak **filtre öncesi kapsam bantta iken filtre sonrası bandın altına
+indiyse** filtreye yazıyor. Atfedilemeyen günler ayrıca ve **ayrı bir cümleyle**
+raporlanıyor — "bilmiyorum" ile "ölçtüm, sebebi bu değil" karıştırılmamalı.
+
+### I2 sahte sapma veriyordu (kendi düzeltmemin eksiği)
+
+I2, bir döngünün tahminlerini **bir sonraki döngünün** özellik fotoğrafıyla
+eşleştirip "39/50 sembolde sapma" dedi. Eşleştirme koşulu mutlak farka bakıyordu
+(`|a−b| ≤ 600`), oysa bir döngüde önce özellikler yazılır sonra tahminler — yani
+eşleşen tahmin fotoğraftan **sonra** olmalı. Koşul `0 ≤ (b−a) ≤ 600` oldu.
+Kesitsel rank kullanıldığı için 5 dakikalık fiyat hareketi bile sıraları oynatıp
+p'yi belirgin değiştiriyor; sahte sapmanın büyüklüğü (0,4465) bundan.
+
+### Gölge defter ana defterin işlemlerini gösteriyordu
+
+`_read_trades` yolu doğru hesaplıyor, varlığını doğru kontrol ediyor, sonra
+modül düzeyindeki `TRADES_FILE`'ı (ana defter) açıyordu. Gölge defter, ana
+defterin 37 işlemini kendi istatistiği gibi gösteriyordu; gerçekte 2 işlemi
+vardı. Defterleri parametreleştirirken atlanan tek satır.
+
+Sharpe ve en kötü ay `equity_history`'den geldiği için **2027-02-12 ölçütleri
+etkilenmemişti**; bozulan yalnız işlem türevli göstergelerdi (sayı, kazanma
+oranı, profit factor).
+
+### Kâğıt portföyün güncel durumu
+
+| Defter | Getiri | Ölçüt | Fark | İşlem |
+|---|---|---|---|---|
+| Ana (filtre + Kelly) | +%1,22 | +%2,84 | **−1,6 p** | 37 |
+| Gölge (filtresiz, eşit ağırlık) | +%5,32 | +%3,97 | +1,4 p | 2 |
+
+13 günlük veri — hiçbir şey kanıtlamaz, ama yön şu an filtrenin aleyhine.
+
+### Canlı kanıt hâlâ eski rejimi anlatıyor
+
+Canlı lift +2,02 puan görünüyor; ama değerlendirilen 624 tahminin **574'ü (%92)
+AL sinyaliydi**. %92 kapsamda "AL" bir seçim değil, "hepsini al" demektir. Gün
+düzeyinde ölçülünce lift **+0,15 puan** (t=2,09) — sıfırdan ayrı ama %42 başabaş
+ve işlem maliyeti karşısında ekonomik olarak hiç. Kapsamın %20-30'a indiği yeni
+rejimden **henüz olgunlaşmış tek sonuç yok**; ilk dürüst okuma Eylül ortası.
+
+---
+
 ## 9. Buradan sonrası — üç dürüst seçenek
 
 1. **Arayüzü gerçeğe uydur.** Bugün 50 hissenin 49'una "GÜÇLÜ ALIM · %53 güven"

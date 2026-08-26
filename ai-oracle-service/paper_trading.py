@@ -332,12 +332,22 @@ def _append_trade(trade: dict, book: str = "main") -> None:
 
 
 def _read_trades(limit: int = 200, book: str = "main") -> list:
+    """Defterin KENDİ işlem dosyasını okur.
+
+    08/2026 hatası: yol `_paths(book)` ile doğru hesaplanıyor ve varlığı doğru
+    kontrol ediliyordu, ama `open()` modül düzeyindeki TRADES_FILE'ı (ANA defter)
+    açıyordu. Sonuç: gölge defter, ana defterin işlemlerini kendi istatistiği
+    gibi gösteriyordu — 37 işlem, %43,2 kazanma, 1,06 profit factor; gerçekte
+    2 işlemi vardı. Defterleri parametreleştirirken atlanan tek satır.
+    Sharpe/en kötü ay `equity_history`'den geldiği için karar ölçütleri
+    etkilenmemişti; bozulan yalnız işlem türevli göstergelerdi.
+    """
     _, tf = _paths(book)
     with _LOCK:
         if not tf.exists():
             return []
         try:
-            with open(TRADES_FILE, "r", encoding="utf-8") as f:
+            with open(tf, "r", encoding="utf-8") as f:
                 rows = list(csv.DictReader(f))
             return rows[-limit:]
         except Exception:

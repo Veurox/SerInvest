@@ -69,6 +69,19 @@ STRONG_BUY_P  = 0.65       # bu üstü → GÜÇLÜ ALIM
 CALIBRATOR_FILE      = ML_DIR / "calibrator.joblib"
 CALIBRATOR_META_FILE = ML_DIR / "calibrator_meta.json"
 EV_FILTER       = True     # AL sinyali kalibre-EV ≤ 0 ise NÖTR'e indirgenir
+# Bir isotonic BASAMAĞININ arkasında olması gereken asgari OOS örneği.
+# 08/2026 bulgusu: 17.08 tazelemesinden sonra eğri 0.345-0.725 arası tamamen
+# DÜZ (0.5251 — "sıralama bilgisi yok", dürüst kısım) ama ham p ≥ 0.90'da
+# 0.99'a fırlıyordu. Isotonic kuyruğu ezberlemişti: üst kutunun (n=2466)
+# gözlenen oranı %57,2 iken eğri %99 iddia ediyordu. Bu, canlıda 350 tahminin
+# 52'sini (%14,9) Kelly'nin %10 TAVANINA taşıdı — kanıt zayıfken risk arttı.
+# n=200'de p≈0.6 için standart hata ~0.035; bundan az örnekle basamak iddia
+# etmek gürültüyü olasılık diye satmaktır.
+MIN_CALIB_SUPPORT = 200
+# ...ve bu satırlar en az bu kadar BAĞIMSIZ GÜNE yayılmalı. Satır sayısı tek
+# başına yanıltıcı: aynı günün 50 sembolü aynı piyasa hareketini paylaşır.
+# 200 satır tek bir haftadan gelebilir. Eşik MIN_EVAL_DAYS ile aynı gerekçe.
+MIN_CALIB_SUPPORT_DAYS = 10
 KELLY_FRACTION  = 0.25     # kesirli Kelly (tam Kelly finansal gürültüde intihardır)
 MIN_POSITION_PCT = 0.01    # bunun altındaki boyut = toz; pozisyon açılmaz
 

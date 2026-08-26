@@ -88,6 +88,7 @@ def purged_walk_forward(data: pd.DataFrame, verbose: bool = True,
 
     oos_p   = []   # tüm OOS P(yukarı)
     oos_y   = []   # tüm OOS gerçek etiket
+    oos_d   = []   # OOS tarihleri — kalibratör desteği GÜN cinsinden sayılsın
     steps   = []
     fold    = 0
 
@@ -109,6 +110,7 @@ def purged_walk_forward(data: pd.DataFrame, verbose: bool = True,
                 p = model.predict_proba(test[FEATURE_NAMES])[:, 1]
                 y = test["label"].astype(int).values
                 oos_p.append(p); oos_y.append(y)
+                oos_d.append(test["date"].astype(str).values)
 
                 # adım metriği
                 pred_dir = (p >= 0.5).astype(int)
@@ -139,13 +141,14 @@ def purged_walk_forward(data: pd.DataFrame, verbose: bool = True,
 
     P = np.concatenate(oos_p)
     Y = np.concatenate(oos_y)
+    D = np.concatenate(oos_d)
 
     # ── Faz 2: Isotonic kalibratör (pooled OOS = tek dürüst kaynak) ──────────
     progress.update(_ptok, stage="kalibratör fit ediliyor", done=_pn, total=_pn)
     if fit_calibration:
         try:
             from ml.calibration import fit_calibrator, save_calibrator
-            cal = fit_calibrator(P, Y)
+            cal = fit_calibrator(P, Y, D)
             if cal is not None:
                 save_calibrator(cal, P, Y)
         except Exception as e:

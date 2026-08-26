@@ -61,6 +61,47 @@ def test_append_trade_allows_genuinely_different_trades(tmp_path, monkeypatch):
     assert f.read_text(encoding="utf-8").count("\n") >= 3   # başlık + 2 satır
 
 
+def test_each_book_reads_its_own_trades(tmp_path, monkeypatch):
+    """
+    08/2026 hatası: _read_trades yolu `_paths(book)` ile DOĞRU hesaplıyor,
+    varlığını DOĞRU kontrol ediyor, ama sonra modül düzeyindeki TRADES_FILE'ı
+    (ana defter) açıyordu. Gölge defter, ana defterin 37 işlemini kendi
+    istatistiği gibi gösteriyordu — gerçekte 2 işlemi vardı.
+
+    Bu, 2027-02-12 karşılaştırmasını kirleten türden bir hata: iki defter
+    aynı sayıları gösterirse kıyas anlamını yitirir.
+    """
+    main_f   = tmp_path / "paper_trades.csv"
+    shadow_f = tmp_path / "paper_trades_shadow.csv"
+    monkeypatch.setattr(pt, "TRADES_FILE", main_f)
+    monkeypatch.setattr(pt, "MODELS_DIR", tmp_path)
+
+    base = {"entry_date": "2026-07-01T10:00:00", "exit_date": "2026-07-11T18:00:00",
+            "exit_reason": "TP", "net_pnl": 10.0}
+    pt._append_trade(dict(base, symbol="ANA1"), book="main")
+    pt._append_trade(dict(base, symbol="ANA2"), book="main")
+    pt._append_trade(dict(base, symbol="ANA3"), book="main")
+    pt._append_trade(dict(base, symbol="GOLGE1"), book="shadow")
+
+    ana    = pt._read_trades(book="main")
+    golge  = pt._read_trades(book="shadow")
+
+    assert len(ana) == 3 and len(golge) == 1
+    assert {t["symbol"] for t in golge} == {"GOLGE1"}      # ana defterin işlemi SIZMADI
+    assert "GOLGE1" not in {t["symbol"] for t in ana}
+    assert shadow_f.exists()
+
+
+def test_missing_book_file_returns_empty(tmp_path, monkeypatch):
+    """Gölge dosyası henüz yoksa ANA dosyaya düşmemeli — boş dönmeli."""
+    main_f = tmp_path / "paper_trades.csv"
+    monkeypatch.setattr(pt, "TRADES_FILE", main_f)
+    monkeypatch.setattr(pt, "MODELS_DIR", tmp_path)
+    pt._append_trade({"entry_date": "2026-07-01T10:00:00", "exit_date": "2026-07-11T18:00:00",
+                      "symbol": "ANA", "exit_reason": "TP"}, book="main")
+    assert pt._read_trades(book="shadow") == []
+
+
 # ── Bariyer taraması (bilgisayar kapalıyken kaçırılan çıkışlar) ──────────────
 
 POS = {"target": 110.0, "stop": 95.0, "entry_date": "2026-07-01", "last_check": None}

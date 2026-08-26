@@ -150,9 +150,15 @@ def i2_train_serve_skew(now) -> dict:
             paired = []
             for s in common:
                 a, b = _sec(snap_ts.get(s, "")), _sec(pred_ts.get(s, ""))
-                # 10 dakikalık pencere: aynı döngünün sembolleri sırayla
-                # işlendiği için aralarında birkaç dakika olabilir.
-                if a is not None and b is not None and abs(a - b) <= 600:
+                # SIRA ÖNEMLİ (26.08.2026 bulgusu): bir döngüde önce özellik
+                # fotoğrafı yazılır, SONRA tahminler. Bu yüzden eşleşen tahmin
+                # fotoğraftan SONRA olmalı. Eski koşul mutlak farka bakıyordu
+                # (|a-b| ≤ 600) ve tahminleri BİR SONRAKİ döngünün fotoğrafıyla
+                # eşleştirebiliyordu: 13:48'in tahminleri 13:53'ün özellikleriyle
+                # kıyaslanınca "39/50 sembolde sapma" gibi sahte bir İHLAL doğdu.
+                # Kesitsel rank kullanıldığı için 5 dakikalık fiyat hareketi bile
+                # sıraları oynatır ve p'yi belirgin değiştirir.
+                if a is not None and b is not None and 0 <= (b - a) <= 600:
                     paired.append(s)
             if len(paired) >= 5:
                 common = paired
@@ -286,7 +292,19 @@ def i11_coverage_target(now) -> dict:
     if not days:
         return _skip("I11", t, f"{RISK_FILTER_SINCE} sonrası tahmin yok — filtre henüz ölçülmedi")
 
-    outside = []
+    # ÖLÇÜM DÜZELTMESİ (26.08.2026): kapsam düşüklüğü filtreye ancak filtre
+    # SEBEP olduysa yazılır. O gün kapsam %0'a düştü ama sebep filtre değildi:
+    # ham p'nin tamamı BUY_THRESHOLD'un altındaydı, filtre hiç devreye girmedi.
+    # Filtreyi kaldırmak o günü düzeltmezdi. Ölçütün AMACI "filtre kapsamı
+    # bantta tutuyor mu" — ölçüm de tam onu ölçmeli.
+    #
+    # `rec_dir_nofilter` filtre ÖNCESİ yönü taşır. Yoksa (eski satırlar) o gün
+    # atfedilemez sayılır ve suçlanmaz.
+    # İki ayrı "bant dışı ama filtre değil" hâli var ve KARIŞTIRILMAMALI:
+    #   no_data  — filtre öncesi yön kolonu yok → ATFEDİLEMEDİ (bilmiyoruz)
+    #   not_filter — kolon var, ölçüldü, sebep filtre DEĞİL (biliyoruz)
+    # İkisine aynı cümleyi kurmak, bilmediğimizi biliyormuş gibi sunmak olurdu.
+    outside, no_data, not_filter = [], 0, 0
     son = None
     for d in days:
         todays = [r for r in rows if (r.get("timestamp") or "")[:10] == d]
@@ -294,24 +312,42 @@ def i11_coverage_target(now) -> dict:
             continue
         cov = sum(1 for r in todays if r.get("rec_dir") == "BUY") / len(todays)
         son = (d, cov)
-        if not (lo <= cov <= hi):
-            outside.append((d, cov))
+        if lo <= cov <= hi:
+            continue
+        pre = [r.get("rec_dir_nofilter") for r in todays]
+        if not any(pre):                      # kolon yok → atfedilemez
+            no_data += 1
+            continue
+        cov_pre = sum(1 for v in pre if v == "BUY") / len(todays)
+        # Filtre yalnız ELEDİĞİ için suçlanır: kapsam bandın ALTINDA ve filtre
+        # ÖNCESİ kapsam bandın altında DEĞİLSE → sebep filtredir.
+        if cov < lo and cov_pre >= lo:
+            outside.append((d, cov, cov_pre))
+        else:
+            not_filter += 1
 
     if son is None:
         return _skip("I11", t, "kapsam hesaplanamadı")
 
     d, cov = son
     hedef = f"hedef %{lo*100:.0f}-%{hi*100:.0f}"
-    # Ardışık 10 gün bant dışı = plandaki başarısızlık ölçütü → İHLAL.
+    parts = []
+    if not_filter:
+        parts.append(f"{not_filter} gün bant dışıydı, ölçüldü: sebebi filtre değil")
+    if no_data:
+        parts.append(f"{no_data} gün bant dışıydı, filtre öncesi kayıt yok — "
+                     f"atfedilemedi (yeni kolon dolmaya başladı)")
+    ek = (" · " + "; ".join(parts)) if parts else ""
+    # Ardışık 10 gün FİLTRE YÜZÜNDEN bant dışı = plandaki başarısızlık ölçütü.
     if len(outside) >= 10:
         return _fail("I11", t,
-                     f"{len(outside)} ardışık gün bant dışı ({hedef}) — plandaki "
+                     f"{len(outside)} gün FİLTRE nedeniyle bant dışı ({hedef}) — plandaki "
                      f"başarısızlık ölçütü: filtre kaldırılmalı")
     if outside:
         return _warn("I11", t,
-                     f"son {len(days)} günün {len(outside)}'inde bant dışı; "
-                     f"{d}: %{cov*100:.0f} ({hedef})")
-    return _ok("I11", t, f"{d}: kapsam %{cov*100:.0f} ({hedef})")
+                     f"son {len(days)} günün {len(outside)}'inde filtre kapsamı "
+                     f"bandın altına indirdi; {d}: %{cov*100:.0f} ({hedef}){ek}")
+    return _ok("I11", t, f"{d}: kapsam %{cov*100:.0f} ({hedef}){ek}")
 
 
 def i6_calibrator_sane(now) -> dict:

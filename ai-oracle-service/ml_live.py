@@ -519,6 +519,11 @@ def analyze_symbol(model, sym: str, yf_sym: str, snap: tuple,
         "p_cal": round(p_cal, 4), "ev": round(ev, 4),
         "rec": rec, "rec_dir": rec_dir, "close": close,
         "target": tp, "stop": sl, "atr_pct": round(clamp_atr_pct(atr_pct), 5),
+        # Filtre ÖNCESİ yön. I11 kapsamı bununla yargılar: filtre yalnız kendi
+        # elediği için suçlanabilir. 26.08.2026'da kapsam %0'a düştü ama sebep
+        # filtre DEĞİLDİ — ham p'nin tamamı eşiğin altındaydı, filtre hiç
+        # devreye girmedi. Bu kolon olmadan I11 farkı göremiyordu.
+        "rec_dir_nofilter": rec_dir_nofilter,
     }
     return msg, log, (df, close, rec_dir, p_cal, pos, tp, sl, ev, rec_dir_nofilter)
 
@@ -792,7 +797,8 @@ def _run_ml_cycle_locked(model_holder: list):
 # ═════════════════════════════════════════════════════════════════════════════
 
 _LOG_FIELDS = ["timestamp", "symbol", "yf_sym", "p_up", "p_cal", "ev",
-               "rec", "rec_dir", "close", "target", "stop", "atr_pct", "eval"]
+               "rec", "rec_dir", "rec_dir_nofilter", "close", "target", "stop",
+               "atr_pct", "eval"]
 
 
 def _log_prediction(log: dict):
