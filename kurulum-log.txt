@@ -1,0 +1,10 @@
+﻿[2026-08-29 23:30:59] ----- yeni calistirma -----
+[2026-08-29 23:30:59] == SerInvest -- Kapatiliyor ==
+[2026-08-29 23:30:59] OK: Docker calisiyor
+[2026-08-29 23:31:11] OK: Program kapatildi. BASLAT.bat ile tekrar acabilirsiniz.
+[2026-08-29 23:34:14] ----- yeni calistirma -----
+[2026-08-29 23:34:14] == SerInvest -- Aciliyor ==
+[2026-08-29 23:34:14] OK: Docker calisiyor
+[2026-08-29 23:34:14]   Servisler baslatiliyor...
+[2026-08-29 23:34:31]   Ekranin hazir olmasi bekleniyor (en fazla 4 dakika)...
+[2026-08-29 23:34:31] OK: Hazir -- tarayici aciliyor

@@ -1,0 +1,105 @@
+===============================================================
+  SerInvest — Kurulum Rehberi
+===============================================================
+
+Merhaba! Bu program bir borsa analiz uygulamasıdır.
+Kurulum tek seferlik ve iki adımdan ibaret.
+
+
+---------------------------------------------------------------
+ADIM 1 — Docker Desktop'ı kurun (yalnızca ilk sefer)
+---------------------------------------------------------------
+
+Program çalışmak için "Docker Desktop" adlı ücretsiz bir
+uygulamaya ihtiyaç duyar.
+
+  1. Şu adrese gidin:
+       https://www.docker.com/products/docker-desktop/
+
+  2. "Download for Windows" düğmesine basıp indirin.
+
+  3. İnen dosyayı çalıştırın, hep "Next / Ileri" diyerek kurun.
+     (Ayarlarda hiçbir şeyi değiştirmenize gerek yok.)
+
+  4. Kurulum bitince BİLGİSAYARI YENİDEN BAŞLATIN.
+
+  5. Açılışta Docker Desktop kendiliğinden başlar. Sağ alt
+     köşede küçük bir balina simgesi göreceksiniz. Simge
+     hareket etmeyi bırakıp sabitlenene kadar bekleyin
+     (ilk açılışta 1-2 dakika sürebilir).
+
+
+---------------------------------------------------------------
+ADIM 2 — Programı kurun
+---------------------------------------------------------------
+
+  KUR.bat  dosyasına ÇİFT TIKLAYIN.
+
+Siyah bir pencere açılacak ve kurulum başlayacak.
+
+  * İlk kurulum 10-15 dakika sürer. Bu normaldir.
+  * Pencerede hızla akan yazılar normaldir, bir şey bozuk değil.
+  * Bu sırada pencereyi kapatmayın, bilgisayarı uyutmayın.
+
+Kurulum bitince tarayıcınız kendiliğinden açılır.
+
+
+---------------------------------------------------------------
+GÜNLÜK KULLANIM
+---------------------------------------------------------------
+
+  Açmak için   :  BASLAT.bat  dosyasına çift tıklayın
+  Kapatmak için:  DURDUR.bat  dosyasına çift tıklayın
+
+Program tarayıcıda şu adreste çalışır:
+
+    http://localhost:3000
+
+İnternet üzerinden bir yere bağlanmaz; her şey sizin
+bilgisayarınızda çalışır.
+
+
+---------------------------------------------------------------
+İLK GÜN NE BEKLEMELİ
+---------------------------------------------------------------
+
+Kurulumdan hemen sonra yapay zeka modeli kendini ilk kez
+eğitir. Bu 10-20 dakika sürer.
+
+O zamana kadar tahmin bölümleri boş veya eksik görünebilir.
+Bu bir arıza değildir — model henüz öğreniyor.
+
+Ayrıca: program yalnızca AÇIKKEN veri toplar ve tahmin
+üretir. Kapalıyken geçen borsa günleri geri gelmez. Test
+ederken mümkün olduğunca açık bırakmanız iyi olur
+(hafta içi, kabaca 10:00-19:30 arası).
+
+
+---------------------------------------------------------------
+BİR SORUN ÇIKARSA
+---------------------------------------------------------------
+
+Klasörde  kurulum-log.txt  adlı bir dosya oluşur.
+Sorun yaşarsanız bu dosyayı bana gönderin — içinde ne olduğu
+yazıyor.
+
+En sık karşılaşılan iki durum:
+
+  * "Docker Desktop kurulu degil" yazıyorsa
+      -> Adım 1'i atlamışsınızdır.
+
+  * Pencere hemen kapanıyorsa
+      -> Docker Desktop henüz açılmamıştır. Balina simgesi
+         sabitlenene kadar bekleyip tekrar deneyin.
+
+
+---------------------------------------------------------------
+ÖNEMLİ NOT
+---------------------------------------------------------------
+
+Bu program bir DENEME/ARAŞTIRMA projesidir.
+
+Ekranda gördüğünüz tahminler yatırım tavsiyesi DEĞİLDİR.
+Modelin hisse seçme becerisi ölçülmüş ve şu ana kadar
+kanıtlanamamıştır; program bunu kendi "Model" sayfasında
+açıkça yazar. Gerçek parayla işlem yapmak için kullanmayın.
