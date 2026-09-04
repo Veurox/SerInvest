@@ -462,6 +462,121 @@ rejimden **henüz olgunlaşmış tek sonuç yok**; ilk dürüst okuma Eylül ort
 
 ---
 
+## 8.7 Kod incelemesi ve sızıntı testleri (04.09.2026)
+
+Kıdemli FinML incelemesi. Şimdiye kadar walk-forward'un dürüstlüğü **kod
+okuyarak** savunuluyordu; ilk kez **sınandı** (`ml/experiment_leakage.py`).
+
+### Sızıntı testi — üç senaryo
+
+| Test | AUC | Beklenen | Yargı |
+|---|---|---|---|
+| Referans (gerçek etiket, gerçek purge) | 0,5459 | — | — |
+| **A** · etiketler global karıştırıldı | **0,4977** | ≈0,500 | ✓ temiz |
+| **B** · etiketler GÜN İÇİNDE karıştırıldı | **0,5506** | ≈0,500 | ✗ **beklenmedik** |
+| **C** · purge sıfırlandı (kasıtlı sızıntı) | 0,5667 | referanstan yüksek | ✓ purge iş görüyor |
+
+**A geçti:** klasik anlamda özellik–etiket sızıntısı YOK. **C geçti:** purge
+gerçekten koruma sağlıyor (kaldırılınca skor +0,021 sıçrıyor), yani walk-forward
+mimarisi çalışıyor.
+
+**B kaldı ve asıl bulgu bu.** Gün içi karıştırma, gün etkisini korur ama
+kesitsel bağı koparır. AUC yine de 0,5506 çıktı — üstelik gerçek etiketlerden
+(0,5459) **yüksek**. Anlamı: havuzlanmış AUC seçicilik değil, **gün etkisi**
+ölçüyor. §2'deki gün-içi Spearman ≈ 0 bulgusuyla bağımsız yoldan aynı sonuca
+varıyor.
+
+### Sebep: kesitsel rank dejenerasyonu
+
+B'nin sebebi arandı ve bulundu. `usdtry_ret5` **piyasa geneli** bir seri —
+aynı gün tüm sembollerde AYNI değer. `XSEC_RANK` bunu gün-içi percentile'a
+çevirince hepsi berabere kalıyor ve pandas ortalama sırayı veriyor:
+
+> rank_pct = (n + 1) / (2n),  n = o günkü sembol sayısı
+
+Ölçüldü — gözlenen değerler formülle **birebir**:
+
+| n | gözlenen | (n+1)/(2n) |
+|---|---|---|
+| 1 | 1,000000 | 1,000000 |
+| 9 | 0,555556 | 0,555556 |
+| 25 | 0,520000 | 0,520000 |
+| 29 | 0,517241 | 0,517241 |
+
+27 farklı değer, 0,510–1,000 aralığında, sembol sayısıyla korelasyon −0,45.
+
+İki sonucu var:
+
+1. **Özellik sıfır bilgi taşıyor** ama şampiyon künyesinde **%7,3 ağırlıkla
+   3. sırada**. Model kapasitesinin bir kısmı boşa gidiyor.
+2. **Gün kimliğini sızdırıyor.** Saf kesitsel olması gereken modele "bugün
+   hangi gün" bilgisi giriyor — B testinin 0,50'ye düşmemesinin sebebi.
+
+Bu bir **geleceğe bakma sızıntısı değil** (evren büyüklüğü o gün bilinir), ama
+havuzlanmış AUC'yi "hisse seçme becerisi" diye okumayı geçersiz kılar.
+
+`ml/experiment_xsec.py` bu özelliğin MUTLAK hâlinin de zararlı olduğunu zaten
+ölçmüştü (AUC 0,46, lift −4,2p). Yani ne ham ne rank'li hâli işe yarıyor →
+**çıkarılmalı**. Çıkarmak şampiyonun yeniden eğitilmesini ve kalibratörün
+tazelenmesini gerektirdiği için karar kullanıcıya bırakıldı; sorun
+**I13** değişmeziyle görünür kılındı (şu an FAIL veriyor).
+
+Not: gün içi sabit olan TEK özellik bu (21 özellik tarandı). Dejenere günler
+(n<20) ihmal edilebilir: 31.086 satırın 11'i.
+
+### Hayatta kalma yanlılığı — bu dosyanın eksiğiydi
+
+`ml/universe.py`'deki `BIST50_TICKERS` **bugün** kürasyonu yapılmış sabit bir
+liste; eğitim seti 2023-09 → 2026-08. 2023'te likit olup sonradan endeksten
+düşen, birleşen veya işlem görmez hâle gelen semboller veri setinde **yok**.
+
+Bu dosya beş yanlılığı (seçim, örtüşme, çoklu deneme, gün kümelenmesi, rejim)
+titizlikle sayıyordu ama bunu anmıyordu. Etkisi tek yönlü: **ölçülen performans
+yukarı yanlı**. Yani §0'daki "kenar yok" sonucu bu bulguyla çürümez, aksine
+güçlenir — gerçek kenar ölçülenden muhtemelen daha kötü.
+
+### Düzeltilen: değerlendirmede düzeltme tabanı uyuşmazlığı
+
+`evaluate_ml` giriş fiyatını **logdan** (tahmin anında yazılan), bariyer
+barlarını **bugün** `auto_adjust=True` ile alıyordu. Araya temettü/bedelsiz
+girerse yfinance geçmiş fiyatları geriye dönük düşürür, logdaki giriş eski
+tabanda kalır → hisse düşmüş görünür → **sahte SL**. BIST'te temettü ve
+bedelsiz sık olduğu için bu "eninde sonunda" değil "her ilkbahar" ısırırdı.
+
+12 sembolde ölçüldü: şu an sapma yok (örneklem temmuz-eylül, temettü sezonu
+dışı). Yani açık **uykudaydı**. Düzeltildi: giriş fiyatı artık AYNI indirmeden
+alınıyor, pencere `ml/labels.py` ile birebir aynı (`i+1 .. i+HORIZON`) ve
+hafta sonu loglanan tahminler için giriş barı geriye doğru aranıyor. Ayrışma
+saptanırsa artık sonucu bozmuyor, syslog'a sayı olarak düşüyor.
+
+### Eğitim/canlı özellik penceresi — ölçüldü, küçük
+
+Eğitim 3 yıl (756 bar), canlı 1 yıl (255 bar) indiriyor. EMA200 özyinelemeli
+olduğu için yakınsamamış oluyor: `ema200_trend` −0,00332 yerine −0,00483
+(%46 göreli fark). Ama kesitsel etkisi küçük: 14 sembolde rank korelasyonu
+**0,9912**, ortalama sıra kayması 0,02, özellik ağırlığı %6,3. Diğer özellikler
+ihmal edilebilir farkta; en ağırlıklı `above_ema200` (%16,1) hiç etkilenmiyor.
+
+**Önemli olan yan bulgu:** `I2` bu hata sınıfını **yakalayamaz**. I2, loglanan
+özelliklerden p'yi yeniden hesaplayıp loglanan p ile kıyaslar — iki taraf da
+canlı özellikleri kullanır. Ham veriden özelliğe giden yol hiç sınanmaz.
+
+### Temiz çıkanlar (sınandı, sorun yok)
+
+- `ml/labels.py`: gelecek penceresi `i+1`'den başlıyor, döngü `n−horizon`'da
+  bitiyor, ATR giriş gününe kadarki veriden → sızıntı yok.
+- Aynı gün TP+SL çakışması etiketlemede ve kâğıt işlemde AYNI muhafazakâr
+  kuralı (DOWN) uyguluyor.
+- `xsec_rank` eğitim ve canlı yolda birebir aynı matematik.
+- Bağlam serileri `reindex + ffill` ile hizalanıyor, geleceğe bakmıyor.
+- **Isınma dönemi endişesi doğrulanmadı:** `compute_features`'ın NaN→0
+  doldurması ısınmada `price_vs_52w_high`'ı "tam zirvede" gösterebilirdi. 749
+  günün 219'unda TÜM semboller ısınmada olduğu için berabere kalıp rank 0,5'e
+  (nötr) düşüyor; yalnız **1 gün** karışık. Kesitsel rank tasarımı bu hatayı
+  kendiliğinden emmiş.
+
+---
+
 ## 9. Buradan sonrası — üç dürüst seçenek
 
 1. **Arayüzü gerçeğe uydur.** Bugün 50 hissenin 49'una "GÜÇLÜ ALIM · %53 güven"

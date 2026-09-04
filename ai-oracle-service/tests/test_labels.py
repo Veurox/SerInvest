@@ -186,3 +186,102 @@ def test_compute_labels_only_valid_values():
     df  = _df(list(closes), list(closes * 1.02), list(closes * 0.98))
     atr = pd.Series([AP] * n, index=df.index)
     assert set(compute_labels(df, atr).unique()) <= {-1, 0, 1}
+
+
+# ── Değerlendirme penceresi = etiketleme penceresi (09/2026 kod incelemesi) ──
+# evaluate_ml, giriş fiyatını LOGDAN alıp bariyerleri BUGÜN indirilen düzeltilmiş
+# barlardan okuyordu. Araya temettü/bedelsiz girince iki taraf farklı düzeltme
+# tabanında kalıyor ve SAHTE SL tetikleniyordu. Düzeltmeden sonra giriş de aynı
+# indirmeden geliyor. Bu testler, canlı değerlendirmenin eğitimdeki etiketleme
+# ile AYNI pencereyi kullandığını çivi ler — iki tanım ayrışırsa model kendi
+# ürettiği etiketten farklı bir gerçeğe göre yargılanır.
+
+def _seri(kapanislar, yuksekler=None, alcaklar=None):
+    import pandas as pd
+    n = len(kapanislar)
+    return pd.DataFrame({
+        "Close": kapanislar,
+        "High":  yuksekler if yuksekler else kapanislar,
+        "Low":   alcaklar  if alcaklar  else kapanislar,
+    }, index=pd.date_range("2026-01-01", periods=n, freq="D"))
+
+
+def test_eval_penceresi_etiketleme_ile_ayni():
+    """
+    Aynı fiyat serisi üzerinde:
+      • compute_labels'in i=0 için verdiği etiket
+      • evaluate_ml'in dilimlemesiyle (i0=0) triple_barrier_label
+    AYNI olmalı. Ayrışırsa canlı isabet, eğitimdeki etiketten başka bir şeyi ölçer.
+    """
+    import numpy as np
+    import pandas as pd
+    from ml.config import HORIZON
+    from ml.labels import compute_labels, triple_barrier_label
+
+    # 12 barlık seri: 3. günde belirgin yukarı hareket
+    kapanis = [100.0] * (HORIZON + 2)
+    yuksek  = list(kapanis); alcak = list(kapanis)
+    yuksek[3] = 130.0                      # TP'yi rahatça geçer
+    df = _seri(kapanis, yuksek, alcak)
+    atr = pd.Series(0.02, index=df.index)
+
+    beklenen = compute_labels(df, atr, horizon=HORIZON).iloc[0]
+
+    # evaluate_ml'in yaptigi dilimleme (i0 = 0)
+    h = np.asarray(df["High"], dtype=float)
+    l = np.asarray(df["Low"], dtype=float)
+    c = np.asarray(df["Close"], dtype=float)
+    i0 = 0
+    alinan = triple_barrier_label(
+        entry        = float(c[i0]),
+        future_highs = h[i0 + 1 : i0 + 1 + HORIZON],
+        future_lows  = l[i0 + 1 : i0 + 1 + HORIZON],
+        final_close  = float(c[i0 + HORIZON]),
+        atr_pct      = 0.02,
+    )
+    assert alinan == beklenen == 1
+
+
+def test_giris_gunu_hareketi_sayilmaz():
+    """Giriş gününün kendi gün-içi hareketi bariyeri TETİKLEMEMELİ —
+    pozisyon o gün kapanışta açılır. Pencere i+1'den başlar."""
+    import numpy as np
+    from ml.config import HORIZON
+    from ml.labels import triple_barrier_label
+
+    c = [100.0] * (HORIZON + 1)
+    h = list(c); l = list(c)
+    h[0] = 200.0        # giriş gününde devasa yükseliş — SAYILMAMALI
+    l[0] = 50.0         # ve devasa düşüş — SAYILMAMALI
+    lab = triple_barrier_label(
+        entry=100.0,
+        future_highs=np.asarray(h[1:1 + HORIZON], dtype=float),
+        future_lows=np.asarray(l[1:1 + HORIZON], dtype=float),
+        final_close=100.0, atr_pct=0.02,
+    )
+    assert lab == -1     # hiçbir bariyer değmedi, yatay → NÖTR
+
+
+def test_duzeltme_tabani_tekligi_sahte_sl_uretmez():
+    """
+    KÖK SORUNUN kendisi: giriş ESKİ tabanda, barlar YENİ tabanda olursa
+    (temettü sonrası geriye dönük düzeltme) sahte SL çıkar. Aynı tabanda
+    okununca çıkmaz.
+    """
+    import numpy as np
+    from ml.config import HORIZON
+    from ml.labels import triple_barrier_label
+
+    # Gerçekte fiyat yatay; ama %5 temettü sonrası tüm barlar 95'e çekilmiş.
+    barlar = np.asarray([95.0] * HORIZON, dtype=float)
+
+    # YANLIŞ: giriş log'dan (100, eski taban), barlar yeni taban
+    yanlis = triple_barrier_label(entry=100.0, future_highs=barlar,
+                                  future_lows=barlar, final_close=95.0, atr_pct=0.02)
+    # DOĞRU: giriş de aynı indirmeden (95)
+    dogru = triple_barrier_label(entry=95.0, future_highs=barlar,
+                                 future_lows=barlar, final_close=95.0, atr_pct=0.02)
+
+    assert yanlis == 0     # sahte SL / aşağı etiket
+    assert dogru == -1     # gerçek: yatay → NÖTR
+    assert yanlis != dogru

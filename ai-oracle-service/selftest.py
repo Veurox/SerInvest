@@ -522,11 +522,67 @@ def i12_calibrator_matches_reality(now) -> dict:
                  f"Çözüm: Doğrulama Çalıştır (walk-forward) ile kalibratörü tazele.")
 
 
+def i13_no_within_day_constant_feature(now) -> dict:
+    """
+    Kesitsel rank'e giren hiçbir özellik GÜN İÇİ SABİT olmamalı.
+
+    09/2026 kod incelemesi bulgusu. `usdtry_ret5` piyasa geneli bir seri —
+    aynı gün tüm sembollerde AYNI değer. XSEC_RANK bunu gün içi percentile'a
+    çevirince hepsi berabere kalıyor ve pandas `rank(pct=True)` ortalama sırayı
+    veriyor: (n+1)/(2n). Yani özellik, USD/TRY hakkında SIFIR bilgi taşıyor;
+    taşıdığı tek şey O GÜN KAÇ SEMBOL OLDUĞU.
+
+    Ölçüldü: 27 farklı değer, 0.510–1.000 aralığında, sembol sayısıyla
+    korelasyon −0.45, ve gözlenen değerler (n+1)/(2n) formülüyle BİREBİR uyuşuyor
+    (n=9 → 0.5556, n=25 → 0.5200, n=1 → 1.0000).
+
+    İki sonucu var:
+      1. Model bu özelliğe ağırlık veriyor (şampiyon künyesinde %7.3, 3. sırada)
+         ama karşılığında bilgi almıyor — kapasite israfı.
+      2. Gün kimliğini sızdırıyor. Saf kesitsel olması gereken modele "bugün
+         hangi gün" bilgisi giriyor. Gün-içi karıştırma testinde AUC'nin
+         0.50'ye düşmemesinin (0.5506 ölçüldü) sebebi budur.
+
+    Bu bir GELECEĞE BAKMA sızıntısı DEĞİL — evren büyüklüğü o gün bilinir.
+    Ama havuzlanmış AUC'yi "hisse seçme becerisi" diye okumayı geçersiz kılar.
+
+    Çözüm iki seçenekten biri: özelliği FEATURE_NAMES'ten çıkarmak (önerilen —
+    ml/experiment_xsec.py mutlak hâlinin ZARARLI olduğunu zaten ölçmüştü:
+    AUC 0.46, lift −4.2p) veya rank dönüşümünden muaf tutmak. İkisi de
+    şampiyonun yeniden eğitilmesini gerektirir, o yüzden karar kullanıcınındır.
+    """
+    t = "I13 · Kesitsel özellik dejenerasyonu"
+    from ml.config import TRAIN_CACHE, XSEC_RANK, FEATURE_NAMES
+    if not XSEC_RANK:
+        return _skip("I13", t, "XSEC_RANK kapalı — kesitsel rank uygulanmıyor")
+    if not TRAIN_CACHE.exists():
+        return _skip("I13", t, "eğitim önbelleği yok")
+    try:
+        import pandas as pd
+        d = pd.read_csv(TRAIN_CACHE, usecols=["date"] + list(FEATURE_NAMES))
+        if d.empty:
+            return _skip("I13", t, "eğitim önbelleği boş")
+        bozuk = []
+        for c in FEATURE_NAMES:
+            nu = d.groupby("date")[c].nunique()
+            if len(nu) and (nu <= 1).mean() > 0.9:
+                bozuk.append(c)
+        if not bozuk:
+            return _ok("I13", t, f"{len(FEATURE_NAMES)} özelliğin hepsi gün içinde değişiyor")
+        return _fail("I13", t,
+                     f"{', '.join(bozuk)} gün içinde SABİT → kesitsel rank sonrası "
+                     f"yalnızca evren büyüklüğünü ((n+1)/(2n)) kodluyor, bilgi taşımıyor. "
+                     f"Çıkarılmalı veya rank'ten muaf tutulmalı (şampiyon yeniden eğitilir).")
+    except Exception as e:
+        return _warn("I13", t, f"kontrol edilemedi: {e}")
+
+
 CHECKS = [i1_date_basis, i2_train_serve_skew, i3_tier_matches_confidence,
           i4_thresholds_from_config, i5_coverage_envelope, i6_calibrator_sane,
           i7_prediction_schema, i8_no_duplicates, i9_promotion_balance,
           i10_jobs_not_overdue, i11_coverage_target,
-          i12_calibrator_matches_reality]
+          i12_calibrator_matches_reality,
+          i13_no_within_day_constant_feature]
 
 
 def run(send_syslog=None) -> dict:

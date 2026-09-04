@@ -894,6 +894,10 @@ def evaluate_ml():
         except Exception:
             return False
 
+    # Kurumsal işlem (temettü/bedelsiz) nedeniyle log fiyatı ile bugünkü
+    # düzeltilmiş fiyatın ayrıştığı durumlar — artık sonucu bozmuyor, sayılıyor.
+    _adj_sapma: list = []
+
     _ptodo = sum(1 for r in rows if _is_todo(r))
     _ptok = progress.start_if_idle("degerlendirme")
     _pdone = 0
@@ -916,10 +920,27 @@ def evaluate_ml():
         _pdone += 1
         progress.update(_ptok, stage=f"değerlendiriliyor: {row.get('symbol', '?')}", done=_pdone)
         try:
-            entry   = float(row["close"])
             atr_pct = float(row.get("atr_pct") or 0.0) or None
             yf_sym  = row["yf_sym"]
-            win_start = (ts + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+            # DÜZELTME TABANI TEKLİĞİ (09/2026 kod incelemesi).
+            #
+            # Eskiden giriş fiyatı LOGDAN (tahmin anında yazılan değer), bariyer
+            # barları ise ŞİMDİ `auto_adjust=True` ile iniyordu. Araya temettü
+            # veya bedelsiz girerse yfinance geçmiş fiyatları geriye dönük aşağı
+            # çeker; log'daki giriş eski tabanda kalır. Sonuç: hisse düşmüş gibi
+            # görünür ve SAHTE SL tetiklenir — canlı isabet sistematik olarak
+            # aşağı yanlı olurdu. BIST'te temettü ve bedelsiz sık olduğu için
+            # bu "eninde sonunda" değil "her ilkbahar" ısıran bir hatadır.
+            #
+            # Çözüm: girişi de AYNI indirmeden al. İki taraf tek düzeltme
+            # tabanında olunca olay ne olursa olsun bariyerler tutarlı kalır.
+            # Pencere tahmin GÜNÜNDEN başlar; giriş o günün kapanışıdır ve
+            # gelecek barlar bir SONRAKİ günden itibaren sayılır (etiketleme
+            # tanımıyla aynı: ml/labels.py `i+1`).
+            # Geriye tampon: tahmin hafta sonu/tatilde loglanmış olabilir; o
+            # zaman giriş barı ÖNCEKİ işlem günüdür. İlk satırı körlemesine
+            # giriş saymak Pazartesi'yi giriş yapardı.
+            win_start = (ts - datetime.timedelta(days=10)).strftime("%Y-%m-%d")
             win_end   = (ts + datetime.timedelta(days=HORIZON + 12)).strftime("%Y-%m-%d")
             dfw = yf.download(yf_sym, start=win_start, end=win_end, interval="1d",
                               auto_adjust=True, progress=False, threads=False)
@@ -927,12 +948,44 @@ def evaluate_ml():
                 continue
             if isinstance(dfw.columns, pd.MultiIndex):
                 dfw.columns = dfw.columns.droplevel(1)
-            highs = np.asarray(dfw["High"], dtype=float).flatten()[:HORIZON]
-            lows  = np.asarray(dfw["Low"],  dtype=float).flatten()[:HORIZON]
-            closes = np.asarray(dfw["Close"], dtype=float).flatten()[:HORIZON]
-            if len(closes) == 0:
+
+            idx = pd.to_datetime(dfw.index)
+            try:
+                idx = idx.tz_localize(None)
+            except (TypeError, AttributeError):
+                pass
+            gunler = np.asarray(idx.normalize())
+            pred_gun = np.datetime64(ts.date())
+            oncekiler = np.where(gunler <= pred_gun)[0]
+            if len(oncekiler) == 0:
                 continue
-            final_close = float(closes[-1])
+            i0 = int(oncekiler[-1])          # giriş barı = tahmin gününde ya da öncesinde
+
+            highs_all  = np.asarray(dfw["High"],  dtype=float).flatten()
+            lows_all   = np.asarray(dfw["Low"],   dtype=float).flatten()
+            closes_all = np.asarray(dfw["Close"], dtype=float).flatten()
+            if len(closes_all) <= i0 + HORIZON:
+                continue                      # ufuk henüz kapanmamış — dokunma
+
+            # Giriş fiyatı AYNI indirmeden: log'daki değil. Böylece giriş ve
+            # bariyerler tek düzeltme tabanında olur.
+            entry = float(closes_all[i0])
+            # Pencere ml/labels.py ile BİREBİR aynı: i+1 .. i+HORIZON
+            highs  = highs_all[i0 + 1 : i0 + 1 + HORIZON]
+            lows   = lows_all[i0 + 1 : i0 + 1 + HORIZON]
+            final_close = float(closes_all[i0 + HORIZON])
+
+            # Gözlemlenebilirlik: log'daki fiyatla bugünkü düzeltilmiş fiyat
+            # ayrışmışsa araya kurumsal işlem (temettü/bedelsiz) girmiştir.
+            # Artık sonucu bozmuyor ama KAÇ KEZ olduğunu bilmek istiyoruz.
+            try:
+                loglu = float(row["close"])
+                if loglu > 0 and abs(entry - loglu) / loglu > 0.005:
+                    _adj_sapma.append((row.get("symbol"), row["timestamp"][:10],
+                                       round(100 * (entry - loglu) / loglu, 2)))
+            except Exception:
+                pass
+
             ret = (final_close - entry) / entry if entry else 0.0
             lab = triple_barrier_label(entry, highs, lows, final_close, atr_pct)
             actual = "UP" if lab == 1 else "DOWN" if lab == 0 else "NEUTRAL"
@@ -944,6 +997,13 @@ def evaluate_ml():
 
     if updated:
         atomic.write_csv(PREDICTION_LOG, list(rows[0].keys()), rows)
+
+    if _adj_sapma:
+        ornek = ", ".join(f"{s_}@{d_} %{f_:+.1f}" for s_, d_, f_ in _adj_sapma[:5])
+        send_syslog(f"[ml eval] {len(_adj_sapma)} tahminde kurumsal işlem düzeltmesi "
+                    f"saptandı (temettü/bedelsiz); giriş fiyatı aynı indirmeden "
+                    f"alındığı için sonuç bozulmadı. Örnek: {ornek}", "INFO")
+
     progress.finish(_ptok, True, f"{_pdone} olgun tahmin yargılandı")
     rebuild_ml_stats()
 

@@ -211,3 +211,54 @@ def test_calibration_scoped_to_current_calibrator(tmp_path, monkeypatch):
     assert rep["n_pre_fit_excluded"] == 7 * 40      # 1-7. günler kapsam dışı
     assert rep["n_evaluated"] == 5 * 40             # yalnız 8-12. günler
     assert rep["status"] == "COLLECTING"            # 5 gün < MIN_EVAL_DAYS
+
+
+# ── Kesitsel rank dejenerasyonu (09/2026 kod incelemesi) ────────────────────
+
+def test_gun_ici_sabit_ozellik_evren_buyuklugunu_kodlar():
+    """
+    MEKANİZMANIN kendisi: gün içinde SABİT bir özellik (piyasa geneli seri)
+    kesitsel percentile rank'e sokulunca tüm değerler berabere kalır ve pandas
+    ortalama sırayı verir → (n+1)/(2n). Yani özellik, kendi bilgisini tamamen
+    kaybedip O GÜNKÜ SEMBOL SAYISINI kodlar.
+
+    Bu, `usdtry_ret5`'in modelde %7.3 ağırlığa sahip olmasına rağmen sıfır
+    kesitsel bilgi taşımasının sebebidir (bkz. selftest I13).
+    """
+    import pandas as pd
+    from ml.features import xsec_rank_frame
+
+    for n in (9, 25, 50):
+        d = pd.DataFrame({
+            "date": ["2026-01-05"] * n,
+            "symbol": [f"S{i}" for i in range(n)],
+            # gün içi SABİT: piyasa geneli bir seri gibi
+            "usdtry_ret5": [0.0123] * n,
+            # gün içi DEĞİŞEN: karşılaştırma için
+            "rsi": list(range(n)),
+        })
+        r = xsec_rank_frame(d, cols=["usdtry_ret5", "rsi"])
+        beklenen = (n + 1) / (2 * n)
+        assert r["usdtry_ret5"].nunique() == 1
+        assert abs(r["usdtry_ret5"].iloc[0] - beklenen) < 1e-9, \
+            f"n={n}: beklenen {beklenen}, gelen {r['usdtry_ret5'].iloc[0]}"
+        # Değişen özellik bilgisini KORUMALI
+        assert r["rsi"].nunique() == n
+
+
+def test_farkli_evren_buyuklugu_farkli_deger_uretir():
+    """Evren büyüklüğü değişince sabit özelliğin rank'i de değişir — model
+    bunu gün kimliği olarak öğrenebilir. Saf kesitsel bir modelde olmamalı."""
+    import pandas as pd
+    from ml.features import xsec_rank_frame
+
+    degerler = set()
+    for n in (20, 30, 45, 50):
+        d = pd.DataFrame({
+            "date": ["2026-01-05"] * n,
+            "symbol": [f"S{i}" for i in range(n)],
+            "usdtry_ret5": [0.0123] * n,
+        })
+        degerler.add(round(float(xsec_rank_frame(d, cols=["usdtry_ret5"])["usdtry_ret5"].iloc[0]), 6))
+    # Dört farklı evren büyüklüğü DÖRT farklı değer verir → gün kimliği sızar
+    assert len(degerler) == 4
