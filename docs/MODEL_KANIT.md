@@ -38,27 +38,41 @@ gözlem saymak. Bundan sonraki tüm ölçümler gün bazında bağımsızdır.
 
 ## 2. Asıl test: gün içinde sıralayabiliyor mu?
 
-`ml/experiment_ranking.py` — walk-forward OOS, **19.898 tahmin · 485 gün**.
+`ml/experiment_ranking.py` — walk-forward OOS, **19.939 tahmin · 487 gün**.
+
+> ⚠ **Bu bölüm 04.09.2026'da YENİDEN ÖLÇÜLDÜ.** Önceki rakamlar `usdtry_ret5`
+> özelliğinin gün kimliği sızdırdığı modelden geliyordu (bkz. §8.7). Özellik
+> çıkarılıp şampiyon yeniden eğitilince tablo değişti — ve **tek "anlamlı"
+> bulgu kayboldu**. Eski değerler karşılaştırma için parantez içinde bırakıldı.
 
 | Ölçüt | Değer | t | Yargı |
 |---|---|---|---|
-| Gün-içi Spearman(p, sonuç) | −0.0073 | −0.78 | şanstan ayırt edilemez |
-| En iyi 1/3 − en kötü 1/3 | −0.0175 | −1.88 | şanstan ayırt edilemez |
-| Günler arası zamanlama (r) | −0.0416 | — | yok |
+| Gün-içi Spearman(p, sonuç) | +0.0084 *(eski −0.0073)* | +0.95 | şanstan ayırt edilemez |
+| En iyi 1/3 − en kötü 1/3 | +0.0044 *(eski −0.0175)* | +0.50 | şanstan ayırt edilemez |
+| Günler arası zamanlama (r) | +0.0223 *(eski −0.0416)* | — | yok |
 
 Strateji karşılaştırması (günlük lift = precision − o günün tabanı):
 
-| Strateji | Kapsam | Precision | Lift | t |
-|---|---|---|---|---|
-| sabit eşik p≥0.58 | %20 | %53.0 | +0.0232 | +2.13 |
-| kesitsel en iyi %5 | %5 | %52.7 | +0.0231 | +1.75 |
-| kesitsel en iyi %20 | %20 | %50.3 | −0.0012 | −0.16 |
-| hepsini al (taban) | %100 | %50.4 | 0 | — |
+| Strateji | Kapsam | Precision | Lift | t | Yargı |
+|---|---|---|---|---|---|
+| sabit eşik p≥0.58 | %16 | %51.3 | +0.0168 | **+1.70** *(eski +2.13)* | şans |
+| kesitsel en iyi %5 | %5 | %52.6 | +0.0218 | +1.66 | şans |
+| kesitsel en iyi %10 | %10 | %52.1 | +0.0174 | +1.81 | şans |
+| kesitsel en iyi %20 | %20 | %51.4 | +0.0096 | +1.38 | şans |
+| kesitsel en iyi %30 | %30 | %50.6 | +0.0017 | +0.31 | şans |
+| kesitsel en iyi %50 | %50 | %50.5 | +0.0010 | +0.30 | şans |
+| hepsini al (taban) | %100 | %50.4 | 0 | — | — |
 
-**Sabit eşiğin t=2.13'ü kenar sayılmaz:** (a) 7 strateji denendi, Bonferroni
-düzeltmesiyle eşik ≈2.7; (b) kenar, aynı kapsamdaki kesitsel seçimde tamamen
-kayboluyor — yani hisse *seçmekten* değil, işlem yapılan *gün sayısından*
-(414/485) geliyor.
+**Artık HİÇBİR strateji anlamlı değil.** Eskiden sabit eşiğin t=2.13'ü tek
+sınırda-anlamlı bulguydu ve zaten Bonferroni'yi (≈2.7) geçmiyordu; sızıntı
+kalkınca t=1.70'e indi — düzeltmesiz bile anlamlı değil.
+
+İki not:
+- Sızıntı kalkınca **negatif lift'ler pozitife döndü** (%20 kesitsel: −0.0012 →
+  +0.0096). Yani gün kimliği gürültüsü kesitsel stratejileri aşağı çekiyormuş.
+  Yön değişti ama büyüklük hâlâ şans aralığında.
+- Gün-içi Spearman'ın işareti de değişti (−0.0073 → +0.0084). İkisi de sıfırdan
+  ayırt edilemiyor; işaret değişimi "iyileşme" değil, gürültünün doğal salınımı.
 
 ---
 
@@ -516,10 +530,41 @@ Bu bir **geleceğe bakma sızıntısı değil** (evren büyüklüğü o gün bil
 havuzlanmış AUC'yi "hisse seçme becerisi" diye okumayı geçersiz kılar.
 
 `ml/experiment_xsec.py` bu özelliğin MUTLAK hâlinin de zararlı olduğunu zaten
-ölçmüştü (AUC 0,46, lift −4,2p). Yani ne ham ne rank'li hâli işe yarıyor →
-**çıkarılmalı**. Çıkarmak şampiyonun yeniden eğitilmesini ve kalibratörün
-tazelenmesini gerektirdiği için karar kullanıcıya bırakıldı; sorun
-**I13** değişmeziyle görünür kılındı (şu an FAIL veriyor).
+ölçmüştü (AUC 0,46, lift −4,2p). Yani ne ham ne rank'li hâli işe yarıyordu.
+
+### ÇIKARILDI ve hipotez doğrulandı (04.09.2026)
+
+Özellik `FEATURE_NAMES`'ten silindi (21 → 20), şampiyon yeniden eğitildi,
+kalibratör tazelendi. Sonuç hipotezi **kanıtladı**:
+
+| | Sızıntılı | Temiz | Fark |
+|---|---|---|---|
+| Havuzlanmış AUC | 0,5459 | **0,5078** | −0,038 |
+| Yön doğruluğu | %52,6 | %50,3 | −2,3 p |
+| Havuzlanmış lift | +0,0331 | +0,0130 | −0,020 |
+
+**Sıfır bilgi taşıyan bir özelliği çıkarmak AUC'yi 0,546'dan 0,508'e düşürdü.**
+Bu, farkın gerçek tahmin gücü değil gün kimliği olduğunun doğrudan kanıtıdır.
+AUC artık 0,50'ye komşu — yani modelin GERÇEK kesitsel ayrım gücü bu.
+
+Bunun önemi: §2'deki gün düzeyi Spearman ölçümü (≈0) ile havuzlanmış AUC (0,546)
+birbiriyle **çelişiyordu** ve bu çelişki açıklanmamıştı. Artık çelişki yok —
+ikisi de "kesitsel beceri yok" diyor. Çelişkinin sebebi bu özellikmiş.
+
+§2 yeniden ölçüldü: dosyadaki tek "anlamlı" bulgu (sabit eşik t=2,13) **t=1,70'e
+indi ve anlamlılığını kaybetti**. Model künyesinde boşalan %7,3 ağırlık gerçek
+özelliklere dağıldı (ema200_trend 6,3→7,7; atr_pct 5,9→6,9).
+
+**Permütasyon testi neden yapılmadı:** t=2,13'ün ampirik p-değerini ölçmek için
+planlanmıştı. O iddia artık yok (en yüksek t=1,81, hiçbiri anlamlı değil).
+Hiçbir kararı değiştiremeyecek bir testi çalıştırmak ölçüm değil ritüel olurdu.
+
+**Yan bulgu — I9 sahte İHLAL verdi.** Şampiyon yeniden eğitilince kesim tarihi
+ileri kaydı ve I9, GEÇMİŞTE dürüst yapılmış terfi kontrolünü yeni kesime göre
+yargılayıp "pencere 2026-06-24, kesim 2026-08-21 ÖNCESİNDE" dedi. Terfi kaydı
+o anki kesimi `champion_cutoff` olarak zaten saklıyor; referans ona çevrildi.
+Bu, I11'in `RISK_FILTER_SINCE` ve kalibrasyon raporunun `fitted_at` kurallarıyla
+aynı ilke: **bir bileşen ancak kendi döneminin verisiyle yargılanır.**
 
 Not: gün içi sabit olan TEK özellik bu (21 özellik tarandı). Dejenere günler
 (n<20) ihmal edilebilir: 31.086 satırın 11'i.

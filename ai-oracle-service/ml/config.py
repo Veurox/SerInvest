@@ -238,8 +238,32 @@ FEATURE_NAMES = [
     "vol_ratio", "atr_pct",
     # 52 hafta pozisyon
     "price_vs_52w_high",
-    # Fiyat-türevi piyasa bağlamı (saf teknik — BIST için kritik)
-    "rel_strength_5d",       # ret_5d - XU100_ret5
-    "rel_strength_20d",      # ret_20d - XU100_ret20
-    "usdtry_ret5",           # USD/TRY 5g getiri (TL zayıflığı BIST'e baskı)
+    # Fiyat-türevi piyasa bağlamı (saf teknik — BIST için kritik).
+    # DİKKAT: buraya eklenecek her özellik GÜN İÇİNDE DEĞİŞMELİ. XSEC_RANK
+    # gün-içi percentile uyguladığı için piyasa-geneli (tüm sembollerde aynı)
+    # bir seri burada bilgisini TAMAMEN kaybeder — bkz. aşağıdaki not.
+    "rel_strength_5d",       # ret_5d - XU100_ret5   (sembole özel: fark)
+    "rel_strength_20d",      # ret_20d - XU100_ret20 (sembole özel: fark)
 ]
+
+# ── ÇIKARILAN: usdtry_ret5 (04.09.2026 FinML kod incelemesi) ────────────────
+# Piyasa geneli bir seriydi: aynı gün TÜM sembollerde aynı değer. XSEC_RANK
+# gün-içi percentile'a çevirince hepsi berabere kalıyor ve pandas ortalama
+# sırayı veriyor: rank_pct = (n+1)/(2n), n = o günkü sembol sayısı.
+#
+# Yani özellik USD/TRY hakkında SIFIR bilgi taşıyıp o günün EVREN BÜYÜKLÜĞÜNÜ
+# kodluyordu. Ölçüldü: 27 farklı değer, 0.510-1.000, sembol sayısıyla korelasyon
+# -0.45, gözlenen değerler formülle birebir (n=9 -> 0.5556, n=25 -> 0.5200).
+#
+# İki zararı vardı:
+#   1. Şampiyonda %7.3 ağırlıkla 3. sıradaydı — kapasite israfı.
+#   2. Saf kesitsel olması gereken modele GÜN KİMLİĞİ sızdırıyordu. Gün-içi
+#      karıştırma testinde AUC'nin 0.50'ye düşmemesinin (0.5506) sebebi buydu.
+#
+# Mutlak (rank'siz) hâli de zaten ZARARLI ölçülmüştü: ml/experiment_xsec.py
+# "usdtry %20 önem, AUC 0.46, lift -4.2p = değer YOK EDİYORDU". Ne ham ne
+# rank'li hâli işe yaradığı için tamamen çıkarıldı.
+#
+# Ders: piyasa-geneli bağlam kesitsel yoldan GİREMEZ. Gerekirse sembole özel
+# bir FARKA çevrilmeli (rel_strength_* gibi) ya da ayrı bir rejim/meta
+# katmanından verilmeli. selftest I13 bu kuralı çalıştırılabilir hâle getirir.

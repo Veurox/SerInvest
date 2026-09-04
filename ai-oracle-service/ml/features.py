@@ -21,11 +21,14 @@ from ml.config import FEATURE_NAMES
 
 def fetch_context(period: str = "3y") -> pd.DataFrame:
     """
-    Fiyat-türevi piyasa bağlamı: XU100 (5g/20g getiri) + USDTRY (5g getiri).
+    Fiyat-türevi piyasa bağlamı: XU100 (5g/20g getiri).
     Tek seferde indirilir, sembol döngüsünde reindex+ffill ile hizalanır.
     """
     out = {}
-    feeds = {"XU100": "XU100.IS", "USDTRY": "USDTRY=X"}
+    # USDTRY 04.09.2026'da kaldırıldı: tek tüketicisi olan usdtry_ret5 özelliği
+    # çıkarıldı (kesitsel rank altında bilgi taşımıyordu). Gereksiz bir ağ
+    # çağrısı ve gereksiz bir hata yüzeyi bırakmamak için indirme de silindi.
+    feeds = {"XU100": "XU100.IS"}
     series = {}
     for name, yf_sym in feeds.items():
         try:
@@ -51,10 +54,6 @@ def fetch_context(period: str = "3y") -> pd.DataFrame:
         xu = series["XU100"].reindex(panel.index).ffill()
         out["xu100_ret5"]  = xu.pct_change(5)
         out["xu100_ret20"] = xu.pct_change(20)
-    if "USDTRY" in series:
-        ut = series["USDTRY"].reindex(panel.index).ffill()
-        out["usdtry_ret5"] = ut.pct_change(5)
-
     panel = pd.DataFrame(out, index=panel.index).ffill().fillna(0.0)
     return panel
 
@@ -121,14 +120,15 @@ def compute_features(df: pd.DataFrame, ctx: pd.DataFrame | None = None) -> pd.Da
     f["price_vs_52w_high"] = (close - roll_max) / roll_max.replace(0, np.nan)
 
     # ── Fiyat-türevi piyasa bağlamı (saf teknik) ─────────────────────────────
+    # Bağlam yalnızca FARK olarak girer (göreli güç). Piyasa-geneli bir seriyi
+    # doğrudan özellik yapmak XSEC_RANK altında bilgisini yok eder — 04.09.2026'da
+    # usdtry_ret5 bu yüzden çıkarıldı (bkz. ml/config.py).
     if ctx is not None and not ctx.empty:
         c = ctx.reindex(f.index, method="ffill")
         xu5  = c["xu100_ret5"]  if "xu100_ret5"  in c.columns else 0.0
         xu20 = c["xu100_ret20"] if "xu100_ret20" in c.columns else 0.0
-        f["usdtry_ret5"] = (c["usdtry_ret5"] if "usdtry_ret5" in c.columns else 0.0)
     else:
         xu5 = xu20 = 0.0
-        f["usdtry_ret5"] = 0.0
     f["rel_strength_5d"]  = f["ret_5d"]  - xu5
     f["rel_strength_20d"] = f["ret_20d"] - xu20
 

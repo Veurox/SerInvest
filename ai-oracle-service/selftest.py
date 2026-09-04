@@ -436,13 +436,31 @@ def i9_promotion_balance(now) -> dict:
         return _skip("I9", t, "kayıt okunamadı")
     if last.get("balance") != "honest_oos":
         return _fail("I9", t, "son terfi kontrolü ESKİ (in-sample) teraziyle yapılmış")
-    cutoff = (_json(META_FILE) or {}).get("date_max")
+
+    # KAYIT KENDİ DÖNEMİNE GÖRE YARGILANIR (04.09.2026 düzeltmesi).
+    # Eskiden pencereler BUGÜNKÜ şampiyonun kesimiyle kıyaslanıyordu. Şampiyon
+    # yeniden eğitilince kesim ileri kayıyor ve GEÇMİŞTE dürüst yapılmış bir
+    # terfi kontrolü sahte İHLAL veriyordu: "pencere 2026-06-24, kesim
+    # 2026-08-21 ÖNCESİNDE". Oysa o kontrol yapıldığında şampiyonun kesimi
+    # 2026-06-24'tü ve pencere ondan SONRAYDI — yani dürüsttü.
+    # Terfi kaydı o anki kesimi `champion_cutoff` olarak zaten saklıyor;
+    # doğru referans odur. Bu, I11'in RISK_FILTER_SINCE ve kalibrasyon
+    # raporunun `fitted_at` kapsam kurallarıyla aynı ilke: bir bileşen ancak
+    # KENDİ döneminin verisiyle yargılanır.
+    cutoff = last.get("champion_cutoff") or (_json(META_FILE) or {}).get("date_max")
+    kayit_eski = bool(last.get("champion_cutoff"))
     for w in (last.get("windows") or []):
         start = (w.get("window") or "").split("→")[0]
         if cutoff and start and start < cutoff:
-            return _fail("I9", t, f"pencere {start} şampiyon kesimi {cutoff} ÖNCESİNDE")
-    return _ok("I9", t, f"dürüst terazi (şampiyon kesimi {cutoff}, "
-                        f"taze veri {last.get('fresh_days','?')} gün)")
+            return _fail("I9", t, f"pencere {start}, o günkü şampiyon kesimi {cutoff} ÖNCESİNDE")
+
+    simdiki = (_json(META_FILE) or {}).get("date_max")
+    ek = ""
+    if kayit_eski and simdiki and cutoff != simdiki:
+        ek = (f" · şampiyon o kayıttan sonra yeniden eğitildi (kesim şimdi {simdiki}); "
+              f"sonraki terfi kontrolü yeni kesime göre ölçecek")
+    return _ok("I9", t, f"dürüst terazi (kaydın kesimi {cutoff}, "
+                        f"taze veri {last.get('fresh_days','?')} gün){ek}")
 
 
 def i10_jobs_not_overdue(now) -> dict:
