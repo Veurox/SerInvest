@@ -136,3 +136,49 @@ def test_training_cap_is_noop_when_small():
 
     df = pd.DataFrame({"date": pd.date_range("2026-01-01", periods=50), "label": [1] * 50})
     assert len(_cap_training_rows(df)) == 50
+
+
+# ── Tahmin logu şema bütünlüğü (04.09.2026 bulgusu) ─────────────────────────
+
+def test_log_row_builder_covers_every_schema_field():
+    """
+    _log_prediction_locked satırı anahtar anahtar ELLE kuruyor. Şemaya
+    (_LOG_FIELDS) yeni bir kolon eklenip buraya kopyalanmazsa DictWriter onu
+    sessizce BOŞ yazar — kolon başlıkta görünür ama hep boştur.
+
+    04.09.2026'da tam bu oldu: `rec_dir_nofilter` 9 gün boyunca boş yazıldı ve
+    I11'in "kapsam düşüşünün sebebi filtre mi" atfı hiç çalışmadı. Hata sessizdi
+    çünkü I11 bunu "yeni kolon dolmaya başladı" diye geçici bir hâl sanıyordu.
+
+    Bu test, satır kurucusunun şemadaki HER alanı ürettiğini garanti eder.
+    """
+    import ml_live
+    from ml_live import _LOG_FIELDS
+
+    yazilan = {}
+    orijinal = ml_live.atomic.write_csv
+    try:
+        def yakala(path, fieldnames, rows, **kw):
+            yazilan["fields"] = list(fieldnames)
+            yazilan["row"] = dict(rows[-1])
+        ml_live.atomic.write_csv = yakala
+
+        gercek_log = ml_live.PREDICTION_LOG
+        ml_live.PREDICTION_LOG = gercek_log.parent / "__yok_test__.csv"
+        try:
+            ml_live._log_prediction_locked({
+                "symbol": "TEST", "yf_sym": "TEST.IS", "p_up": 0.61,
+                "p_cal": 0.52, "ev": 0.4, "rec": "NÖTR", "rec_dir": "NEUTRAL",
+                "rec_dir_nofilter": "BUY",          # filtre öncesi karar
+                "close": 10.0, "target": 11.0, "stop": 9.0, "atr_pct": 0.02,
+            })
+        finally:
+            ml_live.PREDICTION_LOG = gercek_log
+    finally:
+        ml_live.atomic.write_csv = orijinal
+
+    satir = yazilan["row"]
+    eksik = [f for f in _LOG_FIELDS if f not in satir]
+    assert not eksik, f"şemada olup satırda ÜRETİLMEYEN alan(lar): {eksik}"
+    # Ve değer gerçekten taşınmalı — boş yazılmamalı
+    assert satir["rec_dir_nofilter"] == "BUY"

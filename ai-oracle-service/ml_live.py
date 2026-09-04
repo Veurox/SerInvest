@@ -821,6 +821,12 @@ def _log_prediction_locked(log: dict):
         "symbol": log["symbol"], "yf_sym": log["yf_sym"],
         "p_up": log["p_up"], "p_cal": log.get("p_cal", ""), "ev": log.get("ev", ""),
         "rec": log["rec"], "rec_dir": log["rec_dir"],
+        # 04.09.2026: bu satır 9 gün EKSİKTİ. Kolon _LOG_FIELDS'e ve analyze_symbol'ün
+        # log sözlüğüne eklenmişti ama new_row anahtar anahtar elle kurulduğu için
+        # buraya kopyalanmamıştı → DictWriter boş yazıyordu. I11'in "kapsam düşüşü
+        # filtreden mi" atfı bu yüzden hep "atfedilemedi" diyordu; geçici bir
+        # birikme hâli sanılıyordu, oysa kalıcı hataydı.
+        "rec_dir_nofilter": log.get("rec_dir_nofilter", ""),
         "close": log["close"], "target": log["target"], "stop": log["stop"],
         "atr_pct": log["atr_pct"], "eval": "",
     }
