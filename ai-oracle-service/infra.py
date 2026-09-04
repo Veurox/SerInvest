@@ -15,8 +15,18 @@ import json
 import time
 from pathlib import Path
 
+import os
 import pika
 import requests
+
+# RabbitMQ kimlik bilgileri (04.09.2026 güvenlik sertleştirmesi).
+# ÖNCEDEN OKUNMUYORDU: pika.ConnectionParameters'a credentials verilmediği için
+# pika sessizce kendi varsayılanını (guest/guest) kullanıyordu. Yani compose'daki
+# RABBITMQ_USER/RABBITMQ_PASSWORD süs niteliğindeydi — şifre değiştirilince
+# TÜM Python servisleri ACCESS_REFUSED alıyordu. Artık gerçekten uygulanıyor.
+_RMQ_USER = os.getenv("RABBITMQ_USER", "guest")
+_RMQ_PASS = os.getenv("RABBITMQ_PASSWORD", "guest")
+_RMQ_CRED = pika.PlainCredentials(_RMQ_USER, _RMQ_PASS)
 
 from config import (
     CORE_API,
@@ -42,7 +52,8 @@ def connect_rmq() -> pika.BlockingConnection:
         try:
             return pika.BlockingConnection(
                 pika.ConnectionParameters(
-                    host=RMQ_HOST, heartbeat=0, blocked_connection_timeout=300
+                    host=RMQ_HOST, heartbeat=0, blocked_connection_timeout=300,
+                    credentials=_RMQ_CRED,
                 )
             )
         except Exception as e:

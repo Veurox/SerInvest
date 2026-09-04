@@ -16,6 +16,15 @@ import math
 import socket
 from pathlib import Path
 
+# RabbitMQ kimlik bilgileri (04.09.2026 güvenlik sertleştirmesi).
+# ÖNCEDEN OKUNMUYORDU: pika.ConnectionParameters'a credentials verilmediği için
+# pika sessizce kendi varsayılanını (guest/guest) kullanıyordu. Yani compose'daki
+# RABBITMQ_USER/RABBITMQ_PASSWORD süs niteliğindeydi — şifre değiştirilince
+# TÜM Python servisleri ACCESS_REFUSED alıyordu. Artık gerçekten uygulanıyor.
+_RMQ_USER = os.getenv("RABBITMQ_USER", "guest")
+_RMQ_PASS = os.getenv("RABBITMQ_PASSWORD", "guest")
+_RMQ_CRED = pika.PlainCredentials(_RMQ_USER, _RMQ_PASS)
+
 import yfinance as yf
 import pandas as pd
 import ta
@@ -373,7 +382,8 @@ def connect_rabbitmq() -> pika.BlockingConnection:
             # heartbeat=0: yfinance hangi bir sembol için askıya alabilir;
             # _ensure_connection() her publish'ten önce kontrol ediyor.
             conn = pika.BlockingConnection(
-                pika.ConnectionParameters(host=host, heartbeat=0, blocked_connection_timeout=300)
+                pika.ConnectionParameters(host=host, heartbeat=0, blocked_connection_timeout=300,
+                                          credentials=_RMQ_CRED)
             )
             print(f"RabbitMQ bağlantısı kuruldu: {host}")
             return conn

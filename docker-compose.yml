@@ -8,8 +8,11 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
       POSTGRES_DB: ${POSTGRES_DB:-marketsentinel}
-    ports:
-      - "5432:5432"
+    # PORT KAPALI (04.09.2026 güvenlik sertleştirmesi). Bu servis yalnızca
+    # Docker'ın iç ağından, servis adıyla erişilir — host'a açılmasına gerek yok.
+    # Açık bırakıldığında 0.0.0.0'a bağlanıyordu: ev ağındaki HER cihaz ve
+    # ziyaret edilen web sayfaları erişebiliyordu. Hata ayıklamak için geçici
+    # açmak gerekirse `ports:` satırlarını geri koy ya da `docker exec` kullan.
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -24,8 +27,11 @@ services:
   redis:
     image: redis:7-alpine
     container_name: serinvest-redis
-    ports:
-      - "6379:6379"
+    # PORT KAPALI (04.09.2026 güvenlik sertleştirmesi). Bu servis yalnızca
+    # Docker'ın iç ağından, servis adıyla erişilir — host'a açılmasına gerek yok.
+    # Açık bırakıldığında 0.0.0.0'a bağlanıyordu: ev ağındaki HER cihaz ve
+    # ziyaret edilen web sayfaları erişebiliyordu. Hata ayıklamak için geçici
+    # açmak gerekirse `ports:` satırlarını geri koy ya da `docker exec` kullan.
     networks:
       - market-network
     restart: unless-stopped
@@ -41,12 +47,10 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
-    ports:
-      # coeng-rabbitmq gibi başka bir konteyner 5672/15672'yi tutabilir; çakışmayı
-      # önlemek için host port'ları 5673/15673'e alındı. Servisler arası iletişim
-      # Docker ağında "rabbitmq" adıyla 5672 üzerinden yapılır — bu değişiklikten etkilenmez.
-      - "5673:5672"
-      - "15673:15672"    # RabbitMQ Yönetim Paneli: http://localhost:15673
+    # PORT KAPALI (04.09.2026 güvenlik sertleştirmesi). Servisler kuyruğa Docker
+    # iç ağından "rabbitmq:5672" ile ulaşıyor; host'a açılmasına gerek yok.
+    # Yönetim paneli (15673) de kapandı — kimlik bilgileriyle birlikte ev ağına
+    # açıktı. Gerekirse geçici olarak `- "15673:15672"` geri eklenebilir.
     networks:
       - market-network
     restart: unless-stopped
@@ -66,9 +70,17 @@ services:
         condition: service_healthy
     environment:
       RABBITMQ_HOST: rabbitmq
+      # Kimlik bilgisi 04.09.2026'da eklendi: bu servisler daha önce
+      # HİÇ almıyordu ve pika varsayılanı guest/guest ile bağlanıyordu.
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
       CHART_HTTP_PORT: 5002
-    ports:
-      - "5002:5002"     # Chart HTTP API (UI tıklayınca grafikler için)
+    # PORT KAPALI (04.09.2026 güvenlik sertleştirmesi). Bu servis yalnızca
+    # Docker'ın iç ağından, servis adıyla erişilir — host'a açılmasına gerek yok.
+    # Açık bırakıldığında 0.0.0.0'a bağlanıyordu: ev ağındaki HER cihaz ve
+    # ziyaret edilen web sayfaları erişebiliyordu. Hata ayıklamak için geçici
+    # açmak gerekirse `ports:` satırlarını geri koy ya da `docker exec` kullan.
+    # (Grafik verisi arayüze core-api üzerinden gider; doğrudan çağrılmıyor.)
     volumes:
       - ./shared:/shared:ro
     networks:
@@ -84,6 +96,10 @@ services:
         condition: service_healthy
     environment:
       RABBITMQ_HOST: rabbitmq
+      # Kimlik bilgisi 04.09.2026'da eklendi: bu servisler daha önce
+      # HİÇ almıyordu ve pika varsayılanı guest/guest ile bağlanıyordu.
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
       ORACLE_URL: http://serinvest-oracle:5001   # C8 anomali tetikleyici için
     networks:
       - market-network
@@ -107,8 +123,14 @@ services:
       ADMIN_API_KEY: ${ADMIN_API_KEY:-dev_key_change_me}
       TZ: Europe/Istanbul
       TCMB_RATE_PCT: ${TCMB_RATE_PCT:-42.5}
-    ports:
-      - "5001:5001"     # Admin HTTP API (frontend butonları)
+    # PORT KAPALI (04.09.2026 güvenlik sertleştirmesi) — EN KRİTİK OLANI.
+    # Bu sunucuda kimlik doğrulaması YOK ve CORS koruması da yok. Açıkken:
+    #   • ev ağındaki her cihaz yönetim uç noktalarını çağırabiliyordu,
+    #   • ziyaret edilen bir web sayfası tarayıcı üzerinden POST atabiliyordu
+    #     (cevabı okuyamaz ama istek sunucuda ÇALIŞIR) — /admin/reset-model
+    #     düz bir POST, onay bile istemiyor: model sıfırlanabilirdi.
+    # Arayüz buraya zaten core-api (8080) üzerinden, X-Admin-Key ile ulaşıyor;
+    # core-api de iç ağdan "ai-oracle-service:5001" diye erişiyor.
     volumes:
       # Model + eğitim verisi PROJE KLASÖRÜNDE (bind-mount) → bilgisayar taşımada
       # klasörle birlikte gelir, named volume gibi geride kalmaz (07/2026 kararı).
@@ -127,6 +149,10 @@ services:
         condition: service_healthy
     environment:
       RABBITMQ_HOST: rabbitmq
+      # Kimlik bilgisi 04.09.2026'da eklendi: bu servisler daha önce
+      # HİÇ almıyordu ve pika varsayılanı guest/guest ile bağlanıyordu.
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
       FUNDAMENTAL_CYCLE_HOURS: ${FUNDAMENTAL_CYCLE_HOURS:-6}
       TCMB_RATE_PCT: ${TCMB_RATE_PCT:-42.5}
     volumes:

@@ -20,6 +20,15 @@ import requests as _requests   # Oracle anomali tetikleyici için
 from pathlib import Path
 from transformers import pipeline as hf_pipeline
 
+# RabbitMQ kimlik bilgileri (04.09.2026 güvenlik sertleştirmesi).
+# ÖNCEDEN OKUNMUYORDU: pika.ConnectionParameters'a credentials verilmediği için
+# pika sessizce kendi varsayılanını (guest/guest) kullanıyordu. Yani compose'daki
+# RABBITMQ_USER/RABBITMQ_PASSWORD süs niteliğindeydi — şifre değiştirilince
+# TÜM Python servisleri ACCESS_REFUSED alıyordu. Artık gerçekten uygulanıyor.
+_RMQ_USER = os.getenv("RABBITMQ_USER", "guest")
+_RMQ_PASS = os.getenv("RABBITMQ_PASSWORD", "guest")
+_RMQ_CRED = pika.PlainCredentials(_RMQ_USER, _RMQ_PASS)
+
 # RSS feed'leri bazen takılı kalabilir — global timeout 20sn.
 # (feedparser timeout argümanı kabul etmez; socket seviyesinden yakalıyoruz.)
 socket.setdefaulttimeout(20)
@@ -1089,7 +1098,8 @@ def connect_rabbitmq() -> pika.BlockingConnection:
             # heartbeat=0: feedparser veya transformer model ağır olabilir;
             # kopma kontrolünü _ensure_connection() ile yapıyoruz.
             conn = pika.BlockingConnection(
-                pika.ConnectionParameters(host=host, heartbeat=0, blocked_connection_timeout=300)
+                pika.ConnectionParameters(host=host, heartbeat=0, blocked_connection_timeout=300,
+                                          credentials=_RMQ_CRED)
             )
             print(f"RabbitMQ bağlantısı kuruldu: {host}")
             return conn
