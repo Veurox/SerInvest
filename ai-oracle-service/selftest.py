@@ -603,6 +603,92 @@ CHECKS = [i1_date_basis, i2_train_serve_skew, i3_tier_matches_confidence,
           i13_no_within_day_constant_feature]
 
 
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  NE YAPMALI — kullanıcıya yönelik eylem cümleleri
+# ═════════════════════════════════════════════════════════════════════════════
+# 09/2026 kullanıcı geri bildirimi: "kullanıcı bakınca anlamayacak bu görüntüden".
+# Panel NE OLDUĞUNU söylüyordu ama NE YAPILACAĞINI söylemiyordu; teknik olmayan
+# biri "I11 uyarı" görüp ne yapacağını bilemez.
+#
+# İki ilke:
+#   1. PASS için eylem YOK. "Her şey yolunda" satırına aksiyon yazmak gürültüdür
+#      ve gerçek uyarıların dikkat çekmesini zorlaştırır.
+#   2. "Yapılacak bir şey yok" da geçerli bir cevaptır ve AÇIKÇA söylenir —
+#      kullanıcı bir uyarı görüp boşuna endişelenmesin (özellikle SKIP'lerde).
+#
+# Metin, düğme adlarını Model sayfasındaki hâliyle anar ("Doğrulama Çalıştır"),
+# ki kullanıcı ekranda arayacağı şeyi bilsin.
+ACTIONS: dict[tuple[str, str], str] = {
+    ("I1", "FAIL"): "Kayıtlar farklı tarih sistemleri kullanıyor — bu bir yazılım "
+                    "hatasıdır, kendiliğinden düzelmez. Geliştiriciye bildirin.",
+
+    ("I2", "FAIL"): "Modelin canlı çalışması eğitimdekinden farklı sonuç veriyor; "
+                    "tahminlere GÜVENMEYİN. 'Veriyi yenile + eğit' ile modeli "
+                    "yeniden kurun, düzelmezse bildirin.",
+    ("I2", "SKIP"): "Yapılacak bir şey yok — bir sonraki analiz turunda ölçülecek.",
+
+    ("I3", "FAIL"): "Arayüzdeki 'GÜÇLÜ ALIM' etiketi güven yüzdesiyle çelişiyor. "
+                    "Bu etikete bakmayın; 'Doğrulama Çalıştır' ile kalibratörü tazeleyin.",
+
+    ("I4", "FAIL"): "Eşikler koda gömülmüş — arayüzdeki sayılar gerçek ayarı "
+                    "yansıtmayabilir. Geliştiriciye bildirin.",
+
+    ("I5", "WARN"): "Model bugün alışılmadık sayıda sinyal üretti (ya da hiç üretmedi). "
+                    "TEK GÜNLÜK sapma normaldir, yapılacak bir şey yok. Birkaç gün "
+                    "sürerse 'Doğrulama Çalıştır' ile modeli sınayın.",
+
+    ("I6", "FAIL"): "Kalibratör bozuk; güven yüzdeleri anlamsız. 'Doğrulama Çalıştır' "
+                    "düğmesiyle yeniden kurun.",
+
+    ("I7", "FAIL"): "Tahmin kaydı bozulmuş. Programı kapatıp açın; düzelmezse "
+                    "yedekten geri yükleme gerekir — geliştiriciye bildirin.",
+
+    ("I8", "FAIL"): "Aynı kayıt iki kez yazılmış; isabet oranları OLDUĞUNDAN İYİ "
+                    "görünebilir. Sistem kendini onarır — bir sonraki turda "
+                    "düzelmezse bildirin.",
+
+    ("I9", "FAIL"): "Terfi karşılaştırması adil değil; 'Terfi kontrolü' sonucuna "
+                    "güvenmeyin. Geliştiriciye bildirin.",
+
+    ("I10", "WARN"): "Bilgisayar kapalıyken kaçan işler var. Programı açık tutun; "
+                     "istersen ilgili düğmeye ('Şimdi analiz et' / 'Şimdi değerlendir') "
+                     "basarak hemen çalıştırabilirsiniz.",
+
+    ("I11", "WARN"): "Risk filtresi bugün beklenenden fazla hisse eledi. TEK GÜNLÜK "
+                     "sapma normaldir, şimdilik yapılacak bir şey yok. 10 İŞ GÜNÜ "
+                     "sürerse plandaki kurala göre filtre kaldırılacak.",
+    ("I11", "FAIL"): "Kapsam 10 iş günüdür hedefin dışında — plandaki başarısızlık "
+                     "ölçütü doldu. Karar: risk filtresi kaldırılmalı (docs/PLAN_2026-08.md §A0).",
+
+    ("I12", "FAIL"): "Kalibratör gerçekleşen sonuçlarla uyuşmuyor; güven yüzdeleri ve "
+                     "pozisyon boyutları ŞİŞMİŞ olabilir. 'Doğrulama Çalıştır' ile "
+                     "kalibratörü tazeleyin.",
+    ("I12", "SKIP"): "Yapılacak bir şey yok — yeni kalibratörün sonuçları birikiyor. "
+                     "Bir tahmin ancak ~20 gün sonra yargılanabildiği için ilk dürüst "
+                     "okuma birkaç hafta sürer.",
+
+    ("I13", "FAIL"): "Bir özellik modele bilgi taşımıyor ama gün kimliği sızdırıyor; "
+                     "başarı ölçümleri OLDUĞUNDAN İYİ görünebilir. Geliştiriciye "
+                     "bildirin — özellik çıkarılıp model yeniden eğitilmeli.",
+}
+
+# Tabloda karşılığı olmayan (id, durum) için tür bazlı yedek cümle.
+FALLBACK_ACTIONS = {
+    "FAIL": "Bu kontrol bozuk bir durum bildiriyor — geliştiriciye bildirin.",
+    "WARN": "İzlenmesi gereken bir durum. Tek seferlikse çoğunlukla kendiliğinden geçer.",
+    "SKIP": "Yapılacak bir şey yok — henüz ölçmeye yetecek veri birikmedi.",
+}
+
+
+def _action_for(check: dict) -> str:
+    """PASS için boş; diğerlerinde ne yapılacağını anlatan cümle."""
+    if check.get("status") == "PASS":
+        return ""
+    key = (check.get("id", ""), check.get("status", ""))
+    return ACTIONS.get(key) or FALLBACK_ACTIONS.get(check.get("status", ""), "")
+
+
 def run(send_syslog=None) -> dict:
     """Tüm değişmezleri çalıştırır, sonucu diske yazar ve döndürür."""
     now = datetime.datetime.utcnow()
@@ -612,6 +698,11 @@ def run(send_syslog=None) -> dict:
             results.append(fn(now))
         except Exception as e:      # bir kontrol patlarsa diğerleri sürsün
             results.append(_warn(fn.__name__, fn.__name__, f"kontrol hatası: {e}"))
+
+    # "Ne yapmalı" cümlesi sonuca burada eklenir: kontrolün NEDEN var olduğunu
+    # bilen dosya, ne yapılacağını da bilmeli. Arayüz yalnızca gösterir.
+    for r in results:
+        r["action"] = _action_for(r)
 
     counts = Counter(r["status"] for r in results)
     overall = "FAIL" if counts["FAIL"] else "WARN" if counts["WARN"] else "PASS"

@@ -13,6 +13,10 @@ export interface Check {
   id: string; title: string
   status: 'PASS' | 'WARN' | 'FAIL' | 'SKIP'
   detail: string
+  /** "Ne yapmalı" cümlesi — arka uçtan gelir, PASS'te boştur.
+   *  Metni burada ÜRETMİYORUZ: kontrolün neden var olduğunu bilen dosya
+   *  (selftest.py) ne yapılacağını da bilir; arayüz yalnızca gösterir. */
+  action?: string
 }
 export interface SelfTest {
   computed_at: string
@@ -68,6 +72,14 @@ export function SelfTestPanel() {
         <span style={{ fontSize: 11, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
           {(d.counts.PASS ?? 0)} geçti · {(d.counts.SKIP ?? 0)} veri yok
         </span>
+        {/* Düz Türkçe özet: kullanıcı sayıları saymadan durumu anlasın. */}
+        <span style={{ flexBasis: '100%', fontSize: 11.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+          {fails
+            ? 'Bozuk bir durum var — aşağıdaki kırmızı satırda ne yapılacağı yazıyor.'
+            : warns
+            ? 'Acil bir sorun yok. Sarı satırda izlenmesi gereken bir durum var; çoğu zaman bir şey yapmanız gerekmez.'
+            : 'Her şey yolunda — yapmanız gereken bir şey yok.'}
+        </span>
         <button onClick={() => load(true)} disabled={busy}
           style={{ marginLeft: 'auto', fontSize: 11.5, padding: '3px 10px', borderRadius: 4,
                    cursor: busy ? 'wait' : 'pointer', border: '1px solid var(--border-default)',
@@ -95,6 +107,20 @@ export function SelfTestPanel() {
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.45 }}>
                   {c.detail}
                 </div>
+                {/* NE YAPMALI — teknik açıklamadan görsel olarak AYRI durur ki
+                    kullanıcı detayı okumadan da eylemi bulabilsin. PASS
+                    satırlarında hiç çıkmaz: "sorun yok" satırına aksiyon yazmak
+                    gürültü olur ve gerçek uyarıyı gölgeler. */}
+                {c.action && (
+                  <div style={{
+                    marginTop: 4, paddingLeft: 8, fontSize: 11, lineHeight: 1.5,
+                    borderLeft: `2px solid ${loud ? s.fg : 'var(--border-strong)'}`,
+                    color: 'var(--text-secondary)',
+                  }}>
+                    <b style={{ color: loud ? s.fg : 'var(--text-muted)' }}>Ne yapmalı: </b>
+                    {c.action}
+                  </div>
+                )}
               </div>
             </div>
           )
@@ -102,8 +128,10 @@ export function SelfTestPanel() {
       </div>
 
       <div style={{ padding: '7px 14px', fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-        Değişmezler her açılışta ve her gün 19:25'te çalışır. <b>İHLAL</b> = bozuk,
-        <b> uyarı</b> = incelenmeli, <b>veri yok</b> = henüz ölçülemiyor (hata değil).
+        Bu kontroller sistemin kendi kendini denetlemesidir; her açılışta ve her gün
+        19:25'te çalışır. <b>İHLAL</b> = bozuk, hemen bakılmalı · <b>uyarı</b> = izlenmeli,
+        genelde bir şey yapmak gerekmez · <b>veri yok</b> = henüz ölçmeye yetecek veri
+        birikmedi (hata DEĞİL).
         {d.computed_at && <> · Son: {new Date(d.computed_at + 'Z').toLocaleString('tr-TR')}</>}
       </div>
     </div>
