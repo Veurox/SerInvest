@@ -161,6 +161,34 @@ services:
       - market-network
     restart: unless-stopped
 
+  tefas-service:
+    build:
+      context: ./tefas-service
+    container_name: serinvest-tefas
+    environment:
+      TEFAS_HTTP_PORT: 5003
+      TEFAS_DATA_DIR: /app/data
+      # Birim pay değeri akşam yayımlanır; 21:00'den sonra çekilir.
+      TEFAS_CEKIM_SAATI: ${TEFAS_CEKIM_SAATI:-21}
+      # İlk kurulumda çekilecek geçmiş (ay). 13 ay = 1 yıllık getiri + pay.
+      # Bu BİR KERELİK ve uzun sürer (~15 dk); durum diske yazılır,
+      # yeniden başlatma kaldığı yerden devam eder.
+      TEFAS_GERIYE_AY: ${TEFAS_GERIYE_AY:-13}
+      TZ: Europe/Istanbul
+    # PORT KAPALI (04.09.2026 güvenlik sertleştirmesi ile aynı gerekçe).
+    # Arayüz buraya core-api (8080) üzerinden ulaşıyor.
+    # RABBITMQ YOK: fon verisi kuyruğa girmiyor — gerekçe tefas-service/main.py
+    # başındaki notta (günde tek satır, PriceData şeması OHLCV için, depo
+    # eklemeli/noktasal-zamanlı).
+    volumes:
+      # Fon geçmişi PROJE KLASÖRÜNDE (oracle-data ile aynı karar): bilgisayar
+      # taşımada klasörle birlikte gelir, named volume gibi geride kalmaz.
+      - ./tefas-data:/app/data
+      - ./shared:/shared:ro            # izlenen kategoriler buradan okunur
+    networks:
+      - market-network
+    restart: unless-stopped
+
   # ── API & Frontend ────────────────────────────────────────────────────────────
   core-api:
     build:
@@ -183,6 +211,7 @@ services:
       Admin__ApiKey: "${ADMIN_API_KEY:-dev_key_change_me}"
       Cors__AllowedOrigins: "${ALLOWED_ORIGINS:-http://localhost:3000}"
       MarketData__ChartUrl: "http://market-data-service:5002"
+      Tefas__Url: "http://tefas-service:5003"
     ports:
       - "8080:8080"
     volumes:

@@ -1,7 +1,7 @@
 # TEFAS Fonları — Keşif ve Karşılaştırma Planı
 
 **Tarih:** 11.09.2026 · **Kapsam kararı:** kullanıcı (fon keşfi/karşılaştırma, belirli kategoriler)
-**Durum:** Faz 0 (fizibilite) TAMAMLANDI — API doğrulandı, veri geldi
+**Durum:** Faz 0 (fizibilite) ve Faz 1 (veri hattı) TAMAMLANDI
 
 > Bu dosyanın amacı, TEFAS entegrasyonunun neden hisse hattının kopyası
 > OLAMAYACAĞINI ve bunun yerine ne yapılacağını kayda geçirmek.
@@ -136,21 +136,82 @@ karşılaştırması için kategori içi kalabalık fazlasıyla yeterli.
 
 ---
 
-## 3. Faz 1 — Veri hattı
+## 3. Faz 1 — Veri hattı (TAMAMLANDI 11.09.2026)
 
 Yeni **`tefas-service`**. Ayrı servis olmasının gerekçesi: TEFAS resmi
 belgelenmiş bir API değil, sitenin kendi uç noktası. Kırılgan; çökerse fiyat
 hattını (market-data) düşürmemeli. Projedeki "her veri alanı kendi servisinde"
 desenine de uyuyor.
 
-- `shared/symbols.json`'a `fund` bölümü (mevcut `bist`/`commodity`/`forex` yanına),
-  kategori etiketiyle
+| Dosya | İş |
+|---|---|
+| `tefas_api.py` | Saf istemci: istek at, normalize et. Ağsız sınanabilir. |
+| `tefas_store.py` | Eklemeli, noktasal-zamanlı depo (aylık JSONL) |
+| `main.py` | Zamanlama + HTTP + hız sınırı yönetimi |
+| `core-api/.../TefasController.cs` | `/api/fon/*` — arayüzün gördüğü yol |
+
+- `shared/symbols.json`'a `fund` bölümü eklendi. **Fon listesi değil, izlenen
+  KATEGORİLER durur orada** — evren TEFAS'tan dinamik geliyor (473 fon).
 - Günlük birim pay değeri + fon büyüklüğü + yatırımcı sayısı
 - **`event_ts` / `ingest_ts` ayrımı İLK GÜNDEN.** Sonradan eklenen
   noktasal-zamanlılık hiç tutmuyor — CNN Türk sızıntısında (MODEL_KANIT §8.2)
   bunu pahalıya öğrendik.
-- `assetType: "FUND"` ile mevcut varlık akışına katılır
-- Kibar çekim: kategori başına sayfalı istek, istekler arası bekleme
+
+### 3.1 Karar: RabbitMQ/Postgres DEĞİL, HTTP proxy
+
+Plan başta "`assetType: \"FUND\"` ile mevcut varlık akışına katılır" diyordu.
+Uygulamada bu yol SEÇİLMEDİ. Gerekçe:
+
+- Mevcut `PriceData` tablosu OHLCV için biçimlenmiş. Fonda açılış/yüksek/düşük
+  ve hacim **yok**. Fonu oraya koymak o alanları sıfırla doldurmayı
+  gerektirirdi — `normalize()`'ın testiyle açıkça yasakladığımız şey.
+- Depo **eklemeli**; bir EF tablosu upsert'e davet eder ve "o gün ne
+  biliyorduk" cevabını sessizce siler.
+- Fon verisi 5 dakikalık tick değil, günde tek satır — kuyruk gereksiz.
+- Emsal var: grafik verisi zaten `core-api → market-data` HTTP proxy'siyle
+  akıyor. Yeni bir desen icat edilmedi.
+
+Sonuç: `core-api` → `tefas-service:5003` ince proxy. İş mantığı tek yerde
+(tefas-service), core-api'de hesap yok.
+
+### 3.2 Saha bulgusu: hız sınırı BİRİKİMLİ
+
+İlk deneme (10 istek / 25 sn) sorunsuzdu, o yüzden 1,5 sn bekleme yeterli
+sanıldı. Geriye dönük doldurma açılınca gerçek ortaya çıktı:
+
+| Ölçüm | Sonuç |
+|---|---|
+| Tek gün / 200'lük sayfa | 0,2 sn — API **hızlı** |
+| 5 gün / 600'lük sayfa | 2,3 sn |
+| ~10 dk sürekli çekim (1,5 sn ara) | **13 kez HTTP 429** |
+| Sonrasında tek günlük sorgu | yine 429 — site tümden reddediyor |
+
+Yani sınır anlık istek hızı değil, **belli bir süredeki toplam istek sayısı**.
+Bilmediğimiz eşiği aramak yerine bariz şekilde altında kalındı:
+
+- İstekler arası bekleme **5 sn**
+- Sayfa boyu 200 → **500** (maliyet istek sayısında, sayfa boyunda değil)
+- 429 ayrı bir hata türü (`HizSiniri`): "veri bozuk" değil "sus ve bekle"
+- Sınıra dokunulunca **45 dk soğuma** — ısrar yok
+- Geriye dönük doldurma **turda tek ay**; 13 ay ~3,5 saate yayılır
+
+Bir de görünürlük kusuru düzeltildi: geri çekilmeler **sessizdi**. İlk çekim
+189 sn sürdü, beklenen ~45 sn'ydi; aradaki fark hiçbir yerde görünmüyordu.
+Artık sayaç `/api/fon/durum` çıktısında.
+
+Doğrulandı (5 sn ara ile): 2.361 kayıt, 32 sn, **sıfır 429**.
+
+### 3.3 Uç noktalar
+
+| Yol | İçerik |
+|---|---|
+| `GET /api/fon/durum` | depo özeti, son çekim, doldurma ilerlemesi, hız sınırı sayacı |
+| `GET /api/fon/kategoriler` | izlenen kategoriler + fon sayısı |
+| `GET /api/fon/liste?gun=&kategori=&asOf=` | bir günün fon listesi |
+| `GET /api/fon/seri/{kod}?gun=&asOf=` | tek fonun seri geçmişi |
+
+`asOf` her ikisinde de var: **noktasal-zamanlı okuma** baştan mümkün, sonradan
+eklenen bir özellik değil.
 
 ---
 

@@ -176,9 +176,67 @@ def test_retry_after_basligina_uyulur(monkeypatch):
     assert 7 in uyuma, "sunucunun söylediği süreye uyulmalı"
 
 
+def test_429_sessiz_kalmaz(monkeypatch, capsys):
+    """
+    İlk saha çekiminde 11 günlük veri 189 sn sürdü; beklenen ~45 sn'ydi. Fark
+    sessiz 429 beklemeleriydi ve HİÇBİR YERDE görünmüyordu — "yavaş ama
+    çalışıyor" ile "hız sınırına toslanıyor" ayırt edilemiyordu.
+    """
+    monkeypatch.setattr(T.time, "sleep", lambda s: None)
+    T.OLAY.update({"hiz_siniri": 0, "yeniden_deneme": 0, "bekleme_sn": 0.0})
+    s = SahteOturum([
+        SahteCevap({}, status=429),
+        SahteCevap({"errorMessage": None, "toplamSayi": 1, "resultList": [_kayit("A")]}),
+    ])
+    T.kategori_cek("104", BAS, BIT, oturum=s)
+    assert T.OLAY["hiz_siniri"] == 1, "sayaç artmadı — /durum'da görünmez"
+    assert T.OLAY["bekleme_sn"] > 0
+    assert "429" in capsys.readouterr().out
+
+
+def test_hiz_siniri_ayri_hata_turu(monkeypatch):
+    """
+    'Veri bozuk' ile 'SUS ve bekle' aynı hata değildir. Çağıran (main.py)
+    soğumaya çekilip çekilmeyeceğine bu ayrımla karar veriyor.
+    """
+    monkeypatch.setattr(T.time, "sleep", lambda s: None)
+    s = SahteOturum([SahteCevap({}, status=429) for _ in range(10)])
+    with pytest.raises(T.HizSiniri):
+        T.kategori_cek("104", BAS, BIT, oturum=s)
+
+
+def test_hiz_sinirinda_diger_kategorilere_gecilmez(monkeypatch):
+    """
+    Sınır BİRİKİMLİ: takıldıktan sonra sıradaki kategoriye geçmek işe yaramaz,
+    yalnız siteyi daha da yorar. İkinci saha ölçümünde tam bu oldu — 13 kez
+    429 alındıktan sonra tek günlük sorgular bile reddedilmeye başladı.
+    """
+    monkeypatch.setattr(T.time, "sleep", lambda s: None)
+    monkeypatch.setattr(T, "_oturum", lambda: SahteOturum(
+        [SahteCevap({}, status=429) for _ in range(40)]))
+    kayitlar, hatalar = T.kategoriler_cek(BAS, BIT, kodlar=["104", "101", "107"])
+    assert kayitlar == []
+    assert len(hatalar) == 1, "ilk kategoride durulmalıydı"
+    assert "104" in hatalar[0]
+
+
+def test_sira_disi_hata_diger_kategorileri_durdurmaz(monkeypatch):
+    """Gerçek bir arıza tek kategoriyi kaybettirir, tüm günü değil."""
+    monkeypatch.setattr(T.time, "sleep", lambda s: None)
+    monkeypatch.setattr(T, "_oturum", lambda: SahteOturum([
+        SahteCevap({"errorMessage": "Hata:java.lang.NullPointerException",
+                    "resultList": None, "toplamSayi": None}),
+        SahteCevap({"errorMessage": None, "toplamSayi": 1,
+                    "resultList": [_kayit("AAV")]}),
+    ]))
+    kayitlar, hatalar = T.kategoriler_cek(BAS, BIT, kodlar=["104", "101"])
+    assert len(kayitlar) == 1 and len(hatalar) == 1
+
+
 def test_kibarlik_beklemesi_yeterince_uzun():
     """
-    0.8 sn ile 429 yendi. Eşik sessizce düşürülürse aynı duvara toslanır ve
-    kamuya açık bir servis yorulur.
+    İki saha ölçümünün dersi: 0.8 sn ile 429 yendi, 1.5 sn ile birikimli
+    sınıra girildi. Eşik sessizce düşürülürse aynı duvara toslanır ve kamuya
+    açık bir devlet servisi yorulur.
     """
-    assert T.BEKLEME_SN >= 1.0
+    assert T.BEKLEME_SN >= 4.0

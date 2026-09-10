@@ -24,6 +24,18 @@ builder.Services.AddHttpClient("market-data-chart", client =>
     client.Timeout = TimeSpan.FromSeconds(30);
 });
 
+// TEFAS fon servisi proxy'si için HttpClient.
+// Fon verisi kuyruk/DB'den DEĞİL, tefas-service'ten HTTP ile gelir — market-data
+// chart proxy'siyle aynı desen. Gerekçe tefas-service/main.py başındaki notta.
+builder.Services.AddHttpClient("tefas", client =>
+{
+    var baseUrl = builder.Configuration["Tefas:Url"] ?? "http://tefas-service:5003";
+    client.BaseAddress = new Uri(baseUrl);
+    // Geriye dönük doldurma sırasında servis meşgul olabilir; chart'tan
+    // biraz cömert davranılıyor.
+    client.Timeout = TimeSpan.FromSeconds(60);
+});
+
 // CORS — Production'da yalnızca yapılandırılmış origin'lerden istek kabul edilir.
 // docker-compose'da Cors__AllowedOrigins ortam değişkeni ile yapılandırılır.
 var allowedOrigins = (builder.Configuration["Cors:AllowedOrigins"] ?? "http://localhost:3000")

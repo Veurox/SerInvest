@@ -1,7 +1,7 @@
 {
   "_meta": {
-    "description": "SerInvest BIST + Emtia/Döviz sembol listesi. Tüm servisler (ai-oracle, market-data, fundamental) buradan okur. Frontend de aynı listeyi /api/symbols üzerinden alır. Eklemek/çıkarmak için yalnızca burayı düzenle.",
-    "last_updated": "2026-05-07",
+    "description": "SerInvest BIST + Emtia/Döviz + TEFAS fon listesi. Tüm servisler (ai-oracle, market-data, fundamental) buradan okur. Frontend de aynı listeyi /api/symbols üzerinden alır. Eklemek/çıkarmak için yalnızca burayı düzenle.",
+    "last_updated": "2026-09-11",
     "tier": "BIST-100"
   },
   "bist": {
@@ -41,6 +41,17 @@
     "BRENTOIL": "BZ=F",
     "NATGAS":   "NG=F",
     "COPPER":   "HG=F"
+  },
+  "fund": {
+    "_not": "Fon listesi TEFAS'tan DİNAMİK gelir (kategoriye göre, ~470 fon); tek tek yazılmaz. Burada yalnızca İZLENEN KATEGORİLER durur. Kaynak: tefas-service. Kategori kodları TEFAS 'sfonTurKod' değerleridir.",
+    "kategori": {
+      "104": "Hisse Senedi",
+      "105": "Kıymetli Maden",
+      "101": "Değişken",
+      "107": "Para Piyasası"
+    },
+    "esik_kategori": "107",
+    "_esik_not": "Kıyas eşiği: bir hisse fonunu %0 ile karşılaştırmak enflasyonlu ortamda anlamsız. Anlamlı soru 'para piyasası fonunda dursaydım ne olurdu'. Bkz. docs/PLAN_TEFAS.md §4."
   },
   "forex": {
     "USDTRY": "USDTRY=X",

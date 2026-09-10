@@ -37,19 +37,47 @@ KATEGORILER: dict[str, str] = {
     "107": "Para Piyasası",      # kıyas eşiği
 }
 
-SAYFA_BOYU = 200      # tek istekte alınacak kayıt
+# Tek istekte alınacak kayıt. 11.09.2026 ölçümü: tek gün / 200'lük sayfa 0.2 sn,
+# 5 gün / 600'lük sayfa 2.3 sn — yani maliyet istek SAYISINDA, sayfa boyunda
+# değil. 500'lük sayfa aynı ayı üçte bir istekle çekiyor: hem bizim için hızlı
+# hem site için daha az yük.
+SAYFA_BOYU = 500
 # İstekler arası bekleme. 0.8 sn ile HTTP 429 (Too Many Requests) yendi
 # (11.09.2026 saha denemesi) — site gerçekten hız sınırlıyor. Burası kamuya
 # açık bir devlet servisi; yormak hem kaba hem de engellenmeye davetiye.
-BEKLEME_SN = 1.5
+#
+# 11.09.2026 ikinci saha ölçümü: 1.5 sn ile ~10 dakika çeken bir geriye dönük
+# doldurma sırasında 13 kez 429 alındı ve sonunda site ARDIŞIK her isteği
+# reddetmeye başladı — tek gün süren küçük bir sorgu bile. Yani sınır anlık
+# değil BİRİKİMLİ: belli bir süre içindeki toplam istek sayısını sayıyor.
+# İlk saha denemesi (10 istek, 25 sn) sorunsuzdu; sınır ikisinin arasında.
+#
+# Bilmediğimiz bir eşiği aramak yerine bariz şekilde altında kalıyoruz.
+BEKLEME_SN = 5.0
 ZAMAN_ASIMI = 30
 # 429 sonrası üstel geri çekilme: 5s, 15s, 45s. Üçü de tutmazsa vazgeç —
 # sonsuz denemek siteyi daha da yorar.
 GERI_CEKILME_SN = (5, 15, 45)
 
+# Geri çekilme SESSİZ OLMAMALI. İlk saha çekiminde 11 günlük veri 189 saniye
+# sürdü; beklenen ~45 sn'ydi. Aradaki fark sessiz 429 beklemeleriydi ve hiçbir
+# yerde görünmüyordu — "yavaş ama çalışıyor" ile "hız sınırına toslanıyor"
+# ayırt edilemiyordu. Sayaç /durum çıktısında yayımlanır.
+OLAY = {"hiz_siniri": 0, "yeniden_deneme": 0, "bekleme_sn": 0.0}
+
 
 class TefasHata(RuntimeError):
     """Ağ/biçim hatası. Sessizce yutulmaz: çağıran karar versin."""
+
+
+class HizSiniri(TefasHata):
+    """
+    Hız sınırına takıldık ve geri çekilmeler yetmedi.
+
+    Ayrı bir sınıf olmasının nedeni: bu hata "veri bozuk" değil "SUS ve bekle"
+    demektir. Çağıran bunu ayırt edebilmeli — birikimli sınırdayken sıradaki
+    kategoriye geçmek hem sonuçsuz hem de kaba.
+    """
 
 
 def _oturum() -> requests.Session:
@@ -94,8 +122,12 @@ def _istek_geri_cekilmeli(s: requests.Session, govde: dict, kategori_kod: str):
     başlığı varsa ona uyulur; yoksa 5/15/45 sn beklenir.
     """
     son_hata = None
-    for i, bekle in enumerate((0,) + GERI_CEKILME_SN):
+    hiz_siniriydi = False
+    for bekle in (0,) + GERI_CEKILME_SN:
         if bekle:
+            OLAY["yeniden_deneme"] += 1
+            OLAY["bekleme_sn"] += bekle
+            print(f"[tefas] {kategori_kod}: {son_hata} — {bekle} sn bekleniyor")
             time.sleep(bekle)
         try:
             r = s.post(URL_VERI, json=govde, timeout=ZAMAN_ASIMI)
@@ -105,17 +137,22 @@ def _istek_geri_cekilmeli(s: requests.Session, govde: dict, kategori_kod: str):
         if r.status_code == 200:
             return r
         if r.status_code == 429:
+            OLAY["hiz_siniri"] += 1
             # Sunucu ne kadar bekleyeceğimizi söylediyse ona uy.
             try:
                 ra = int(r.headers.get("Retry-After", "0"))
                 if ra > 0:
+                    OLAY["bekleme_sn"] += min(ra, 120)
+                    print(f"[tefas] {kategori_kod}: HTTP 429, sunucu {ra} sn dedi")
                     time.sleep(min(ra, 120))
             except (TypeError, ValueError):
                 pass
             son_hata = "HTTP 429 (hız sınırı)"
+            hiz_siniriydi = True
             continue
         raise TefasHata(f"{kategori_kod}: HTTP {r.status_code}")
-    raise TefasHata(f"{kategori_kod}: {son_hata} — {len(GERI_CEKILME_SN)} denemede geçilemedi")
+    mesaj = f"{kategori_kod}: {son_hata} — {len(GERI_CEKILME_SN)} denemede geçilemedi"
+    raise (HizSiniri if hiz_siniriydi else TefasHata)(mesaj)
 
 
 def normalize(ham: dict, kategori_kod: str) -> dict | None:
@@ -207,6 +244,10 @@ def kategoriler_cek(bas: datetime.date, bit: datetime.date,
     Döndürür: (kayıtlar, hatalar). Bir kategori patlarsa DİĞERLERİ SÜRER —
     tek bir kategorinin arızası tüm günü kaybettirmemeli. Hatalar çağırana
     liste olarak döner; sessizce yutulmaz.
+
+    TEK İSTİSNA hız sınırı: sınır birikimli olduğu için sıradaki kategoriye
+    geçmek işe yaramaz, yalnız siteyi daha da yorar. O durumda tur BİTİRİLİR
+    ve o ana kadar toplananla dönülür — çağıran soğumaya çekilsin.
     """
     s = _oturum()
     hepsi: list[dict] = []
@@ -214,6 +255,10 @@ def kategoriler_cek(bas: datetime.date, bit: datetime.date,
     for kod in (kodlar or list(KATEGORILER)):
         try:
             hepsi.extend(kategori_cek(kod, bas, bit, oturum=s))
+        except HizSiniri as e:
+            hatalar.append(str(e))
+            print(f"[tefas] hız sınırı — tur yarıda kesiliyor ({kod})")
+            break
         except TefasHata as e:
             hatalar.append(str(e))
         time.sleep(BEKLEME_SN)

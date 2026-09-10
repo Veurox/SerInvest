@@ -43,3 +43,7 @@ Thumbs.db
 
 # Yedekler (backup.ps1 çıktısı) — repo'ya değil, elle taşınır
 /backups/
+
+# TEFAS fon geçmişi (tefas-service deposu) — oracle-data ile aynı gerekçe:
+# her gün büyüyen çalışma verisi, repo'ya girmez. Taşımada elle kopyalanır.
+/tefas-data/

@@ -1,2 +1,5 @@
+# HTTP istemcisi (TEFAS) + servis kendi verisini sunan küçük HTTP sunucusu.
+# pika YOK: fon verisi kuyruğa girmiyor — gerekçe main.py başındaki notta
+# (günde tek satır, PriceData şeması OHLCV için, depo eklemeli).
 requests==2.32.3
-pika==1.3.2
+flask>=3.0.0
