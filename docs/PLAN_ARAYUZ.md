@@ -197,7 +197,28 @@ bir yer buldu — hiçbiri boşa gitmiyor:
 | **Yapı 3** · Kontrol odası | **Bugün** adayı. Göz atma ekranı olarak güçlü; ayrıntı bir tık uzakta. |
 | **Yapı 4** · Bugünün akışı | **Bugün** içinde "son bakıştan beri ne değişti" bölümü. Tek başına sayfa değil, bir bölüm. |
 
-Karar: Yapı 2 mi Yapı 3 mü (ya da karması). Kullanıcı düşünüyor.
+**Karar (14.09.2026): Yapı 2.** Önce Yapı 3 seçilip yazıldı, sonra
+kullanıcı beğenmedi ve Yapı 2'ye geçildi. Yapı 3'ün gerçek kusurları
+inşa edilince görüldü:
+
+1. **Eşit ızgara, eşit olmayan önemi anlatamıyor.** "Bugünün çağrısı"
+   sayfanın cevabı, "kâğıt üstü portföy" ise bağlam; altı eşit karo ikisine
+   de aynı ağırlığı veriyordu. Boyutla telafi denendi (46px/34px), ızgara
+   geri itti.
+2. **Okuma sırası yok.** Kullanıcının sorusunun doğal bir sırası var
+   (piyasa uygun mu → model ne diyor → güvenebilir miyim); 3×2 ızgarada
+   göz rastgele bir yerden başlıyor.
+3. **En can alıcısı:** eski Terminal'i eleştirirken yazdığımız hata
+   tekrarlandı — çağrı yukarıdaki karoda, grafiği 400 piksel aşağıda.
+   Karar ile kanıtı ayrıldı. Yapı 2'de ikisi orta bantta yan yana.
+
+Ayrıca Yapı 2'nin tek zayıf yeri (Bant 1'in çıplak sayı dizisi olması)
+bu arada üretilen görsel ailesiyle kapandı: kadran, genişlik şeridi,
+dağılım halkası, eşikli çubuk.
+
+Ders: bir iskeletin kusuru maketten değil, inşa edilince görünüyor.
+Yapı 3'ün yazılması kayıp değil — jetonlar, görseller ve veri bağlantıları
+olduğu gibi taşındı, yalnız yerleşim değişti.
 
 Yapı seçilince sıra: (1) jeton sistemi ve bileşen kütüphanesi yeni yapıya
 göre kurulur, (2) Bugün baştan sona yazılır, (3) beğenilirse kalan sayfalara

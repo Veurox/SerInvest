@@ -299,3 +299,84 @@
 .ui2 .u-down { color: var(--u-down); }
 .ui2 .u-warn { color: var(--u-warn); }
 .ui2 .u-flat { color: var(--u-flat); }
+
+/* ── Bant düzeni (Yapı 2) ────────────────────────────────────────────────
+   Sayfa üç yatay banda bölünür ve her bandın başlığı bir SORUDUR:
+   "Piyasa bugün nasıl?" → "Model ne diyor?" → "Neye güvenebilirim?"
+
+   NEDEN KARO IZGARASI DEĞİL (14.09.2026 kararı, Yapı 3 denendikten sonra)
+   Altı eşit karo, eşit OLMAYAN önemi anlatamıyordu: "bugünün çağrısı"
+   sayfanın cevabı, "kâğıt üstü portföy" ise bağlam — ızgara ikisine de
+   aynı ağırlığı veriyordu. Dahası ızgarada okuma sırası yok; kullanıcının
+   sorusunun ise doğal bir sırası var. Bantlar o sırayı yapının içine koyuyor
+   ve boyutları farklı olabiliyor (orta bant en büyük).
+
+   Kart/kutu YOK: bantlar zeminde durur, aralarında saç teli çizgi. Kutu
+   sayısını azaltmak zaten bu yeniden kurgunun çıkış noktasıydı. */
+.ui2 .u-band {
+  padding: var(--u-s5) 0;
+  border-bottom: 1px solid var(--u-line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--u-s4);
+  min-width: 0;
+}
+.ui2 .u-band:first-child { padding-top: var(--u-s3); }
+.ui2 .u-band:last-child  { border-bottom: none; padding-bottom: var(--u-s3); }
+
+/* Bandın başlığı: modül adı değil, insanın sorduğu soru. Bu yüzden büyük
+   harf ve harf aralığı YOK — cümle gibi okunmalı. */
+.ui2 .u-band__q {
+  font-size: 21px;
+  font-weight: var(--u-w-black);
+  letter-spacing: -0.018em;
+  line-height: var(--u-lh-tight);
+}
+.ui2 .u-band__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--u-s3);
+  flex-wrap: wrap;
+}
+
+/* Bant içi hücreler — kutu değil, yalnız hizalı sütunlar. */
+.ui2 .u-cells {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--u-s5);
+  align-items: start;
+}
+@media (max-width: 1080px) { .ui2 .u-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px)  { .ui2 .u-cells { grid-template-columns: minmax(0, 1fr); } }
+
+.ui2 .u-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--u-s2);
+  min-width: 0;
+  min-height: 132px;
+}
+
+/* Seçilebilir satır (çağrı listesi). Seçili olan vurgu çizgisiyle işaretli —
+   dolgulu çip değil, yapısal vurgu (renk disiplini notuna bakınız). */
+.ui2 .u-pick {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--u-s2);
+  padding: var(--u-s2) var(--u-s3);
+  border: none;
+  border-left: 2px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 0 var(--u-r-sm) var(--u-r-sm) 0;
+  transition: background var(--u-fast);
+}
+.ui2 .u-pick:hover { background: var(--u-panel-2); }
+.ui2 .u-pick--on {
+  background: var(--u-panel);
+  border-left-color: var(--u-accent);
+}

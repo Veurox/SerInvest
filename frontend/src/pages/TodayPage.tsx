@@ -1,22 +1,30 @@
 // =============================================================================
 // SerInvest — Bugün  (route: /bugun)
-// docs/PLAN_ARAYUZ.md · Yapı 3 "Kontrol odası" · "görsel önde, sayı yanında"
+// docs/PLAN_ARAYUZ.md · Yapı 2 "Üç soru, sırayla" · "görsel önde, sayı yanında"
 //
 // AÇILIŞ SAYFASI. Tek soruyu cevaplar: BUGÜN ALINACAK BİR ŞEY VAR MI?
+// Sayfa yukarıdan aşağı bir düşünce zinciri:
+//     Piyasa bugün nasıl?  →  Model ne diyor?  →  Neye güvenebilirim?
 //
-// YAPI 3'ÜN KURALI: EKRANDA MODÜL BAŞLIĞI YOK.
-// Eski Terminal'de 11 başlıklı bölge vardı ("AI KARAR MERKEZİ", "DUYARLILIK
-// RADARI", "MODEL SAĞLIĞI"…) ve hiçbiri "önce şuraya bak" demiyordu. Burada
-// etiket karonun parçası; ayrı bir başlık satırı yok. Karonun kendisi bir
-// cümle: etiket + görsel + sayı.
+// NEDEN BANT, NEDEN KARO IZGARASI DEĞİL (Yapı 3 denendi ve bırakıldı)
+//   1. Altı eşit karo, eşit OLMAYAN önemi anlatamıyor. "Bugünün çağrısı"
+//      sayfanın cevabı; "kâğıt üstü portföy" bağlam. Izgara ikisine de aynı
+//      ağırlığı veriyordu.
+//   2. Izgarada okuma sırası yok. Kullanıcının sorusunun ise var.
+//   3. En önemlisi: ızgara, eski Terminal'i eleştirirken yazdığımız hatayı
+//      tekrarlıyordu — çağrı yukarıdaki karoda, grafiği 400 piksel aşağıda.
+//      Karar ile kanıtı ayrılıyordu. Burada ikisi ORTA BANTTA yan yana.
+//
+// BAŞLIKLAR MODÜL ADI DEĞİL SORU. Eski Terminal'de 11 başlıklı bölge vardı
+// ("AI KARAR MERKEZİ", "DUYARLILIK RADARI"…) ve hiçbiri "önce şuraya bak"
+// demiyordu. Üç soru hem az hem de yönlendirici.
 //
 // NE BURAYA GELMEDİ (bilerek)
-//   • MLOps paneli — modelin yaşı, PSI, örneklem sayısı BAKIM verisidir; alım
-//     kararı verirken bakılmaz. Model sayfasına ait. Buradan yalnız karara
-//     dokunan tek ölçü kaldı: AL isabeti ve başabaş eşiği.
-//   • Duyarlılık radarının varlık bazlı altı satırı — tek bir ruh hali
-//     kadranına indi. Karar verirken altı varlığın haber puanı okunmuyor.
-//   • İzleme listesi — o bir gezinme aracı, sayfanın içeriği değil.
+//   • MLOps panelinin tamamı — modelin yaşı, PSI, örneklem BAKIM verisidir.
+//     Model sayfasına ait. Buraya yalnız "güvenebilir miyim" sorusuna dokunan
+//     ölçüler geldi.
+//   • Duyarlılık radarının varlık bazlı altı satırı — tek kadrana indi.
+//   • İzleme listesi — gezinme aracı, sayfanın içeriği değil.
 // =============================================================================
 import { useEffect, useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
@@ -37,8 +45,6 @@ interface AdminStatus {
 interface DriftResp {
   status?: string
   psi?: number | null
-  n_live?: number | null
-  n_live_days?: number | null
   calibration?: { n_evaluated?: number | null; min_required?: number | null }
 }
 interface PaperSummary {
@@ -49,13 +55,13 @@ interface PaperSummary {
   market_open: boolean
 }
 interface Commentary {
-  headline?: string
   stance?: { direction: 'YUKARI' | 'YATAY' | 'AŞAĞI'; confidence: string }
   error?: string
 }
 
-const yuzde = (v: number | null | undefined, d = 1) =>
-  v == null ? '—' : `%${(v * 100).toFixed(d)}`
+const YON_RENK: Record<string, string> = {
+  YUKARI: 'var(--u-up)', 'AŞAĞI': 'var(--u-down)', YATAY: 'var(--u-flat)',
+}
 
 export default function TodayPage() {
   const { assets, oracle, openChart } = useOutletContext<SharedData>()
@@ -90,7 +96,6 @@ export default function TodayPage() {
 
   const ruh = useMemo(() => ruhHaliHesapla(agg ?? []), [agg])
 
-  /** Sembol başına en son analiz. */
   const sonAnaliz = useMemo(() => {
     const m = new Map<string, typeof oracle[number]>()
     for (const o of oracle) {
@@ -100,7 +105,6 @@ export default function TodayPage() {
     return m
   }, [oracle])
 
-  /** Bugünün AL çağrıları, güvene göre. */
   const cagrilar = useMemo(() =>
     [...sonAnaliz.values()]
       .filter(o => o.recommendation.includes('ALIM'))
@@ -120,7 +124,7 @@ export default function TodayPage() {
     return { artida, toplam: bist.length }
   }, [assets])
 
-  /** Sinyal dağılımı — halka grafiğin MEŞRU kullanımı: parçanın bütüne oranı. */
+  /** Sinyal dağılımı — halkanın MEŞRU kullanımı: parçanın bütüne oranı. */
   const dagilim = useMemo(() => {
     let al = 0, tut = 0, sat = 0
     for (const o of sonAnaliz.values()) {
@@ -129,19 +133,18 @@ export default function TodayPage() {
       else tut++
     }
     return [
-      { ad: 'Alım', deger: al,  renk: 'var(--u-up)' },
-      { ad: 'Tut',  deger: tut, renk: 'var(--u-flat)' },
+      { ad: 'Alım',  deger: al,  renk: 'var(--u-up)' },
+      { ad: 'Tut',   deger: tut, renk: 'var(--u-flat)' },
       { ad: 'Satış', deger: sat, renk: 'var(--u-down)' },
     ]
   }, [sonAnaliz])
 
   /**
    * Başabaş isabet oranı — hedef/stop mesafelerinden TÜRETİLİR, elle yazılmaz.
-   * TP 3×ATR, SL 2×ATR ise kazanç/kayıp dengesinin tuttuğu nokta
-   * SL/(TP+SL) = %40'tır. İşlem maliyeti bunu bir miktar yukarı iter; o
-   * kısım burada hesaplanamıyor (ATR'nin fiyat karşılığı lazım), bu yüzden
-   * etikette "maliyet hariç" yazıyor. Sayı config'ten geliyor ki eşikler
-   * değişince burası sessizce eski kalmasın.
+   * TP 3×ATR, SL 2×ATR ise dengenin tuttuğu nokta SL/(TP+SL) = %40. İşlem
+   * maliyeti bunu biraz yukarı iter; o kısım burada hesaplanamıyor (ATR'nin
+   * fiyat karşılığı lazım), bu yüzden etikette "maliyet hariç" yazıyor.
+   * Sayı config'ten geliyor ki eşikler değişince ekran sessizce eski kalmasın.
    */
   const basabas = useMemo(() => {
     const { tp_atr_mult: tp, sl_atr_mult: sl } = cfg.model
@@ -149,11 +152,14 @@ export default function TodayPage() {
   }, [cfg])
 
   const alIsabet = st?.wf_buy_accuracy != null ? st.wf_buy_accuracy * 100 : null
-  const psiDurum = (dr?.status ?? '').toUpperCase()
-  const sapmaVar = psiDurum === 'DRIFT' || psiDurum === 'ALERT'
+  const sapmaVar = ['DRIFT', 'ALERT'].includes((dr?.status ?? '').toUpperCase())
   const kalibre = dr?.calibration
+  const kalibreOran = kalibre?.min_required
+    ? Math.min(100, ((kalibre.n_evaluated ?? 0) / kalibre.min_required) * 100)
+    : null
+  const modelYasGun = st?.model_age_hours != null
+    ? Math.round(st.model_age_hours / 24) : null
 
-  /** Kâr/zarar serisi henüz uç noktada yok — uydurmuyoruz, tek sayı gösteriyoruz. */
   const pozisyonSayisi = paper?.positions?.length ?? null
   const getiri = paper ? paper.total_return * 100 : null
   const kiyas = paper?.benchmark_return != null ? paper.benchmark_return * 100 : null
@@ -161,223 +167,234 @@ export default function TodayPage() {
   const yon = yorum?.stance?.direction ?? null
 
   return (
-    <div className="ui2" style={{ minHeight: '100%', padding: 'var(--u-s5)' }}>
+    <div className="ui2" style={{ minHeight: '100%', padding: '0 var(--u-s5) var(--u-s5)' }}>
 
-      {/* Karo ızgarası — Yapı 3'ün gövdesi. Başlık satırı YOK, karolar EŞİT.
-          Eşit yükseklik tasarımın kendisi: tırtıklı satırlar "altı gösterge"
-          hissini bozup "yan yana dizilmiş farklı kutular"a çeviriyordu. */}
-      <div className="u-grid6">
-
-        {/* 1 · Bugünün çağrısı — sayfanın cevabı. Boyutla öne çıkar. */}
-        <div className="u-tile u-tile--primary">
-          <span className="u-label">Bugünün çağrısı</span>
-          <div className="u-tile__body">
-            {cagrilar.length === 0 ? (
-              <span className="u-hero u-flat">Yok</span>
-            ) : (
-              <>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--u-s3)' }}>
-                  <span className="u-hero">{cagrilar[0].symbol}</span>
-                  <span style={{ fontSize: 'var(--u-t-lead)', fontWeight: 600, color: 'var(--u-up)' }}>
-                    {cagrilar[0].recommendation}
-                  </span>
-                </div>
-                <BarWithRef
-                  deger={cagrilar[0].confidence * 100}
-                  esik={basabas}
-                  esikEtiket="başabaş (maliyet hariç)"
-                />
-              </>
-            )}
-          </div>
-          <span className="u-sub u-sub--clamp">
-            {cagrilar.length === 0
-              ? 'Model bugün hiçbir sembolde alım demiyor.'
-              : <>{cagrilar.length > 1 ? `${cagrilar.length - 1} çağrı daha · ` : ''}
-                  <TerimTip ad="Güven">güven</TerimTip> doğrulanmış bir olasılık değildir</>}
-          </span>
+      {/* ══ BANT 1 ══ Piyasa bugün nasıl? ═══════════════════════════════════
+          Eski Terminal'de üç ayrı kutuydu: tiker, Duyarlılık Radarı ve Piyasa
+          Yorumu. Üçü de aynı soruyu cevaplıyordu; tek banda indiler. */}
+      <section className="u-band">
+        <div className="u-band__head">
+          <h2 className="u-band__q">Piyasa bugün nasıl?</h2>
+          {yon && (
+            <span style={{ fontSize: 'var(--u-t-lead)', fontWeight: 600,
+                           color: YON_RENK[yon] ?? 'var(--u-flat)' }}>
+              kısa vade {yon.toLocaleLowerCase('tr-TR')}
+            </span>
+          )}
+          {yorum?.stance?.confidence && (
+            <span className="u-sub">{yorum.stance.confidence} güven</span>
+          )}
         </div>
 
-        {/* 2 · Piyasa ruh hali — kadran */}
-        <div className="u-tile">
-          <span className="u-label">Piyasa ruh hali</span>
-          <div className="u-tile__body" style={{ alignItems: 'center' }}>
-            <Gauge deger={ruh.puan} genislik={176} />
+        <div className="u-cells">
+          <div className="u-cell">
+            <span className="u-label">Piyasa ruh hali</span>
+            <Gauge deger={ruh.puan} genislik={168} />
+            <span className="u-sub u-sub--clamp">
+              son 48 saatte {ruh.haberSayisi.toLocaleString('tr-TR')} haber
+              {ruh.jeopolitik > 0 && ` · ${ruh.jeopolitik} jeopolitik`}
+            </span>
           </div>
-          <span className="u-sub u-sub--clamp" style={{ textAlign: 'center' }}>
-            son 48 saatte {ruh.haberSayisi.toLocaleString('tr-TR')} haber
-            {ruh.jeopolitik > 0 && ` · ${ruh.jeopolitik} jeopolitik`}
-          </span>
-        </div>
 
-        {/* 3 · Piyasa genişliği — nokta şeridi, her nokta bir hisse */}
-        <div className="u-tile">
-          <span className="u-label">Piyasa genişliği</span>
-          <div className="u-tile__body">
+          <div className="u-cell">
+            <span className="u-label">Piyasa genişliği</span>
             <span className="u-big u-num">
               {genislik.toplam > 0 ? genislik.artida : '—'}
               <span style={{ fontSize: 'var(--u-t-num)', color: 'var(--u-text-3)',
                              fontWeight: 500 }}>/{genislik.toplam || '—'}</span>
             </span>
             <DotStrip artida={genislik.artida} toplam={genislik.toplam}
-                      genislik={280} yukseklik={30} />
+                      genislik={260} yukseklik={28} />
+            <span className="u-sub u-sub--clamp">
+              günü artıda geçiren hisseler · her çubuk bir hisse
+            </span>
           </div>
-          <span className="u-sub u-sub--clamp">günü artıda geçiren hisseler · her çubuk bir hisse</span>
-        </div>
 
-        {/* 4 · Sinyal dağılımı — halkanın meşru kullanımı (parça/bütün) */}
-        <div className="u-tile">
-          <span className="u-label">Model ne diyor</span>
-          <div className="u-tile__body">
-            <Donut
-              dilimler={dagilim}
-              boyut={104}
-              ortaUst={String(dagilim.reduce((t, d) => t + d.deger, 0))}
-              ortaAlt="sembol"
-            />
+          <div className="u-cell">
+            <span className="u-label">Model ne öneriyor</span>
+            <Donut dilimler={dagilim} boyut={104}
+                   ortaUst={String(dagilim.reduce((t, d) => t + d.deger, 0))}
+                   ortaAlt="sembol" />
           </div>
-          <span className="u-sub u-sub--clamp">analiz edilen sembollerin karar dağılımı</span>
-        </div>
 
-        {/* 5 · Açık pozisyon */}
-        <div className="u-tile">
-          <span className="u-label">Kâğıt üstü portföy</span>
-          <div className="u-tile__body">
+          <div className="u-cell">
+            <span className="u-label">Kâğıt üstü portföy</span>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--u-s3)' }}>
               <span className={`u-big u-num ${getiri == null ? 'u-flat' : getiri >= 0 ? 'u-up' : 'u-down'}`}>
                 {getiri == null ? '—' : `${getiri >= 0 ? '+' : ''}%${getiri.toFixed(1)}`}
               </span>
               <span className="u-exact">
-                {pozisyonSayisi == null ? '' : `${pozisyonSayisi} açık pozisyon`}
+                {pozisyonSayisi == null ? '' : `${pozisyonSayisi} açık`}
               </span>
             </div>
+            <span className="u-sub u-sub--clamp">
+              {kiyas != null && getiri != null
+                ? <>Endeks aynı dönemde <b className="u-num">{kiyas >= 0 ? '+' : ''}%{kiyas.toFixed(1)}</b>
+                    {' · '}fark <b className={`u-num ${getiri - kiyas >= 0 ? 'u-up' : 'u-down'}`}>
+                      {getiri - kiyas >= 0 ? '+' : ''}%{(getiri - kiyas).toFixed(1)}</b></>
+                : (paper?.market_status ?? 'durum bilinmiyor')}
+            </span>
           </div>
-          <span className="u-sub u-sub--clamp">
-            {kiyas != null && getiri != null
-              ? <>Endeks aynı dönemde <b className="u-num">{kiyas >= 0 ? '+' : ''}%{kiyas.toFixed(1)}</b>
-                  {' · '}fark <b className={`u-num ${getiri - kiyas >= 0 ? 'u-up' : 'u-down'}`}>
-                    {getiri - kiyas >= 0 ? '+' : ''}%{(getiri - kiyas).toFixed(1)}</b></>
-              : (paper?.market_status ?? 'durum bilinmiyor')}
+        </div>
+      </section>
+
+      {/* ══ BANT 2 ══ Model ne diyor? ═══════════════════════════════════════
+          Sayfanın asıl işi. Çağrı, gerekçesi ve grafiği YAN YANA — eski
+          Terminal'de bu üçü üç ayrı kutuya dağılmıştı. */}
+      <section className="u-band" style={{ flexGrow: 1 }}>
+        <div className="u-band__head">
+          <h2 className="u-band__q">Model ne diyor?</h2>
+          <span className="u-sub">
+            {cagrilar.length === 0
+              ? 'bugün alım çağrısı yok'
+              : `${cagrilar.length} alım çağrısı · güvene göre sıralı`}
           </span>
         </div>
 
-        {/* 6 · Modele güven — MLOps'un tamamı değil, yalnız karara dokunan ölçü */}
-        <div className="u-tile">
-          <span className="u-label">Modele güvenilir mi</span>
-          <div className="u-tile__body">
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--u-s2)' }}>
-              <span className="u-big u-num">{alIsabet == null ? '—' : `%${alIsabet.toFixed(1)}`}</span>
-              <span className="u-exact">AL isabeti</span>
-            </div>
-            <BarWithRef deger={alIsabet} esik={basabas}
-                        esikEtiket="başabaş (maliyet hariç)" gosterDeger={false} />
-          </div>
-          <span className="u-sub u-sub--clamp">
-            {sapmaVar && <b className="u-warn">Veri sapması var</b>}
-            {sapmaVar && ' · '}
-            {kalibre?.min_required
-              ? `Kalibrasyon ${kalibre.n_evaluated ?? 0}/${kalibre.min_required} — dürüst okuma birkaç hafta sonra`
-              : 'Kalibrasyon birikiyor'}
+        {cagrilar.length === 0 ? (
+          <span className="u-sub">
+            Model bugün hiçbir sembolde alım demiyor. Bu bir kusur değil —
+            filtreler geçilmediğinde çağrı üretilmez.
           </span>
-        </div>
-      </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '286px minmax(0, 1fr)',
+                        gap: 'var(--u-s5)', alignItems: 'start' }}>
 
-      {/* ── Seçili çağrı: grafik + ayrıntı ─────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px',
-                    gap: 'var(--u-s4)', marginTop: 'var(--u-s4)' }}>
-
-        <div className="u-tile" style={{ minHeight: 340 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--u-s3)',
-                        flexWrap: 'wrap' }}>
-            {cagrilar.slice(0, 6).map(c => (
-              <button key={c.symbol} onClick={() => setSecili(c.symbol)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer',
-                               padding: '2px 0', font: 'inherit',
-                               color: c.symbol === sembol ? 'var(--u-text)' : 'var(--u-text-3)',
-                               fontWeight: c.symbol === sembol ? 600 : 400,
-                               boxShadow: c.symbol === sembol
-                                 ? 'inset 0 -2px 0 var(--u-accent)' : 'none' }}>
-                {c.symbol}
-              </button>
-            ))}
-            <div style={{ flexGrow: 1 }} />
-            {varlik?.close != null && (
-              <span className="u-num" style={{ fontSize: 'var(--u-t-num)', fontWeight: 600 }}>
-                {varlik.close.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
-              </span>
-            )}
-          </div>
-
-          <div style={{ flexGrow: 1, display: 'flex', alignItems: 'center',
-                        justifyContent: 'center', color: 'var(--u-text-4)',
-                        fontSize: 'var(--u-t-small)', minHeight: 240 }}>
-            {sembol
-              ? <button onClick={() => openChart(sembol)}
-                        style={{ background: 'none', border: '1px dashed var(--u-line-strong)',
-                                 borderRadius: 'var(--u-r-md)', color: 'var(--u-text-3)',
-                                 padding: 'var(--u-s5)', cursor: 'pointer', font: 'inherit' }}>
-                  {sembol} grafiğini aç — bariyerli grafik bu sayfaya gömülecek
+            {/* Çağrı listesi — güven çubuklarıyla, eşik işaretli */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {cagrilar.slice(0, 7).map(c => (
+                <button key={c.symbol} onClick={() => setSecili(c.symbol)}
+                        className={`u-pick${c.symbol === sembol ? ' u-pick--on' : ''}`}>
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}>
+                    <span style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--u-s2)' }}>
+                      <b style={{ fontSize: 'var(--u-t-lead)' }}>{c.symbol}</b>
+                      <span className="u-sub" style={{ color: 'var(--u-up)' }}>
+                        {c.recommendation}
+                      </span>
+                    </span>
+                    <BarWithRef deger={c.confidence * 100} esik={basabas}
+                                gosterDeger={false} yukseklik={5} />
+                  </span>
+                  <span className="u-num u-exact" style={{ alignSelf: 'center' }}>
+                    %{(c.confidence * 100).toFixed(0)}
+                  </span>
                 </button>
-              : 'Gösterilecek çağrı yok'}
-          </div>
-        </div>
+              ))}
+              <span className="u-sub" style={{ padding: '6px var(--u-s3) 0' }}>
+                Çubuktaki işaret başabaş eşiği (%{basabas?.toFixed(0) ?? '—'},
+                maliyet hariç). <TerimTip ad="Güven">Güven</TerimTip> doğrulanmış
+                bir olasılık değildir.
+              </span>
+            </div>
 
-        <div className="u-tile">
-          {analiz ? (
-            <>
-              <span className="u-label">{analiz.symbol} · ayrıntı</span>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))',
-                            gap: 'var(--u-s3)', paddingTop: 2 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <span className="u-exact"><TerimTip ad="Hedef">Hedef</TerimTip></span>
-                  <span className="u-num u-up" style={{ fontSize: 'var(--u-t-lead)', fontWeight: 600 }}>
-                    {analiz.shortTermTarget?.toFixed(2) ?? '—'}
+            {/* Seçili çağrı: künye + grafik. Karar ile kanıtı aynı yerde. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--u-s3)',
+                          minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--u-s3)',
+                            flexWrap: 'wrap' }}>
+                <span className="u-hero">{analiz?.symbol ?? '—'}</span>
+                {analiz && (
+                  <span style={{ fontSize: 'var(--u-t-lead)', fontWeight: 600,
+                                 color: 'var(--u-up)' }}>{analiz.recommendation}</span>
+                )}
+                {varlik?.close != null && (
+                  <span className="u-num" style={{ fontSize: 'var(--u-t-num)', fontWeight: 600 }}>
+                    {varlik.close.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
                   </span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <span className="u-exact"><TerimTip ad="Stop">Stop</TerimTip></span>
-                  <span className="u-num u-down" style={{ fontSize: 'var(--u-t-lead)', fontWeight: 600 }}>
-                    {analiz.shortTermStop?.toFixed(2) ?? '—'}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <span className="u-exact"><TerimTip ad="R:R">R:R</TerimTip></span>
-                  <span className="u-num" style={{ fontSize: 'var(--u-t-lead)', fontWeight: 600 }}>
-                    {analiz.riskRewardRatio?.toFixed(2) ?? '—'}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <span className="u-exact">Boyut</span>
-                  <span className="u-num" style={{ fontSize: 'var(--u-t-lead)', fontWeight: 600 }}>
-                    {analiz.positionSizePct != null ? `%${(analiz.positionSizePct * 100).toFixed(1)}` : '—'}
-                  </span>
-                </div>
+                )}
+                <div style={{ flexGrow: 1 }} />
+                <span className="u-sub">
+                  <TerimTip ad="Hedef">Hedef</TerimTip>{' '}
+                  <b className="u-num u-up">{analiz?.shortTermTarget?.toFixed(2) ?? '—'}</b>
+                  {' · '}
+                  <TerimTip ad="Stop">Stop</TerimTip>{' '}
+                  <b className="u-num u-down">{analiz?.shortTermStop?.toFixed(2) ?? '—'}</b>
+                  {' · '}
+                  <TerimTip ad="R:R">R:R</TerimTip>{' '}
+                  <b className="u-num">{analiz?.riskRewardRatio?.toFixed(2) ?? '—'}</b>
+                  {' · '}Boyut{' '}
+                  <b className="u-num">
+                    {analiz?.positionSizePct != null
+                      ? `%${(analiz.positionSizePct * 100).toFixed(1)}` : '—'}
+                  </b>
+                </span>
               </div>
 
-              <div style={{ height: 1, background: 'var(--u-line)', margin: 'var(--u-s2) 0' }} />
+              <button onClick={() => sembol && openChart(sembol)}
+                      style={{ minHeight: 300, background: 'var(--u-panel)',
+                               border: '1px dashed var(--u-line-strong)',
+                               borderRadius: 'var(--u-r-lg)', color: 'var(--u-text-3)',
+                               cursor: 'pointer', font: 'inherit',
+                               fontSize: 'var(--u-t-small)' }}>
+                {sembol} grafiğini aç — bariyerli grafik Sembol sayfasında
+                doğacak ve buraya gömülecek
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
 
-              <span className="u-label">Piyasa bağlamı</span>
-              <span className="u-sub">
-                {yon
-                  ? <>Kısa vade <b className={yon === 'YUKARI' ? 'u-up' : yon === 'AŞAĞI' ? 'u-down' : 'u-flat'}>
-                      {yon.toLowerCase()}
-                    </b>{yorum?.stance?.confidence ? ` (${yorum.stance.confidence})` : ''}.</>
-                  : 'Piyasa yorumu henüz üretilmedi.'}
-                {' '}Genişlik {genislik.artida}/{genislik.toplam},
-                {' '}ruh hali {ruh.puan ?? '—'} ({ruh.etiket.toLocaleLowerCase('tr-TR')}).
-              </span>
-
-              <div style={{ flexGrow: 1 }} />
-              <span className="u-sub" style={{ color: 'var(--u-text-4)' }}>
-                WF örneklem {st?.wf_n_predictions?.toLocaleString('tr-TR') ?? '—'} ·
-                {' '}yön doğruluğu {yuzde(st?.wf_accuracy)}
-              </span>
-            </>
-          ) : (
-            <span className="u-sub">Seçili çağrı yok.</span>
-          )}
+      {/* ══ BANT 3 ══ Neye güvenebilirim? ═══════════════════════════════════
+          MLOps panelinin tamamı DEĞİL: yalnız "bu çağrılara güvenmeli miyim"
+          sorusuna dokunan ölçüler. Gerisi Model sayfasında. */}
+      <section className="u-band">
+        <div className="u-band__head">
+          <h2 className="u-band__q">Neye güvenebilirim?</h2>
+          <span className="u-sub">ayrıntı Model sayfasında</span>
         </div>
-      </div>
+
+        <div className="u-cells">
+          <div className="u-cell" style={{ minHeight: 0 }}>
+            <span className="u-label">AL isabeti</span>
+            <span className="u-big u-num">
+              {alIsabet == null ? '—' : `%${alIsabet.toFixed(1)}`}
+            </span>
+            <BarWithRef deger={alIsabet} esik={basabas}
+                        esikEtiket="başabaş (maliyet hariç)" gosterDeger={false} />
+            <span className="u-sub u-sub--clamp">
+              {st?.wf_n_predictions
+                ? `${st.wf_n_predictions.toLocaleString('tr-TR')} tahminlik örneklem`
+                : 'örneklem bilinmiyor'}
+            </span>
+          </div>
+
+          <div className="u-cell" style={{ minHeight: 0 }}>
+            <span className="u-label">Kalibrasyon</span>
+            <span className="u-big u-num">
+              {kalibre?.min_required
+                ? `${kalibre.n_evaluated ?? 0}/${kalibre.min_required}`
+                : '—'}
+            </span>
+            <BarWithRef deger={kalibreOran} gosterDeger={false} />
+            <span className="u-sub u-sub--clamp">
+              Bir tahmin ancak ~20 gün sonra yargılanabiliyor; ilk dürüst okuma
+              birkaç hafta sürer.
+            </span>
+          </div>
+
+          <div className="u-cell" style={{ minHeight: 0 }}>
+            <span className="u-label">Model yaşı</span>
+            <span className="u-big u-num">
+              {modelYasGun == null ? '—' : `${modelYasGun} gün`}
+            </span>
+            <span className="u-sub u-sub--clamp">
+              Terfi kararı için 30 günlük taze veri gerekiyor.
+            </span>
+          </div>
+
+          <div className="u-cell" style={{ minHeight: 0 }}>
+            <span className="u-label">Veri kayması</span>
+            <span className={`u-big ${sapmaVar ? 'u-warn' : 'u-flat'}`}
+                  style={{ fontSize: 'var(--u-t-num)', fontWeight: 700 }}>
+              {dr?.status ? (sapmaVar ? 'Sapma var' : 'Normal') : '—'}
+            </span>
+            <span className="u-sub u-sub--clamp">
+              Canlı veri eğitim verisinden uzaklaşıyorsa uyarır.
+              Otomatik eğitimi <b>tetiklemez</b>.
+            </span>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }
