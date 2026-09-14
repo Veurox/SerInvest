@@ -34,7 +34,12 @@ createRoot(document.getElementById('root')!).render(
         <Routes>
           {/* App = Layout (header + nav + ortak veri) */}
           <Route path="/" element={<App />}>
-            <Route index               element={<OverviewPage />} />
+            {/* Açılış = Bugün (docs/PLAN_ARAYUZ.md §1). Kullanıcı uygulamayı
+                "bugün alınacak bir şey var mı" diye açıyor; açılış sayfası
+                doğrudan o soruyu cevaplamalı. Eski Piyasa Genel ekranı
+                /piyasa-genel adresinde duruyor — yer imi bozulmasın. */}
+            <Route index               element={<TodayPage />} />
+            <Route path="piyasa-genel"  element={<OverviewPage />} />
             <Route path="bugun"         element={<TodayPage />} />
             <Route path="sembol"        element={<SymbolPage />} />
             <Route path="terminal"      element={<TerminalPage />} />

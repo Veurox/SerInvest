@@ -35,7 +35,8 @@ export interface SharedData {
 // Route sırası — klavye kısayolları (1-8) bu sırayı kullanır.
 // Klavye kısayolları (1-8) bu sırayı kullanır — nav sırasıyla hizalı kalmalı.
 // Faz F: /oracle, /fundamental, /dip-radar birleşip /tarayici oldu.
-const ROUTES = ['/', '/terminal', '/coklu-grafik', '/tarayici', '/portfolio', '/model-portfoy', '/history', '/news', '/degerlendirme', '/model']
+// Klavye kısayolları (1-5) üst sekme sırasıyla hizalı — docs/PLAN_ARAYUZ.md §1.
+const ROUTES = ['/bugun', '/sembol', '/tarayici', '/portfolio', '/model']
 
 export default function App() {
   const navigate = useNavigate()
