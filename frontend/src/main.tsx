@@ -16,6 +16,7 @@ import { ToastProvider } from './components/ui/Toast'
 // ── Sayfalar (route'lar) ─────────────────────────────────────────────────────
 import OverviewPage from './pages/OverviewPage'
 import TodayPage from './pages/TodayPage'
+import SymbolPage from './pages/SymbolPage'
 import TerminalPage from './pages/TerminalPage'
 import MultiChartPage from './pages/MultiChartPage'
 import ModelPage from './pages/ModelPage'
@@ -35,6 +36,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/" element={<App />}>
             <Route index               element={<OverviewPage />} />
             <Route path="bugun"         element={<TodayPage />} />
+            <Route path="sembol"        element={<SymbolPage />} />
             <Route path="terminal"      element={<TerminalPage />} />
             <Route path="coklu-grafik"  element={<MultiChartPage />} />
             <Route path="model-portfoy" element={<ModelPortfolioPage />} />
