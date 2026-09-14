@@ -201,6 +201,43 @@ Artık sayaç `/api/fon/durum` çıktısında.
 
 Doğrulandı (5 sn ara ile): 2.361 kayıt, 32 sn, **sıfır 429**.
 
+### 3.2b Zamanlama kusuru ve düzeltmesi (14.09.2026)
+
+İlk zamanlama "günde bir kez, yayın saatinden sonra çek" diyordu. Makine
+11-14 Eylül arası kapalı kaldı; Pazartesi öğlen açıldığında program **11 Eylül
+Cuma'nın kapanışını almadı** ve 21:00'i beklemeye geçti. Kullanıcı bilgisayarı
+akşama kadar açık tutmadığı için o boşluk kendi kendine kapanmayacaktı —
+üstelik her kapanıp açılışta tekrarlayacaktı.
+
+7 günlük pencere tam bunu telafi etmek için vardı; ama pencerenin işe yaraması
+için çekimin bir kez TETİKLENMESİ gerekiyordu ve tetiklenmiyordu.
+
+Asıl hata daha derindeydi: karar **"en son ne zaman çalıştık"a** bakıyordu,
+**"elimizde ne var"a** değil. Sabah çalışmak "bugün çekildi" sayılıyordu; oysa
+o saatte bugünün kapanışı henüz yayımlanmamıştı — yani çalışmış ama veri
+almamış oluyorduk.
+
+Düzeltme (`tefas_zaman.py`, saf ve sınanmış katman):
+
+| Hak | Ne zaman | Sınır |
+|---|---|---|
+| **Telafi** | depodaki en yeni gün, yayımlanmış olması gerekenden eskiyse — saat kaç olursa olsun | günde 1 |
+| **Akşam** | yayın saatinden sonra, bugünün kapanışı için | günde 1 |
+
+- Beklenen yayın günü hesabı hafta sonunu atlıyor (Pazartesi sabahı beklenen
+  gün Cuma'dır, Pazar değil).
+- Resmî tatil takvimi TUTULMUYOR: tatilde telafi bir kez denenir, boş döner,
+  günlük sınır tekrarını keser. Yanlış tutulan bir tatil takvimi veri
+  kaybettirir; günde bir boş istek bu riske değmez.
+- Pencere de sabit değil: boşluk büyükse geriye genişliyor (`AZAMI_TELAFI_GUN`,
+  varsayılan 45 gün). Sınırı aşan boşlukta sessizce eksik bırakmak yerine
+  logda açıkça uyarılıyor.
+
+Doğrulandı: düzeltmeden sonra servis açılır açılmaz
+`günlük çekim — geride kalınmış (elde 2026-09-10, beklenen 2026-09-11)` deyip
+949 yeni satır yazdı; 11 Eylül Cuma (474 fon) depoya girdi, hafta sonu boş
+kaldı. 14 test bu davranışı koruyor.
+
 ### 3.3 Uç noktalar
 
 | Yol | İçerik |

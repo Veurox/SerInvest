@@ -17,10 +17,17 @@ NEDEN RABBITMQ/POSTGRES DEĞİL (11.09.2026 kararı — docs/PLAN_TEFAS.md §3)
   ve "o gün ne biliyorduk" cevabını sessizce siler. Grafik verisi zaten
   core-api -> market-data HTTP proxy'siyle akıyor; aynı desen izleniyor.
 
-ZAMANLAMA
-  Birim pay değeri akşam yayımlanır. Günde bir kez, TEFAS_CEKIM_SAATI'nden
-  sonra çekilir. Pencere son birkaç gündür: geç yayımlanan ve düzeltilen
-  kayıtlar da yakalansın (depo zaten değişmeyeni yazmıyor).
+ZAMANLAMA (14.09.2026'da düzeltildi — bkz. tefas_zaman.py)
+  Birim pay değeri akşam yayımlanır, o yüzden asıl çekim TEFAS_CEKIM_SAATI'nden
+  sonra. Ama tek başına bu kural yetmiyordu: makine günlerce kapalı kalıp
+  gündüz açıldığında program akşamı bekliyor, kullanıcı akşamdan önce
+  kapatınca o günler hiç alınmıyordu.
+
+  Artık günün İKİ çekim hakkı var:
+    • telafi — elimizdeki en yeni gün geride kaldıysa, saat kaç olursa olsun
+    • akşam  — yayın saatinden sonra bugünün kapanışı için
+  Karar tefas_zaman.cekim_gerekli'de; saf ve sınanmış. Pencere de sabit değil:
+  boşluk büyükse geriye doğru genişliyor (AZAMI_TELAFI_GUN'e kadar).
 """
 from __future__ import annotations
 
@@ -35,6 +42,7 @@ from pathlib import Path
 from flask import Flask, jsonify, request
 
 import tefas_api
+import tefas_zaman
 from tefas_store import Depo, simdi
 
 VERI_DIZINI = Path(os.getenv("TEFAS_DATA_DIR", "/app/data"))
@@ -50,6 +58,10 @@ DONGU_SN = int(os.getenv("TEFAS_DONGU_SN", "900"))     # 15 dk'da bir kontrol
 # (bkz. tefas_api.BEKLEME_SN notu): takıldıktan sonra ısrar etmek değil,
 # çekilip beklemek gerekiyor.
 SOGUMA_DK = int(os.getenv("TEFAS_SOGUMA_DK", "45"))
+# Makine uzun süre kapalı kalırsa günlük çekim penceresi ne kadar genişleyebilir.
+# Üst sınır var çünkü site ağır sorguları hız sınırıyla karşılıyor; bundan
+# eskisi için geriye dönük doldurma (TEFAS_GERIYE_AY) doğru araç.
+AZAMI_TELAFI_GUN = int(os.getenv("TEFAS_AZAMI_TELAFI_GUN", "45"))
 
 
 def _kategorileri_yukle() -> list[str]:
@@ -263,22 +275,64 @@ def geriye_donuk_doldur() -> None:
         print("[tefas] geriye dönük doldurma tamamlandı")
 
 
-def gunluk_cekim() -> dict:
+def _pencere_basi(bit: datetime.date) -> datetime.date:
+    """
+    Günlük çekimin geriye bakacağı ilk gün.
+
+    Normalde PENCERE_GUN kadar geriye bakılır (geç yayın + düzeltme yakalamak
+    için). Ama makine uzun süre kapalı kaldıysa sabit pencere YETMEZ: 3 hafta
+    kapalı kalınca 7 günlük pencere 14 günü kurtarmaz. Bu yüzden pencere
+    elimizdeki en yeni güne göre genişletiliyor.
+
+    Üst sınır var: site ağır sorguları hız sınırıyla karşılıyor (bkz.
+    tefas_api). Boşluk sınırı aşarsa sessizce eksik bırakmak yerine açıkça
+    uyarılıyor — sessiz veri kaybı bu projede en pahalı hata türü.
+    """
+    varsayilan = bit - datetime.timedelta(days=PENCERE_GUN)
+    son = DEPO.son_gun()
+    if not son:
+        return varsayilan
+    try:
+        bosluk_basi = datetime.date.fromisoformat(son) - datetime.timedelta(days=1)
+    except ValueError:
+        return varsayilan
+    if bosluk_basi >= varsayilan:
+        return varsayilan
+    tavan = bit - datetime.timedelta(days=AZAMI_TELAFI_GUN)
+    if bosluk_basi < tavan:
+        print(f"[tefas] UYARI: {son} ile {bit} arası boşluk {AZAMI_TELAFI_GUN} "
+              f"günden büyük. Bu turda {tavan} sonrası çekilecek; daha eskisi "
+              f"için TEFAS_GERIYE_AY artırılıp geriye dönük doldurma kullanılmalı.")
+        return tavan
+    return bosluk_basi
+
+
+def gunluk_cekim(sebep: str = "zamanlı", aksam: bool = False) -> dict:
     bit = _bugun()
-    bas = bit - datetime.timedelta(days=PENCERE_GUN)
-    s = cek_ve_yaz(bas, bit, etiket="günlük")
-    durum_yaz({"son_cekim": s, "son_cekim_ts": simdi()})
+    bas = _pencere_basi(bit)
+    print(f"[tefas] günlük çekim — {sebep}")
+    # Telafi hakkı DENEME anında harcanır: site kapalıysa 15 dakikada bir
+    # ısrar etmeyelim. Akşam çekimi başarısızsa tekrar denenir — yayın
+    # gecikmiş olabilir ve o veri bugün alınmazsa yarına kalır.
+    if not aksam:
+        durum_yaz({"son_telafi_gun": bit.isoformat()})
+    s = cek_ve_yaz(bas, bit, etiket=f"günlük ({sebep})")
+    durum_yaz({"son_cekim": s, "son_cekim_ts": simdi(), "son_cekim_sebep": sebep})
     if s.get("ok") and s.get("cekilen", 0) > 0:
         durum_yaz({"son_basarili_gun": bit.isoformat()})
+        if aksam:
+            durum_yaz({"son_aksam_gun": bit.isoformat()})
     return s
 
 
 def dongu() -> None:
     """
-    Arka plan işçisi. Önce geçmişi doldurur, sonra günde bir kez çeker.
+    Arka plan işçisi. Güncel veri geçmişten önce gelir: geriye dönük doldurma
+    saatler sürüyor, bugünün verisi onu beklememeli.
 
-    Açılışta hemen bir çekim yapılır: taze kurulmuş bir konteyner akşamı
-    beklemeden elindekini alsın (gün içi sorgu boş dönerse zararı yok).
+    Ne zaman çekileceğine tefas_zaman.cekim_gerekli karar veriyor — saf ve
+    sınanmış bir fonksiyon. Buradaki iş yalnız saati/durumu ona verip sonucu
+    uygulamak.
     """
     time.sleep(5)
     while True:
@@ -287,16 +341,12 @@ def dongu() -> None:
             if kadar:
                 print(f"[tefas] soğuma sürüyor ({kadar}) — bu tur atlanıyor")
             else:
-                # Sıra önemli: güncel gün geçmişten önce gelir. Geriye dönük
-                # doldurma saatler sürüyor; bugünün verisi onu beklememeli.
-                son = durum_oku().get("son_basarili_gun")
-                saat = datetime.datetime.now().hour
-                # İlk açılışta (son is None) saati bekleme: taze kurulmuş bir
-                # konteyner elindekini hemen alsın.
-                gunluk_zamani = (son != _bugun().isoformat()
-                                 and (son is None or saat >= CEKIM_SAATI))
-                if gunluk_zamani:
-                    gunluk_cekim()
+                simdi_yerel = datetime.datetime.now()
+                sebep = tefas_zaman.cekim_gerekli(
+                    durum_oku(), DEPO.son_gun(),
+                    simdi_yerel.date(), simdi_yerel.hour, CEKIM_SAATI)
+                if sebep:
+                    gunluk_cekim(sebep, aksam=simdi_yerel.hour >= CEKIM_SAATI)
                 else:
                     geriye_donuk_doldur()
         except Exception:
@@ -338,7 +388,12 @@ def durum():
         "depo": o,
         "kategoriler": {k: tefas_api.KATEGORILER.get(k, k) for k in KATEGORILER},
         "son_cekim": d.get("son_cekim"),
+        "son_cekim_sebep": d.get("son_cekim_sebep"),
         "son_basarili_gun": d.get("son_basarili_gun"),
+        # Günün iki çekim hakkı: telafi (kapalı kalınan günler) + akşam
+        # (bugünün kapanışı). Hangisinin harcandığı buradan görünür.
+        "son_telafi_gun": d.get("son_telafi_gun"),
+        "son_aksam_gun": d.get("son_aksam_gun"),
         "ilk_kurulum": d.get("ilk_kurulum"),
         "geriye_donuk": {
             # Kaydedilmiş "bitti" bayrağına GÜVENİLMEZ: hedef ay sayısı
