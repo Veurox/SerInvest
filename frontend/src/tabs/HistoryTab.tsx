@@ -91,8 +91,7 @@ export function HistoryTab() {
         {/* Filtre Kutusu */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.75rem', alignItems: 'center',
           padding: '.75rem 1rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px' }}>
-          <span style={{ fontSize: '.7rem', color: 'var(--text-muted)', textTransform: 'uppercase',
-            letterSpacing: '.06em', fontWeight: 700 }}>Filtreler</span>
+          <span className="u-label">Filtreler</span>
 
           <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
             <label style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>Sembol:</label>

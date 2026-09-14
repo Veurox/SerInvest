@@ -17,8 +17,14 @@
 import type { Bar } from './bars'
 
 export interface Seviye {
-  /** Ekranda görünen kısa ad */
+  /**
+   * Ekranda görünen kısa ad. BENZERSİZ OLMAK ZORUNDA DEĞİL — iki "Belirgin
+   * tepe" yan yana durabilir; hangisi olduğunu yanındaki fiyat söyler.
+   * Seçim ve React anahtarı için `anahtar` kullanılır.
+   */
   ad: string
+  /** Seçim/anahtar için benzersiz kimlik (ad + fiyat). */
+  anahtar: string
   /** Seviyenin NASIL bulunduğu — ipucu olarak gösterilir */
   tanim: string
   fiyat: number
@@ -93,7 +99,8 @@ export function seviyeleriTopla(opts: {
   pencere?: number
 }): Seviye[] {
   const { barlar, pencere = 5 } = opts
-  const s: Seviye[] = []
+  // Anahtar en sonda ekleniyor; burada onsuz toplanıyor.
+  const s: Omit<Seviye, 'anahtar'>[] = []
 
   // ── Fiyat geçmişi ────────────────────────────────────────────────────────
   if (barlar.length > 0) {
@@ -108,14 +115,18 @@ export function seviyeleriTopla(opts: {
       tanim: 'Gösterilen dönemdeki en düşük fiyat. Olgusal — yorum yok.',
     })
     const { tepeler, dipler } = belirginSeviyeler(barlar, pencere)
-    tepeler.forEach((p, i) => s.push({
-      ad: `Belirgin tepe ${i + 1}`, tur: 'gecmis', fiyat: p,
+    // NUMARA YOK. Önce "Belirgin tepe 1/2/3" yazıyordu, ama liste FİYATA
+    // göre sıralı olduğu için ekranda "tepe 1 · dip 1 · tepe 2" gibi bir
+    // dizilim çıkıyordu: numara bir sıra vaat edip tutmuyordu. Hangi tepe
+    // olduğunu yanındaki fiyat zaten söylüyor.
+    tepeler.forEach(p => s.push({
+      ad: 'Belirgin tepe', tur: 'gecmis', fiyat: p,
       tanim: `Kendisinden önceki ve sonraki ${pencere} barın hepsinden yüksek `
            + 'bir bar. "Fiyat buraya gelince döner" iddiası DEĞİL; tanıma göre '
            + 'kayda değer bir fiyat.',
     }))
-    dipler.forEach((p, i) => s.push({
-      ad: `Belirgin dip ${i + 1}`, tur: 'gecmis', fiyat: p,
+    dipler.forEach(p => s.push({
+      ad: 'Belirgin dip', tur: 'gecmis', fiyat: p,
       tanim: `Kendisinden önceki ve sonraki ${pencere} barın hepsinden düşük `
            + 'bir bar. Dönüş vaadi değil, tanımlı bir fiyat.',
     }))
@@ -142,7 +153,8 @@ export function seviyeleriTopla(opts: {
     tanim: 'Zarar kesme seviyesi — fiyat buraya inerse tahmin yanlışlanmış sayılır.',
   })
 
-  return s
+  // Anahtar TEK YERDEN üretiliyor: ad tekrar edebilir, ad+fiyat etmez.
+  return s.map(x => ({ ...x, anahtar: `${x.ad}@${x.fiyat}` }))
 }
 
 /** Fiyata göre uzaklık yüzdesi (işaretli). */

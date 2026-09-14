@@ -215,8 +215,7 @@ export default function ModelPage() {
       {tab === 'durum' && <>
       {/* ── 1. DURUM KARTI — sayılar değil, cümleler ────────────────────── */}
       <div className="card" style={{ padding: '14px 16px', marginBottom: 'var(--space-3)' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
-                      color: 'var(--text-muted)', marginBottom: 9 }}>
+        <div className="u-label" style={{ marginBottom: 9 }}>
           Şu an ne durumda?
         </div>
 
@@ -287,8 +286,7 @@ export default function ModelPage() {
 
       {/* ── 2. EYLEMLER ─────────────────────────────────────────────────── */}
       <div className="card" style={{ padding: '13px 16px', marginBottom: 'var(--space-3)' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
-                      color: 'var(--text-muted)', marginBottom: 10 }}>
+        <div className="u-label" style={{ marginBottom: 10 }}>
           Ne yapabilirim?
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 8 }}>

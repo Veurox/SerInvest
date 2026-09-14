@@ -3,3 +3,9 @@
 # (günde tek satır, PriceData şeması OHLCV için, depo eklemeli).
 requests==2.32.3
 flask>=3.0.0
+
+# Testler imajın içinde koşabilsin. ai-oracle-service de böyle yapıyor;
+# burada eksikti ve "docker exec ... pytest" çalışmıyordu — yani testler
+# ancak elle pytest kurunca ya da konteyner dışında koşuyordu. Depoda 75
+# test var, koşulamayan test yok sayılır.
+pytest>=8.0.0

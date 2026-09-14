@@ -76,10 +76,10 @@ export default function SymbolPage() {
    * Satıra tıklayınca o seviye çiziliyor.
    */
   const [secilenSeviyeler, setSecilenSeviyeler] = useState<Set<string>>(new Set())
-  const seviyeSec = (ad: string) => setSecilenSeviyeler(k => {
+  const seviyeSec = (anahtar: string) => setSecilenSeviyeler(k => {
     const y = new Set(k)
-    if (y.has(ad)) y.delete(ad)
-    else y.add(ad)
+    if (y.has(anahtar)) y.delete(anahtar)
+    else y.add(anahtar)
     return y
   })
 
@@ -337,7 +337,7 @@ export default function SymbolPage() {
           <PriceBarriers sembol={sembol} analiz={analiz} yukseklik={360}
                          ondalik={ondalik} onBarlar={setBarlar}
                          ekSeviyeler={seviyeler
-                           .filter(x => x.tur !== 'model' && secilenSeviyeler.has(x.ad))
+                           .filter(x => x.tur !== 'model' && secilenSeviyeler.has(x.anahtar))
                            .map(x => ({ ad: x.ad, fiyat: x.fiyat }))} />
         )}
 
@@ -435,16 +435,16 @@ export default function SymbolPage() {
               <span className="u-sub">Grafik verisi yüklenince hesaplanacak.</span>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {seviyeler.map((sv, i) => {
+                {seviyeler.map(sv => {
                   const u = uzaklikYuzde(sv.fiyat, varlik?.close)
                   return (
-                    <div key={`${sv.ad}-${i}`} title={sv.tanim}
+                    <div key={sv.anahtar} title={sv.tanim}
                          role={sv.tur === 'model' ? undefined : 'button'}
                          tabIndex={sv.tur === 'model' ? undefined : 0}
-                         onClick={sv.tur === 'model' ? undefined : () => seviyeSec(sv.ad)}
+                         onClick={sv.tur === 'model' ? undefined : () => seviyeSec(sv.anahtar)}
                          onKeyDown={sv.tur === 'model' ? undefined : e => {
                            if (e.key === 'Enter' || e.key === ' ') {
-                             e.preventDefault(); seviyeSec(sv.ad)
+                             e.preventDefault(); seviyeSec(sv.anahtar)
                            }
                          }}
                          style={{ display: 'grid',
@@ -453,9 +453,9 @@ export default function SymbolPage() {
                                   padding: '4px 6px', marginLeft: -6,
                                   cursor: sv.tur === 'model' ? 'default' : 'pointer',
                                   borderRadius: 'var(--u-r-sm)',
-                                  background: secilenSeviyeler.has(sv.ad)
+                                  background: secilenSeviyeler.has(sv.anahtar)
                                     ? 'var(--u-panel-2)' : 'none',
-                                  boxShadow: secilenSeviyeler.has(sv.ad)
+                                  boxShadow: secilenSeviyeler.has(sv.anahtar)
                                     ? 'inset 2px 0 0 var(--u-accent)' : 'none',
                                   borderBottom: '1px solid var(--u-line)' }}>
                       <span style={{ fontSize: 'var(--u-t-small)',

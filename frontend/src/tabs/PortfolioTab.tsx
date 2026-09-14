@@ -134,12 +134,11 @@ export function PortfolioTab() {
           flexWrap: 'wrap', gap: 'var(--space-4)',
         }}>
           <div>
-            <div style={{
-              fontSize: 'var(--text-xs)', color: 'var(--text-muted)',
-              textTransform: 'uppercase', letterSpacing: '0.08em',
-              fontWeight: 'var(--fw-bold)', marginBottom: 'var(--space-2)',
-            }}>
-              Tüm Zamanlar Net K/Z
+            {/* Etiketler büyük harf DEĞİL — yeni dilde başlık cümle gibi
+                okunur. Aynı ekranda "Param ne yaptı?" varken "TÜM ZAMANLAR
+                NET K/Z" iki ayrı dil konuşuyordu. */}
+            <div className="u-label" style={{ marginBottom: 'var(--space-2)' }}>
+              Tüm zamanlar net K/Z
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-3)' }}>
               <PnLValue value={summary.allTimePnl} size="xl" />
@@ -148,27 +147,18 @@ export function PortfolioTab() {
           </div>
           <div style={{ display: 'flex', gap: 'var(--space-5)', flexWrap: 'wrap' }}>
             <div>
-              <div style={{
-                color: 'var(--text-muted)', fontSize: 'var(--text-xs)',
-                textTransform: 'uppercase', letterSpacing: '0.05em',
-                marginBottom: 'var(--space-1)',
-              }}>Açık K/Z</div>
+              <div className="u-label" style={{ marginBottom: 'var(--space-1)' }}>
+                Açık K/Z</div>
               <PnLValue value={summary.unrealizedPnl} size="md" />
             </div>
             <div>
-              <div style={{
-                color: 'var(--text-muted)', fontSize: 'var(--text-xs)',
-                textTransform: 'uppercase', letterSpacing: '0.05em',
-                marginBottom: 'var(--space-1)',
-              }}>Realize K/Z</div>
+              <div className="u-label" style={{ marginBottom: 'var(--space-1)' }}>
+                Realize K/Z</div>
               <PnLValue value={summary.realizedPnl} size="md" />
             </div>
             <div>
-              <div style={{
-                color: 'var(--text-muted)', fontSize: 'var(--text-xs)',
-                textTransform: 'uppercase', letterSpacing: '0.05em',
-                marginBottom: 'var(--space-1)',
-              }}>Temettü</div>
+              <div className="u-label" style={{ marginBottom: 'var(--space-1)' }}>
+                Temettü</div>
               <span style={{
                 fontSize: 'var(--text-base)', fontWeight: 'var(--fw-bold)',
                 color: summary.totalDividends > 0 ? '#a78bfa' : 'var(--text-secondary)',
@@ -264,10 +254,11 @@ export function PortfolioTab() {
       {summary && (summary.bestPosition || summary.worstPosition) && (
         <div style={{ display: 'flex', gap: '.75rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
           {summary.bestPosition && (
-            <div style={{ flex: 1, minWidth: '200px', background: 'rgba(34,197,94,.08)', border: '1px solid rgba(34,197,94,.25)',
+            <div style={{ flex: 1, minWidth: '200px', background: 'var(--profit-bg)',
+              border: '1px solid var(--profit-border)',
               borderRadius: '10px', padding: '.75rem 1rem' }}>
-              <div style={{ fontSize: '.7rem', color: '#22c55e', textTransform: 'uppercase', letterSpacing: '.05em', fontWeight: 700 }}>
-                En İyi Pozisyon
+              <div className="u-label" style={{ color: 'var(--profit)' }}>
+                En iyi pozisyon
               </div>
               <div style={{ fontSize: '1rem', fontWeight: 800, marginTop: '.2rem' }}>
                 {summary.bestPosition.symbol}
@@ -278,10 +269,11 @@ export function PortfolioTab() {
             </div>
           )}
           {summary.worstPosition && (
-            <div style={{ flex: 1, minWidth: '200px', background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.25)',
+            <div style={{ flex: 1, minWidth: '200px', background: 'var(--loss-bg)',
+              border: '1px solid var(--loss-border)',
               borderRadius: '10px', padding: '.75rem 1rem' }}>
-              <div style={{ fontSize: '.7rem', color: '#ef4444', textTransform: 'uppercase', letterSpacing: '.05em', fontWeight: 700 }}>
-                En Kötü Pozisyon
+              <div className="u-label" style={{ color: 'var(--loss)' }}>
+                En kötü pozisyon
               </div>
               <div style={{ fontSize: '1rem', fontWeight: 800, marginTop: '.2rem' }}>
                 {summary.worstPosition.symbol}
@@ -303,8 +295,8 @@ export function PortfolioTab() {
                 {['Sembol', 'Adet', 'Maliyet', 'Güncel', 'K/Z', 'K/Z %', 'Süre', 'Tavsiye', 'TP/SL', 'Aksiyon'].map(h => (
                   <th key={h} style={{ padding: '.65rem .8rem',
                     textAlign: ['Adet','Maliyet','Güncel','K/Z','K/Z %','Süre'].includes(h) ? 'right' : 'left',
-                    color: 'var(--text-muted)', fontWeight: 700, fontSize: '.65rem',
-                    textTransform: 'uppercase', letterSpacing: '.05em', whiteSpace: 'nowrap' }}>
+                    color: 'var(--text-muted)', fontWeight: 500, fontSize: '.7rem',
+                    whiteSpace: 'nowrap' }}>
                     {h}
                   </th>
                 ))}
@@ -813,9 +805,8 @@ function PortfolioEquityChart({ positions }: { positions: PortfolioPosition[] })
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     marginBottom: 'var(--space-3)', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
         <div>
-          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)',
-                        textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800 }}>
-            Portföy Değer Eğrisi (Son 90 Gün)
+          <div className="u-label">
+            Portföy değer eğrisi (son 90 gün)
           </div>
           <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 2 }}>
             Açık pozisyonların günlük değeri · tarihsel fiyat × adet
@@ -879,11 +870,7 @@ function AllocationPieChart({
       borderRadius: 'var(--radius-md)', padding: 'var(--space-4) var(--space-5)',
       display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
     }}>
-      <div style={{
-        fontSize: 'var(--text-xs)', textTransform: 'uppercase',
-        letterSpacing: '0.06em', fontWeight: 'var(--fw-bold)',
-        color: 'var(--text-muted)',
-      }}>{title}</div>
+      <div className="u-label">{title}</div>
 
       {items.length === 0 ? (
         <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)',

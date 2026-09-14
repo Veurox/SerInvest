@@ -311,8 +311,7 @@ function Metric({ label, value, sub, subColor, valueColor, big }: {
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)',
       borderRadius: '10px', padding: '.8rem .9rem' }}>
-      <div style={{ fontSize: '.68rem', color: 'var(--text-muted)', textTransform: 'uppercase',
-        letterSpacing: '.05em', fontWeight: 700, marginBottom: '.3rem' }}>{label}</div>
+      <div className="u-label" style={{ marginBottom: '.3rem' }}>{label}</div>
       <div style={{ fontSize: big ? '1.35rem' : '1.05rem', fontWeight: 800,
         color: valueColor || 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
       {sub && <div style={{ fontSize: '.72rem', marginTop: '.15rem', fontWeight: 600,
@@ -361,8 +360,8 @@ function Table({ head, children }: { head: string[]; children: ReactNode }) {
           <tr style={{ borderBottom: '1px solid var(--border)' }}>
             {head.map((h, i) => (
               <th key={i} style={{ textAlign: i === 0 ? 'left' : 'right', padding: '.5rem .6rem',
-                fontSize: '.68rem', color: 'var(--text-muted)', textTransform: 'uppercase',
-                letterSpacing: '.04em', fontWeight: 700 }}>{h}</th>
+                fontSize: '.72rem', color: 'var(--text-muted)',
+                fontWeight: 500 }}>{h}</th>
             ))}
           </tr>
         </thead>

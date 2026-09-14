@@ -40,12 +40,14 @@ export function KPI({ label, value, sub, tone = 'neutral', trend, icon, loading 
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         gap: 'var(--space-2)',
       }}>
-        <div style={{
+        {/* Etiket BÜYÜK HARF DEĞİL. Yeni dilin kuralı: başlık ve etiket
+            cümle gibi okunur (docs/PLAN_ARAYUZ.md). "TÜM ZAMANLAR NET K/Z"
+            bağırıyordu ve aynı ekrandaki soru başlıklarıyla ("Param ne
+            yaptı?") aynı dili konuşmuyordu. */}
+        <div className="u-label" style={{
           fontSize: 'var(--text-xs)',
           color: 'var(--text-muted)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-          fontWeight: 'var(--fw-bold)',
+          fontWeight: 'var(--fw-med, 500)',
         }}>
           {label}
         </div>

@@ -545,10 +545,16 @@
   background: var(--u-panel);
 }
 .ui2 .dt { font-size: var(--u-t-small); }
+/* Tablo başlığı da BÜYÜK HARF DEĞİL: aynı ekranda "Hangisini alayım?" gibi
+   cümle başlıklar varken "GETİRİ 1 YIL" bağırıyor ve iki ayrı dil oluyor.
+   Harf aralığı da düştü — büyük harfte gerekliydi, küçük harfte okumayı
+   zorlaştırıyor. */
 .ui2 .dt thead th {
   padding: 7px 11px;
-  font-size: var(--u-t-micro);
-  letter-spacing: 0.08em;
+  font-size: var(--u-t-small);
+  font-weight: var(--u-w-med);
+  text-transform: none;
+  letter-spacing: 0;
   color: var(--u-text-3);
   background: var(--u-panel-2);
   border-bottom: 1px solid var(--u-line-strong);
