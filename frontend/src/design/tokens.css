@@ -1,0 +1,246 @@
+/* =============================================================================
+   SerInvest — Yeni Arayüz Jetonları (v2)
+   docs/PLAN_ARAYUZ.md · Yapı 3 "Kontrol odası" · "görsel önde, sayı yanında"
+
+   NEDEN AYRI DOSYA VE KAPSAMLI (.ui2)
+   Mevcut theme.css'i yerinde değiştirmek, henüz yazılmamış on bir sayfayı
+   anında yarı bozuk bir melez hâle sokardı. Bunun yerine yeni dil KAPSAMLI
+   yaşıyor: `.ui2` sınıfının altındaki her şey yeni değerleri alır, gerisi
+   eskisiyle çalışmaya devam eder. Sayfalar tek tek taşındıkça kapsam büyür;
+   sonuncusu taşınınca `.ui2` kökten kaldırılır ve bu dosya theme.css olur.
+
+   KARAKTER (14.09.2026)
+   Sıcak koyu zemin · Space Grotesk + IBM Plex Mono · mercan vurgu.
+   Gerekçe: Yapı 3 büyük karolara ve düşük yoğunluğa dayanıyor; ton farkıyla
+   kurulan katman hiyerarşisi koyu zeminde daha temiz çıkıyor ve uygulamanın
+   varsayılanı zaten koyu. Palet DEĞERLERİ bu dosyada; beğenilmezse burası
+   değişir, bileşenlere dokunulmaz.
+
+   RENK DİSİPLİNİ
+   • Vurgu TEK renk (mercan) ve yapısal kullanılır: aktif sekme çizgisi, seçili
+     karo, odak kenarlığı. Dolgulu çip değil — yoksa uyarı rengiyle karışır,
+     bu hatayı bir kez yaptık (theme.css'teki kehribar/lacivert tarihçesi).
+   • Kâr/zarar renkleri VERİ rengidir, arayüz rengi değildir. Düğmede,
+     sekmede, kenarlıkta kullanılmaz.
+   • Grafik serileri ayrı bir aile (--viz-*): arayüz renkleriyle çakışmasın.
+   ============================================================================= */
+
+.ui2 {
+  color-scheme: dark;
+
+  /* ── Zemin: sıcak koyu. Katman farkı TONLA anlatılır, gölgeyle değil. ── */
+  --u-bg:          #141319;   /* sayfa */
+  --u-panel:       #1c1b23;   /* karo, kart */
+  --u-panel-2:     #23222c;   /* karo içinde ikinci katman */
+  --u-panel-hi:    #2b2a35;   /* üzerine gelme */
+
+  --u-line:        rgba(255, 255, 255, 0.08);   /* ayırıcı */
+  --u-line-strong: rgba(255, 255, 255, 0.16);   /* kenarlık */
+
+  /* ── Metin: dört kademe yeter. Beşincisi hep "biraz daha soluk" olur. ── */
+  --u-text:        #eceaf4;
+  --u-text-2:      #b4b1c4;
+  --u-text-3:      #8b8898;
+  --u-text-4:      #66636f;   /* boş hücre, devre dışı */
+
+  /* ── Vurgu: mercan. Tek renk, yapısal kullanım. ── */
+  --u-accent:      #e2724a;
+  --u-accent-soft: #f0906c;
+  --u-accent-bg:   rgba(226, 114, 74, 0.13);
+  --u-accent-line: rgba(226, 114, 74, 0.42);
+
+  /* ── Veri renkleri: kâr / zarar / uyarı / nötr ── */
+  --u-up:          #4fb98a;
+  --u-up-bg:       rgba(79, 185, 138, 0.13);
+  --u-down:        #e06c6c;
+  --u-down-bg:     rgba(224, 108, 108, 0.13);
+  --u-warn:        #d9a441;
+  --u-warn-bg:     rgba(217, 164, 65, 0.14);
+  --u-flat:        #7c7a90;
+
+  /* ── Grafik serileri ──────────────────────────────────────────────────
+     Kategorik palet: sırayla kullanılır. Arayüz vurgusundan (mercan) ve
+     kâr/zarar renklerinden AYRI tutuldu — bir seri yanlışlıkla "kâr" gibi
+     okunmasın. Aynı açıklık ve doygunlukta, yalnız ton değişiyor. */
+  --viz-1: #6aa9e0;
+  --viz-2: #c48ad4;
+  --viz-3: #5fbfae;
+  --viz-4: #d9a441;
+  --viz-5: #8d92e8;
+  --viz-6: #d98aa0;
+  --viz-grid:  rgba(255, 255, 255, 0.07);   /* ızgara çizgisi */
+  --viz-axis:  rgba(255, 255, 255, 0.20);   /* eksen */
+  --viz-track: rgba(255, 255, 255, 0.08);   /* çubuk/şerit boş kısmı */
+  --viz-ref:   rgba(255, 255, 255, 0.34);   /* referans/eşik çizgisi */
+
+  /* ── Tipografi ───────────────────────────────────────────────────────
+     Space Grotesk: karakterli ama okunur; büyük sayıyı iyi taşıyor.
+     IBM Plex Mono: yalnız RAKAM için — tablo sütunları alt alta hizalansın. */
+  --u-sans: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --u-mono: 'IBM Plex Mono', 'SF Mono', Consolas, ui-monospace, monospace;
+
+  /* Ölçek: her kademe bir işe ait. "Biraz daha büyük" diye kademe eklenmez. */
+  --u-t-micro:  10px;   /* rozet, eksen etiketi */
+  --u-t-small:  11.5px; /* yardımcı metin, karo alt satırı */
+  --u-t-body:   13px;   /* gövde, tablo hücresi */
+  --u-t-lead:   15px;   /* karo etiketi, bölüm girişi */
+  --u-t-num:    20px;   /* ikincil sayı */
+  --u-t-big:    34px;   /* karonun ana sayısı */
+  --u-t-hero:   46px;   /* sayfanın tek en büyük sayısı */
+
+  --u-lh-tight: 1.1;
+  --u-lh-snug:  1.35;
+  --u-lh-base:  1.55;
+
+  --u-w-reg:  400;
+  --u-w-med:  500;
+  --u-w-bold: 600;
+  --u-w-black: 700;
+
+  /* ── Boşluk: 4'ün katları. Ara değer yok. ── */
+  --u-s1:  4px;
+  --u-s2:  8px;
+  --u-s3:  12px;
+  --u-s4:  16px;
+  --u-s5:  24px;
+  --u-s6:  32px;
+  --u-s7:  48px;
+
+  /* ── Kenar: yumuşak ama tüketici uygulaması değil. ── */
+  --u-r-sm: 4px;
+  --u-r-md: 6px;
+  --u-r-lg: 10px;
+  --u-r-full: 999px;
+
+  --u-focus: 0 0 0 2px var(--u-accent-line);
+
+  /* Gölge YALNIZ gerçekten üstte duran katman için (açılır menü, ipucu).
+     Karo gölge kullanmaz — katman farkı --u-panel tonuyla anlatılır. */
+  --u-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+
+  --u-fast: 120ms ease-out;
+  --u-base: 180ms ease-out;
+
+  background: var(--u-bg);
+  color: var(--u-text);
+  font-family: var(--u-sans);
+  font-size: var(--u-t-body);
+  line-height: var(--u-lh-snug);
+}
+
+/* ── Açık tema ───────────────────────────────────────────────────────────
+   Koyu ikizi değil, kendi kararları olan bir eş. Açık zeminde saf beyaz
+   yorucu; sıcak kâğıt kullanılıyor. Kâr/zarar renkleri koyulaştırıldı:
+   beyaz üzerinde #4fb98a ve #e06c6c küçük punto rakamda AA sınırında kalıyor
+   (bu dersi mevcut theme.css'te almıştık, aynen taşındı). */
+:root[data-theme="light"] .ui2 {
+  color-scheme: light;
+
+  --u-bg:          #f7f5f1;
+  --u-panel:       #fffefb;
+  --u-panel-2:     #f2efe8;
+  --u-panel-hi:    #eae6dd;
+
+  --u-line:        rgba(28, 26, 23, 0.09);
+  --u-line-strong: rgba(28, 26, 23, 0.18);
+
+  --u-text:        #1c1a17;
+  --u-text-2:      #4a453d;
+  --u-text-3:      #6f6759;
+  --u-text-4:      #9a9285;
+
+  --u-accent:      #b4522a;
+  --u-accent-soft: #8f3e1e;
+  --u-accent-bg:   rgba(180, 82, 42, 0.10);
+  --u-accent-line: rgba(180, 82, 42, 0.36);
+
+  --u-up:          #2f7a5a;
+  --u-up-bg:       rgba(47, 122, 90, 0.11);
+  --u-down:        #a8443c;
+  --u-down-bg:     rgba(168, 68, 60, 0.10);
+  --u-warn:        #8a6d1f;
+  --u-warn-bg:     rgba(138, 109, 31, 0.12);
+  --u-flat:        #8a8378;
+
+  --viz-1: #3f7fb8;
+  --viz-2: #8f5aa8;
+  --viz-3: #2f8878;
+  --viz-4: #a8801f;
+  --viz-5: #5b60bb;
+  --viz-6: #ac5a72;
+  --viz-grid:  rgba(28, 26, 23, 0.08);
+  --viz-axis:  rgba(28, 26, 23, 0.22);
+  --viz-track: rgba(28, 26, 23, 0.09);
+  --viz-ref:   rgba(28, 26, 23, 0.36);
+
+  --u-shadow: 0 10px 28px rgba(28, 26, 23, 0.13);
+}
+
+/* ── Temel davranışlar ─────────────────────────────────────────────────── */
+
+.ui2 *,
+.ui2 *::before,
+.ui2 *::after { box-sizing: border-box; }
+
+/* Rakam nerede olursa olsun hizalı ve tek genişlikte. Tablo sütununda
+   basamakların alt alta gelmesi okunurluğun yarısı. */
+.ui2 .u-num {
+  font-family: var(--u-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.01em;
+}
+
+.ui2 :focus-visible { outline: none; box-shadow: var(--u-focus); }
+
+.ui2 a { color: var(--u-accent); text-decoration: none; }
+.ui2 a:hover { color: var(--u-accent-soft); }
+
+/* Karo: Yapı 3'ün temel birimi. Gölge yok, kenarlık yok — yalnız ton.
+   Başlık ETİKETİ karonun parçası; ayrı bir başlık satırı YOK (Yapı 3 kararı:
+   ekranda modül başlığı bulunmaz). */
+.ui2 .u-tile {
+  background: var(--u-panel);
+  border-radius: var(--u-r-lg);
+  padding: var(--u-s4) var(--u-s5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--u-s2);
+  min-width: 0;
+}
+.ui2 .u-tile--on {
+  background: var(--u-panel-2);
+  box-shadow: inset 0 0 0 1px var(--u-accent-line);
+}
+.ui2 .u-tile--act { cursor: pointer; transition: background var(--u-fast); }
+.ui2 .u-tile--act:hover { background: var(--u-panel-hi); }
+
+.ui2 .u-label {
+  font-size: var(--u-t-small);
+  color: var(--u-text-3);
+  font-weight: var(--u-w-med);
+}
+.ui2 .u-big {
+  font-size: var(--u-t-big);
+  font-weight: var(--u-w-black);
+  line-height: var(--u-lh-tight);
+  letter-spacing: -0.022em;
+}
+.ui2 .u-sub {
+  font-size: var(--u-t-small);
+  color: var(--u-text-3);
+  line-height: var(--u-lh-base);
+}
+
+/* Görselin yanındaki kesin değer — "görsel önde, sayı yanında" kuralının
+   somut hâli. Görselden küçük, ama okunur. */
+.ui2 .u-exact {
+  font-family: var(--u-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--u-t-small);
+  color: var(--u-text-3);
+}
+
+.ui2 .u-up   { color: var(--u-up); }
+.ui2 .u-down { color: var(--u-down); }
+.ui2 .u-warn { color: var(--u-warn); }
+.ui2 .u-flat { color: var(--u-flat); }

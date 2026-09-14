@@ -1,0 +1,12 @@
+// Görselleştirme ailesi — docs/PLAN_ARAYUZ.md §4.
+// Hepsi jeton sürücülü (.ui2 kapsamında), iki temada da çalışır, SVG tabanlı.
+//
+// Ortak kural: GÖRSEL ÖNDE, SAYI YANINDA. Hiçbiri kesin değerin yerine
+// geçmiyor; hepsi değeri ölçeğiyle/eşiğiyle birlikte veriyor.
+export { Gauge } from './Gauge'
+export type { GaugeBolge } from './Gauge'
+export { DotStrip } from './DotStrip'
+export { Donut } from './Donut'
+export type { DonutDilim } from './Donut'
+export { BarWithRef } from './BarWithRef'
+export { MiniLine } from './MiniLine'

@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './theme.css'      // Önce token'lar — sonraki tüm CSS bunları kullanır
+import './design/tokens.css'   // Yeni arayüz jetonları (.ui2 kapsamında)
 import './index.css'
 import './components/dashboard/dashboard.css'
 import './components/watchlist/watchlist.css'
@@ -14,6 +15,7 @@ import { ToastProvider } from './components/ui/Toast'
 
 // ── Sayfalar (route'lar) ─────────────────────────────────────────────────────
 import OverviewPage from './pages/OverviewPage'
+import TodayPage from './pages/TodayPage'
 import TerminalPage from './pages/TerminalPage'
 import MultiChartPage from './pages/MultiChartPage'
 import ModelPage from './pages/ModelPage'
@@ -32,6 +34,7 @@ createRoot(document.getElementById('root')!).render(
           {/* App = Layout (header + nav + ortak veri) */}
           <Route path="/" element={<App />}>
             <Route index               element={<OverviewPage />} />
+            <Route path="bugun"         element={<TodayPage />} />
             <Route path="terminal"      element={<TerminalPage />} />
             <Route path="coklu-grafik"  element={<MultiChartPage />} />
             <Route path="model-portfoy" element={<ModelPortfolioPage />} />

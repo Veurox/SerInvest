@@ -5,27 +5,16 @@
 // =============================================================================
 import { useEffect, useState } from 'react'
 import { API } from '../../lib/api'
+// Ruh hali formülü lib/sentiment.ts'e taşındı: yeni Bugün sayfası da aynı
+// göstergeyi kullanıyor ve iki kopya zamanla birbirinden ayrılırdı — iki ekran
+// aynı anda farklı bir "ruh hali" gösterirdi (SAGLAMLIK_PLANI K2).
+import { ruhHaliHesapla, PIYASA_VARLIKLARI as MARKET_ENTITIES,
+         type AggRow } from '../../lib/sentiment'
 
-interface AggRow {
-  entity: string
-  assetType: string
-  score: number          // decay-ağırlıklı sentiment [-1, +1]
-  count: number
-  geoCount: number
-  noveltyScore: number   // yenilik×decay ağırlıklı (tekrar haber şişirmez)
-  meanNovelty: number
-  positiveEvents: number
-  negativeEvents: number
-}
-
-const MARKET_ENTITIES = ['BIST100', 'GLOBAL']
-
-function moodLabel(mood: number): { text: string; cls: string } {
-  if (mood <= 25) return { text: 'AŞIRI KORKU', cls: 't-down' }
-  if (mood <= 42) return { text: 'KORKU', cls: 't-down' }
-  if (mood < 58)  return { text: 'NÖTR', cls: 't-flat' }
-  if (mood < 75)  return { text: 'İYİMSER', cls: 't-up' }
-  return { text: 'AÇGÖZLÜLÜK', cls: 't-up' }
+function moodCls(mood: number): string {
+  if (mood <= 42) return 't-down'
+  if (mood < 58)  return 't-flat'
+  return 't-up'
 }
 
 export function SentimentRadar() {
@@ -45,14 +34,12 @@ export function SentimentRadar() {
   }, [])
 
   // Piyasa ruh hali: BIST100+GLOBAL yenilik-ağırlıklı skor ortalaması → 0-100
-  const marketRows = rows.filter(r => MARKET_ENTITIES.includes(r.entity))
-  const rawMood = marketRows.length
-    ? marketRows.reduce((s, r) => s + (r.noveltyScore || r.score), 0) / marketRows.length
-    : 0
-  const mood = Math.round(((rawMood + 1) / 2) * 100)
-  const { text: moodText, cls: moodCls } = moodLabel(mood)
-  const geoTotal = rows.reduce((s, r) => s + r.geoCount, 0)
-  const newsTotal = rows.reduce((s, r) => s + r.count, 0)
+  const ruh = ruhHaliHesapla(rows)
+  const mood = ruh.puan ?? 50
+  const moodText = ruh.etiket.toLocaleUpperCase('tr-TR')
+  const moodClsName = moodCls(mood)
+  const geoTotal = ruh.jeopolitik
+  const newsTotal = ruh.haberSayisi
 
   // En haber-yoğun varlıklar (piyasa geneli hariç, BIST öncelikli)
   const top = rows
@@ -73,7 +60,7 @@ export function SentimentRadar() {
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
             <span style={{ fontSize: 10.5, color: 'var(--text-muted)', letterSpacing: '0.06em' }}>PİYASA RUH HALİ</span>
-            <span className={`t-num ${moodCls}`} style={{ fontSize: 15, fontWeight: 800 }}>
+            <span className={`t-num ${moodClsName}`} style={{ fontSize: 15, fontWeight: 800 }}>
               {mood} <span style={{ fontSize: 10, fontWeight: 700 }}>{moodText}</span>
             </span>
           </div>
