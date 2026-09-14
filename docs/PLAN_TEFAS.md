@@ -267,8 +267,24 @@ bozulmayacak. Tablo altyapısı (sıralama, kolon seçici, CSV, kayıtlı görü
 | **Eşik farkı** | para piyasasına göre fazla getiri |
 | Büyüklük · Yatırımcı | fon büyüklüğü ve kişi sayısı (akım göstergesi) |
 
-Fonlar çoklu grafik panosuna da eklenebilir — orası fiyat serisi bekliyor,
-fon serisi sorunsuz oturur.
+### Karar: fonlar çoklu grafik panosuna EKLENMEYECEK (14.09.2026, kullanıcı)
+
+Plan başta "eklenebilir, fon serisi sorunsuz oturur" diyordu. Uygulamada bu
+yol kapatıldı — gerekçe yalnız zevk değil, aletin veriye uymaması:
+
+Pano gün içi veri üzerine kurulu. Zaman dilimi seçicisinin yedi seçeneğinden
+dördü (1H · 1D · 1W · 1M) gün-içi ya da saatlik çubuk istiyor; mum grafiği
+açılış/yüksek/düşük istiyor; senkron crosshair dakikalık çubuklarda anlam
+kazanıyor. Fonda bunların **hiçbiri yok** — günde tek birim pay değeri var
+(§1.1).
+
+Fonu panoya koymak, kutunun denetimlerinin yarısını ölü düğmeye çevirirdi.
+Bu, projenin tekrar tekrar kaçındığı hatanın bir başka yüzü: **ekranda
+uygulanabilir görünen ama uygulanamayan bir şey göstermek** (§1, sonuç
+paragrafı).
+
+Fonun serisi gerektiğinde `/api/fon/seri/{kod}` zaten hazır; doğru yeri
+fon tablosunun kendi içi, hisse panosu değil.
 
 ### Uygulanan hâli
 
