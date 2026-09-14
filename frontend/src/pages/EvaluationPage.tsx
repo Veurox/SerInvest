@@ -5,7 +5,7 @@
 // =============================================================================
 import { useState, useMemo } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { PageHeader, Icon } from '../components/ui'
+import { PageHeader, Icon, TerimTip } from '../components/ui'
 import { ChartPanel, TechnicalSummary } from '../components/finance'
 import { CompanyLogo } from '../components/common/CompanyLogo'
 import { fmt, recColor } from '../lib/format'
@@ -348,7 +348,7 @@ export default function EvaluationPage() {
                       padding: 'var(--space-2) var(--space-3)',
                     }}>
                       <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 2,
-                        textTransform: 'uppercase', letterSpacing: '.04em' }}>{k}</div>
+                        textTransform: 'uppercase', letterSpacing: '.04em' }}><TerimTip ad={k} /></div>
                       <div style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: color ?? 'var(--text-primary)',
                         fontVariantNumeric: 'tabular-nums' }}>{v}</div>
                     </div>
@@ -384,7 +384,7 @@ export default function EvaluationPage() {
                       padding: 'var(--space-2) var(--space-3)',
                     }}>
                       <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 2,
-                        textTransform: 'uppercase', letterSpacing: '.04em' }}>{k}</div>
+                        textTransform: 'uppercase', letterSpacing: '.04em' }}><TerimTip ad={k} /></div>
                       <div style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-primary)',
                         fontVariantNumeric: 'tabular-nums' }}>{v}</div>
                     </div>

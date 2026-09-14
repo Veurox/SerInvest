@@ -6,12 +6,15 @@ import { fmt } from '../../lib/format'
 import { API } from '../../lib/api'
 import type { PriceData } from '../../lib/types'
 import { ChartPanel } from '../finance'
+import { TerimTip } from '../ui/TerimTip'
 
 export function DetailPanel({ data, availableSymbols = [] }: { data: PriceData; availableSymbols?: string[] }) {
   const strength = Math.round(data.signalStrength * 100)
+  // Etiketin kendisi ipucu tetikleyicisi: kısaltmanın üstüne gelen kişi zaten
+  // "bu ne?" diye merak eden kişidir.
   const ind = (label: string, value: number | null, dec = 2, colorFn?: (v: number) => string) => (
     <div className="ind-box">
-      <div className="ind-label">{label}</div>
+      <div className="ind-label"><TerimTip ad={label} /></div>
       <div className={`ind-value ${value != null && colorFn ? '' : 'ind-val-dim'}`}
            style={value != null && colorFn ? { color: colorFn(value) } : {}}>
         {fmt(value, dec)}
@@ -24,9 +27,11 @@ export function DetailPanel({ data, availableSymbols = [] }: { data: PriceData; 
       <div className="detail-header">
         <span className="detail-symbol">{data.symbol}</span>
         <span className="detail-price">{fmt(data.close, data.assetType === 'FOREX' ? 4 : 2)}</span>
-        <span className={`signal-pill ${data.signal === 'BUY' ? 'signal-buy' : data.signal === 'SELL' ? 'signal-sell' : 'signal-neutral'}`}>
-          {data.signal}
-        </span>
+        <TerimTip ad="Sinyal">
+          <span className={`signal-pill ${data.signal === 'BUY' ? 'signal-buy' : data.signal === 'SELL' ? 'signal-sell' : 'signal-neutral'}`}>
+            {data.signal}
+          </span>
+        </TerimTip>
       </div>
       <div className="indicators-row">
         {ind('RSI (14)', data.rsi, 1, v => v < 35 ? '#22c55e' : v > 65 ? '#ef4444' : '#94a3b8')}
@@ -38,11 +43,15 @@ export function DetailPanel({ data, availableSymbols = [] }: { data: PriceData; 
         {ind('EMA 200', data.ema200, 2, v => data.close != null ? (data.close > v ? '#22c55e' : '#ef4444') : '#94a3b8')}
       </div>
       <div className="strength-bar-wrap" style={{ marginTop: '1.25rem' }}>
-        <div className="strength-label"><span>Sinyal Kuvveti</span><span>{strength}%</span></div>
+        <div className="strength-label">
+          <span><TerimTip ad="Sinyal Kuvveti" /></span><span>{strength}%</span>
+        </div>
         <div className="strength-bar-bg"><div className="strength-bar-fill" style={{ width: `${strength}%` }} /></div>
         <div className="strength-label" style={{ marginTop: '.4rem' }}>
           <span style={{ color: 'var(--text-muted)', fontSize: '.7rem' }}>
-            G/Y: {fmt(data.high)} / {fmt(data.low)} | Hacim: {data.volume != null ? (data.volume / 1_000_000).toFixed(1) + 'M' : '—'}
+            <TerimTip ad="G/Y" />: {fmt(data.high)} / {fmt(data.low)}
+            {' | '}
+            <TerimTip ad="Hacim" />: {data.volume != null ? (data.volume / 1_000_000).toFixed(1) + 'M' : '—'}
           </span>
           <span style={{ color: 'var(--text-muted)', fontSize: '.7rem' }}>
             {new Date(data.recordedAt).toLocaleString('tr-TR')}

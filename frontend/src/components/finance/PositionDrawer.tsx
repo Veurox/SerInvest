@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { TerimTip } from '../ui/TerimTip'
 import { Sparkline } from './Sparkline'
 import { PnLValue } from './PnLValue'
 import { SignalPill } from './SignalPill'
@@ -214,7 +215,7 @@ export function PositionDrawer({ position, onClose, onSell }: PositionDrawerProp
                     )}
                     {position.stopPrice != null && (
                       <div>
-                        <div style={{ color: 'var(--text-muted)' }}>SL</div>
+                        <div style={{ color: 'var(--text-muted)' }}><TerimTip ad="Stop">SL</TerimTip></div>
                         <div style={{ color: 'var(--loss)', fontWeight: 'var(--fw-bold)', fontVariantNumeric: 'tabular-nums' }}>
                           {position.stopPrice.toFixed(2)}
                         </div>
@@ -222,7 +223,7 @@ export function PositionDrawer({ position, onClose, onSell }: PositionDrawerProp
                     )}
                     {position.riskReward != null && (
                       <div>
-                        <div style={{ color: 'var(--text-muted)' }}>R:R</div>
+                        <div style={{ color: 'var(--text-muted)' }}><TerimTip ad="R:R" /></div>
                         <div style={{ fontWeight: 'var(--fw-bold)', fontVariantNumeric: 'tabular-nums' }}>
                           {position.riskReward.toFixed(2)}
                         </div>

@@ -3,6 +3,7 @@
 // Mevcut PriceData göstergelerinden (RSI, MACD, EMA, BB) sinyal üretir.
 // =============================================================================
 import type { PriceData } from '../../lib/types'
+import { TerimTip } from '../ui/TerimTip'
 
 interface Signal { label: string; verdict: 'AL' | 'NÖTR' | 'SAT' }
 
@@ -98,7 +99,7 @@ export function TechnicalSummary({ asset }: { asset: PriceData | undefined }) {
         textTransform: 'uppercase', letterSpacing: '0.06em',
         fontWeight: 'var(--fw-bold)', marginBottom: 'var(--space-3)',
       }}>
-        Teknik Özet
+        <TerimTip ad="Sinyal">Teknik Özet</TerimTip>
       </div>
 
       {/* Ana verdict + gauge */}
@@ -149,7 +150,7 @@ export function TechnicalSummary({ asset }: { asset: PriceData | undefined }) {
             display: 'flex', alignItems: 'center', gap: 5,
             fontSize: 10,
           }}>
-            <span style={{ color: 'var(--text-muted)' }}>{s.label}:</span>
+            <span style={{ color: 'var(--text-muted)' }}><TerimTip ad={s.label} />:</span>
             <span style={{ color: col(s.verdict), fontWeight: 700 }}>{s.verdict}</span>
           </div>
         ))}

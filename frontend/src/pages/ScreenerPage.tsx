@@ -183,7 +183,7 @@ export default function ScreenerPage() {
     ]
 
     const ai: Column<Row>[] = [
-      { key: 'rec', header: 'AI Kararı', width: 104,
+      { key: 'rec', header: 'AI Kararı', width: 104, terim: 'AI Kararı',
         sortValue: r => r.oracle?.recommendation ?? '',
         render: r => {
           const rec = r.oracle?.recommendation
@@ -195,29 +195,27 @@ export default function ScreenerPage() {
                                 border: `1px solid ${buy ? 'var(--profit-border)' : 'var(--border-default)'}` }}>
             {rec}</span>
         } },
-      { key: 'conf', header: 'Güven', numeric: true, width: 66,
-        title: 'Modelin ham çıktısı — doğrulanmış bir olasılık değil',
+      { key: 'conf', header: 'Güven', numeric: true, width: 66, terim: 'Güven',
         sortValue: r => r.oracle?.confidence ?? null,
         render: r => r.oracle ? `%${(r.oracle.confidence * 100).toFixed(0)}` : '—' },
-      { key: 'target', header: 'Hedef', numeric: true, width: 82, priority: 2,
+      { key: 'target', header: 'Hedef', numeric: true, width: 82, priority: 2, terim: 'Hedef',
         sortValue: r => r.oracle?.shortTermTarget ?? null,
         render: r => num(r.oracle?.shortTermTarget) },
-      { key: 'stop', header: 'Stop', numeric: true, width: 82, priority: 2,
+      { key: 'stop', header: 'Stop', numeric: true, width: 82, priority: 2, terim: 'Stop',
         sortValue: r => r.oracle?.shortTermStop ?? null,
         render: r => num(r.oracle?.shortTermStop) },
-      { key: 'rr', header: 'R:R', numeric: true, width: 60, priority: 3,
+      { key: 'rr', header: 'R:R', numeric: true, width: 60, priority: 3, terim: 'R:R',
         sortValue: r => r.oracle?.riskRewardRatio ?? null,
         render: r => r.oracle?.riskRewardRatio != null ? r.oracle.riskRewardRatio.toFixed(2) : '—' },
     ]
 
     const dip: Column<Row>[] = [
-      { key: 'dipScore', header: 'Dip Skoru', numeric: true, width: 82,
-        title: 'Kaç kapıdan geçti (0-5)',
+      { key: 'dipScore', header: 'Dip Skoru', numeric: true, width: 82, terim: 'Dip Skoru',
         sortValue: r => r.dip?.score ?? null,
         render: r => r.dip
           ? <b style={{ color: r.dip.score >= 4 ? 'var(--profit)' : 'var(--warning)' }}>{r.dip.score}/5</b>
           : '—' },
-      { key: 'pullback', header: 'Geri çekilme', numeric: true, width: 96,
+      { key: 'pullback', header: 'Geri çekilme', numeric: true, width: 96, terim: 'Geri çekilme',
         sortValue: r => r.dip?.pullbackPct ?? null,
         render: r => r.dip ? `%${r.dip.pullbackPct.toFixed(1)}` : '—' },
     ]
@@ -228,7 +226,7 @@ export default function ScreenerPage() {
       // ama tablo yalnız ham oranları gösteriyordu — "en iyi hangisi?"
       // sorusunun cevabı ekranda yoktu. 0.50 nötrdür: ya gerçekten vasat
       // ya da veri %55 tamamlığın altında (fundamental-service böyle döner).
-      { key: 'fundScore', header: 'Temel Skor', numeric: true, width: 88,
+      { key: 'fundScore', header: 'Temel Skor', numeric: true, width: 88, terim: 'Temel Skor',
         sortValue: r => r.fund?.fundamentalScore ?? null,
         render: r => {
           const s = r.fund?.fundamentalScore
@@ -241,20 +239,20 @@ export default function ScreenerPage() {
             </b>
           )
         } },
-      { key: 'pe', header: 'F/K', numeric: true, width: 70,
+      { key: 'pe', header: 'F/K', numeric: true, width: 70, terim: 'F/K',
         sortValue: r => r.fund?.peRatio ?? null, render: r => num(r.fund?.peRatio, 1) },
-      { key: 'pb', header: 'PD/DD', numeric: true, width: 70,
+      { key: 'pb', header: 'PD/DD', numeric: true, width: 70, terim: 'PD/DD',
         sortValue: r => r.fund?.pbRatio ?? null, render: r => num(r.fund?.pbRatio, 2) },
-      { key: 'roe', header: 'ROE', numeric: true, width: 70, priority: 2,
+      { key: 'roe', header: 'ROE', numeric: true, width: 70, priority: 2, terim: 'ROE',
         sortValue: r => r.fund?.roe ?? null,
         render: r => r.fund?.roe == null ? '—' : `%${(r.fund.roe * 100).toFixed(1)}` },
-      { key: 'divy', header: 'Temettü', numeric: true, width: 78, priority: 3,
+      { key: 'divy', header: 'Temettü', numeric: true, width: 78, priority: 3, terim: 'Temettü',
         sortValue: r => r.fund?.dividendYield ?? null,
         render: r => r.fund?.dividendYield == null ? '—' : `%${(r.fund.dividendYield * 100).toFixed(2)}` },
     ]
 
     const rsi: Column<Row>[] = [
-      { key: 'rsi', header: 'RSI', numeric: true, width: 62, priority: 2,
+      { key: 'rsi', header: 'RSI', numeric: true, width: 62, priority: 2, terim: 'RSI',
         sortValue: r => r.asset.rsi ?? null,
         render: r => r.asset.rsi == null ? '—' : (
           <span style={{ color: r.asset.rsi > 70 ? 'var(--loss)' : r.asset.rsi < 30 ? 'var(--profit)' : undefined }}>

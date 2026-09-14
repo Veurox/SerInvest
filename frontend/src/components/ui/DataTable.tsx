@@ -15,6 +15,7 @@
 // keyfi piksel değerleri statik CSS'te ifade edilemediği için bilinçli sadeleştirme.
 // =============================================================================
 import { useMemo, useState } from 'react'
+import { TerimTip } from './TerimTip'
 
 export interface Column<T> {
   key: string
@@ -28,6 +29,12 @@ export interface Column<T> {
   render: (row: T) => React.ReactNode
   /** Başlık üstüne gelince açıklama. */
   title?: string
+  /**
+   * Sözlükteki terim adı (lib/terimler.ts). Verilirse başlık, finans bilmeyen
+   * birine yazılmış bir açıklama açar. `header` metin olarak KALIR — CSV
+   * dışa aktarımı ve kolon seçici onu kullanıyor.
+   */
+  terim?: string
   /** 1 = her zaman · 2 = <1200px gizle · 3 = <900px gizle */
   priority?: 1 | 2 | 3
 }
@@ -98,7 +105,7 @@ export function DataTable<T>({
                     aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : undefined}
                     className={c.sortValue ? 'dt-sortable' : undefined}
                     onClick={() => toggle(c)}>
-                  {c.header}
+                  {c.terim ? <TerimTip ad={c.terim}>{c.header}</TerimTip> : c.header}
                   {c.sortValue && (
                     <span className={`dt-caret${active ? ' dt-caret--on' : ''}`}>
                       {active ? (dir === 'asc' ? '▲' : '▼') : '▾'}

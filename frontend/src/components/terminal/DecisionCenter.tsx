@@ -4,6 +4,7 @@
 // Altta AL sinyali listesi (güven sıralı) — tık → sembol seçimi + grafik.
 // =============================================================================
 import { useMemo } from 'react'
+import { TerimTip } from '../ui/TerimTip'
 import type { OracleAnalysis } from '../../lib/types'
 
 interface Props {
@@ -93,9 +94,9 @@ export function DecisionCenter({ oracle, selected, onSelect }: Props) {
             {/* Hedef / Stop / R:R — eğitimle aynı triple-barrier tanımı */}
             {isBuy && (
               <div style={{ display: 'flex', gap: 14, fontSize: 12, marginBottom: 8 }} className="t-num">
-                <span>H: <b className="t-up">{cur.shortTermTarget != null ? px.format(cur.shortTermTarget) : '—'}</b></span>
-                <span>S: <b className="t-down">{cur.shortTermStop != null ? px.format(cur.shortTermStop) : '—'}</b></span>
-                <span>R:R <b>{cur.riskRewardRatio ?? '—'}</b></span>
+                <span><TerimTip ad="Hedef">H</TerimTip>: <b className="t-up">{cur.shortTermTarget != null ? px.format(cur.shortTermTarget) : '—'}</b></span>
+                <span><TerimTip ad="Stop">S</TerimTip>: <b className="t-down">{cur.shortTermStop != null ? px.format(cur.shortTermStop) : '—'}</b></span>
+                <span><TerimTip ad="R:R" /> <b>{cur.riskRewardRatio ?? '—'}</b></span>
                 {cur.positionSizePct != null && cur.positionSizePct > 0 && (
                   <span>Boyut <b>%{(cur.positionSizePct * 100).toFixed(1)}</b></span>
                 )}

@@ -6,6 +6,7 @@
 import { useEffect } from 'react'
 import { ChartPanel, TechnicalSummary } from '../finance'
 import { CompanyLogo } from '../common/CompanyLogo'
+import { TerimTip } from '../ui/TerimTip'
 import { fmt, recColor } from '../../lib/format'
 import { COMPANY_NAMES } from '../../lib/companies'
 import type { PriceData, OracleAnalysis } from '../../lib/types'
@@ -21,7 +22,8 @@ const fmtVol = (v: number | null): string => {
 function Val({ k, v, color }: { k: string; v: React.ReactNode; color?: string }) {
   return (
     <div className="sym-val">
-      <div className="k">{k}</div>
+      {/* Etiket, sözlükte karşılığı varsa ipucu tetikler; yoksa düz metin. */}
+      <div className="k"><TerimTip ad={k} /></div>
       <div className="v" style={{ color: color ?? 'var(--text-primary)' }}>{v}</div>
     </div>
   )
@@ -94,11 +96,15 @@ export function SymbolDrawer({
               padding: 'var(--space-2) var(--space-3)', background: c.bg, border: `1px solid ${c.border}`,
               borderRadius: 'var(--radius-sm)', flexWrap: 'wrap' }}>
               <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-bold)' }}>AI</span>
-              <span style={{ fontWeight: 'var(--fw-bold)', color: c.color }}>{oracle.recommendation}</span>
-              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>güven %{(oracle.confidence * 100).toFixed(0)}</span>
-              {oracle.shortTermTarget != null && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Hedef {fmt(oracle.shortTermTarget, dec)}</span>}
-              {oracle.shortTermStop != null && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Stop {fmt(oracle.shortTermStop, dec)}</span>}
-              {oracle.riskRewardRatio != null && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>R:R {oracle.riskRewardRatio.toFixed(2)}</span>}
+              <span style={{ fontWeight: 'var(--fw-bold)', color: c.color }}>
+                <TerimTip ad="AI Kararı">{oracle.recommendation}</TerimTip>
+              </span>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                <TerimTip ad="Güven">güven</TerimTip> %{(oracle.confidence * 100).toFixed(0)}
+              </span>
+              {oracle.shortTermTarget != null && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}><TerimTip ad="Hedef" /> {fmt(oracle.shortTermTarget, dec)}</span>}
+              {oracle.shortTermStop != null && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}><TerimTip ad="Stop" /> {fmt(oracle.shortTermStop, dec)}</span>}
+              {oracle.riskRewardRatio != null && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}><TerimTip ad="R:R" /> {oracle.riskRewardRatio.toFixed(2)}</span>}
             </div>
           )
         })()}

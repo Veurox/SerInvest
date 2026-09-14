@@ -5,7 +5,7 @@
 // =============================================================================
 import { useState, useEffect } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
-import { EmptyState, Icon } from '../components/ui'
+import { EmptyState, Icon, TerimTip } from '../components/ui'
 import { BistHeatmap } from '../components/finance'
 import { SectorHeatmap, MarketMovers, MarketPulse, AiPicks, NewsRail } from '../components/dashboard'
 import { fmt } from '../lib/format'
@@ -241,8 +241,8 @@ export default function OverviewPage() {
                 <div /><div>Sembol</div>
                 <div style={{ textAlign: 'right' }}>Fiyat</div>
                 <div style={{ textAlign: 'right' }}>Değişim</div>
-                <div style={{ textAlign: 'center' }}>Sinyal</div>
-                <div style={{ textAlign: 'right' }}>RSI</div>
+                <div style={{ textAlign: 'center' }}><TerimTip ad="Sinyal" /></div>
+                <div style={{ textAlign: 'right' }}><TerimTip ad="RSI" /></div>
                 <div />
               </div>
             )}

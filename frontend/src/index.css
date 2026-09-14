@@ -691,3 +691,58 @@ select option:hover {
   background: var(--bg-surface-2);
   border: 1px solid var(--border-default);
 }
+
+/* ── Terim ipucu ────────────────────────────────────────────────────────────
+   Kısaltmanın (RSI, MACD, BB Üst…) üstüne gelince açılan açıklama kutusu.
+   İçerik lib/terimler.ts'te, bileşen components/ui/TerimTip.tsx.
+
+   Tetikleyicinin kendisi sessiz duruyor: noktalı alt çizgi + imleç. Her
+   kısaltmanın yanına bir "?" rozeti koymak bu ekranları (9 gösterge kutusu,
+   12 kolonluk tablo) benek yağmuruna çevirirdi. */
+.terim {
+  border-bottom: 1px dotted var(--text-disabled);
+  cursor: help;
+  outline: none;
+}
+.terim:hover,
+.terim:focus-visible {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.terim:focus-visible { outline: 1px solid var(--border-focus); outline-offset: 2px; }
+
+/* Portal ile <body> altına basılıyor — kırpan kapsayıcıların dışında. */
+.terim-pop {
+  position: fixed;
+  z-index: 400;                      /* çekmece (200) ve tablo başlığının üstü */
+  display: block;
+  padding: var(--space-3);
+  background: var(--bg-app);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-regular);
+  line-height: 1.5;
+  color: var(--text-secondary);
+  text-align: left;
+  text-transform: none;              /* kutular uppercase; ipucu okunur kalmalı */
+  letter-spacing: normal;
+  pointer-events: none;              /* fareyi takip etmesin, hemen kapansın */
+  animation: fade-in var(--transition-fast);
+}
+.terim-pop__baslik {
+  display: block;
+  color: var(--text-primary);
+  font-weight: var(--fw-bold);
+  margin-bottom: 5px;
+}
+.terim-pop__satir { display: block; margin-top: 5px; }
+.terim-pop__satir b { color: var(--text-primary); font-weight: var(--fw-bold); }
+.terim-pop__uyari {
+  display: block;
+  margin-top: 7px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-subtle);
+  color: var(--warning);
+}
