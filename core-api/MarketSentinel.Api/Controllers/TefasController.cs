@@ -49,6 +49,18 @@ namespace MarketSentinel.Api.Controllers
             return Ilet($"/fonlar{q}");
         }
 
+        /// <summary>
+        /// Fon karşılaştırma tablosu: getiri, akran sırası, risk, eşik farkı.
+        /// Hesap tefas-service'te — burada iş mantığı yok.
+        /// </summary>
+        [HttpGet("tarama")]
+        public Task<IActionResult> Tarama([FromQuery] string? gun,
+                                          [FromQuery] string? asOf)
+        {
+            var q = Sorgu(("gun", gun), ("as_of", asOf));
+            return Ilet($"/tarama{q}");
+        }
+
         /// <summary>Tek fonun seri geçmişi (grafik ve getiri hesapları için).</summary>
         [HttpGet("seri/{kod}")]
         public Task<IActionResult> Seri(string kod,

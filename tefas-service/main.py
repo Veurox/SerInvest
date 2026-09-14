@@ -42,6 +42,7 @@ from pathlib import Path
 from flask import Flask, jsonify, request
 
 import tefas_api
+import tefas_metrik
 import tefas_zaman
 from tefas_store import Depo, simdi
 
@@ -62,6 +63,9 @@ SOGUMA_DK = int(os.getenv("TEFAS_SOGUMA_DK", "45"))
 # Üst sınır var çünkü site ağır sorguları hız sınırıyla karşılıyor; bundan
 # eskisi için geriye dönük doldurma (TEFAS_GERIYE_AY) doğru araç.
 AZAMI_TELAFI_GUN = int(os.getenv("TEFAS_AZAMI_TELAFI_GUN", "45"))
+# Tarama tablosu icin geriye okunacak gun. 1 yillik getiri, referanstan 365 gun
+# once bir gozlem ister; tolerans (10 gun) ve tatil paylari icin 400.
+TARAMA_PENCERE_GUN = int(os.getenv("TEFAS_TARAMA_PENCERE_GUN", "400"))
 
 
 def _kategorileri_yukle() -> list[str]:
@@ -100,6 +104,18 @@ KATEGORILER = _kategorileri_yukle()
 DEPO = Depo(VERI_DIZINI)
 DURUM_DOSYA = VERI_DIZINI / "durum.json"
 _DURUM_KILIT = threading.RLock()
+
+# Tarama tablosu 1 yillik veriyi (100 bin+ satir) okuyup grupluyor; her istekte
+# yeniden hesaplamak arayuzu yavaslatir. Onbellek TTL ile degil DEPO YAZIMIYLA
+# temizleniyor: sure tahmini yapmak yerine "veri degistiyse bayat" demek hem
+# dogru hem de bayat tablo gosterme riskini sifirliyor.
+_TARAMA_ONBELLEK: dict[tuple, dict] = {}
+_ONBELLEK_KILIT = threading.RLock()
+
+
+def onbellek_temizle() -> None:
+    with _ONBELLEK_KILIT:
+        _TARAMA_ONBELLEK.clear()
 
 
 # ── durum (kalıcı) ───────────────────────────────────────────────────────────
@@ -198,6 +214,8 @@ def cek_ve_yaz(bas: datetime.date, bit: datetime.date,
             continue
         for k, v in DEPO.yaz(grup, ingest_ts=ingest, geriye_donuk=bayrak).items():
             sayac[k] += v
+    if sayac["yeni"] or sayac["duzeltme"]:
+        onbellek_temizle()      # tablo artık bayat
     sonuc = {
         "ok": not hatalar or bool(kayitlar),
         "etiket": etiket,
@@ -454,6 +472,46 @@ def fon(kod: str):
                    "buyukluk": s.get("buyukluk"),
                    "kisi": s.get("kisi_sayisi")} for s in satirlar],
     })
+
+
+@app.route("/tarama")
+def tarama():
+    """
+    Fon karşılaştırma tablosu: getiri, akran sırası, risk, eşik farkı.
+
+    Hesap ARAYÜZDE DEĞİL BURADA. İki sebep: (1) noktasal-zamanlılık deponun
+    yanında durmalı, (2) tarayıcıya 100 bin satır göndermek anlamsız.
+
+    `as_of` verilirse tablo O ANIN tablosudur — "bugün ne biliyorduk"
+    sorusunu geriye dönük sormak mümkün.
+    """
+    gun = (request.args.get("gun") or "").strip() or DEPO.son_gun()
+    if not gun:
+        return jsonify({"referans": None, "adet": 0, "fonlar": [],
+                        "not": "depo boş — ilk çekim henüz yapılmadı"})
+    as_of = (request.args.get("as_of") or "").strip() or None
+    try:
+        referans = datetime.date.fromisoformat(gun)
+    except ValueError:
+        return jsonify({"error": f"geçersiz gün: {gun} (YYYY-AA-GG bekleniyor)"}), 400
+
+    anahtar = (gun, as_of)
+    with _ONBELLEK_KILIT:
+        hazir = _TARAMA_ONBELLEK.get(anahtar)
+    if hazir is not None:
+        return jsonify(hazir)
+
+    t0 = time.time()
+    bas = referans - datetime.timedelta(days=TARAMA_PENCERE_GUN)
+    satirlar = DEPO.oku(bas=bas.isoformat(), bit=gun, as_of=as_of)
+    sonuc = tefas_metrik.tarama(satirlar, referans)
+    sonuc["okunan_satir"] = len(satirlar)
+    sonuc["sn"] = round(time.time() - t0, 2)
+    with _ONBELLEK_KILIT:
+        _TARAMA_ONBELLEK[anahtar] = sonuc
+    print(f"[tefas] tarama {gun}: {sonuc['adet']} fon, "
+          f"{len(satirlar)} satır, {sonuc['sn']}sn")
+    return jsonify(sonuc)
 
 
 @app.route("/kategoriler")

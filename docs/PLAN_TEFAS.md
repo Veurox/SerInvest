@@ -252,7 +252,7 @@ eklenen bir özellik değil.
 
 ---
 
-## 4. Faz 2 — Tarama ve karşılaştırma
+## 4. Faz 2 — Tarama ve karşılaştırma (TAMAMLANDI 14.09.2026)
 
 Mevcut `/tarayici` sayfasına **"Fonlar" görünümü** eklenir. Ayrı sayfa
 AÇILMAZ — Faz F'de üç tarama sayfasını tek tabloda birleştirmiştik, o karar
@@ -269,6 +269,39 @@ bozulmayacak. Tablo altyapısı (sıralama, kolon seçici, CSV, kayıtlı görü
 
 Fonlar çoklu grafik panosuna da eklenebilir — orası fiyat serisi bekliyor,
 fon serisi sorunsuz oturur.
+
+### Uygulanan hâli
+
+`tefas_metrik.py` (saf hesap) + `/api/fon/tarama` + `FundScreener.tsx`.
+Hesap **arayüzde değil serviste**: noktasal-zamanlılık deponun yanında
+durmalı ve tarayıcıya 100 bin satır göndermenin anlamı yok.
+
+İlk gerçek ölçüm (14.09.2026, 475 fon, 112.105 satır, 1,6 sn — önbellekli
+0,06 sn):
+
+| | 1 Ay | 1 Yıl |
+|---|---|---|
+| Para piyasası eşiği (medyan) | %3,2 | %46,8 |
+| En iyi hisse fonu | | %147,5 (eşiğin 100,7 puan üstü) |
+| En kötü hisse fonu | | %-50,0 (eşiğin 96,8 puan altı) |
+| Getirisi hesaplanamayan | 11 fon | 67 fon |
+
+Bu son satır tablonun en önemli kısmı: **67 fonun 1 yıllık getirisi
+hesaplanmadı, uydurulmadı.** O kadar geçmişi yok; hücre boş kaldı ve kaç
+fonun elendiği ekranda yazıyor.
+
+### Ölçümün üç savunma hattı
+
+1. **Yetersiz geçmişte sayı üretilmiyor.** Bir dönem için üç şart birden:
+   dönem başında gerçekten gözlem var mı, o gözlem kesim tarihine yeterince
+   yakın mı (10 gün), ve kaç günlük aralıkla hesaplandığı çıktıda yazıyor mu.
+2. **Bayat fon işaretleniyor, akran havuzundan çıkarılıyor.** Kapanan fonun
+   serisi biter ama depoda durur; "son fiyat" aylar öncesine ait olur.
+   Silinmiyor (veri bilgidir) ama yaşayanların sırasını bozmuyor.
+3. **Gelecek sızıntısına karşı ikinci kapı.** `fon_olcumleri` referans
+   gününden sonraki satırları kendisi eliyor. Çağıranın doğru aralık
+   vermesini beklemek yetmez — ilk yazımda tam bu sızıntı vardı ve testi
+   yakaladı.
 
 ### Neden para piyasası "eşik"
 

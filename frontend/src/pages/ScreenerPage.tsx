@@ -14,19 +14,22 @@ import { useEffect, useMemo, useState } from 'react'
 import { useOutletContext, useSearchParams } from 'react-router-dom'
 import type { SharedData } from '../App'
 import { PageHeader, Icon, DataTable, type Column } from '../components/ui'
-import { EvidenceBanner } from '../components/finance'
+import { EvidenceBanner, FundScreener } from '../components/finance'
 import { API } from '../lib/api'
 import { downloadCsv } from '../lib/format'
 import { COMPANY_NAMES } from '../lib/companies'
 import { scoreDip, isDipCandidate, type ChartPoint, type DipScore } from '../lib/dipDetector'
 import type { PriceData, OracleAnalysis, FundamentalData } from '../lib/types'
 
-type ViewId = 'ai' | 'dip' | 'temel' | 'tum'
+type ViewId = 'ai' | 'dip' | 'temel' | 'fon' | 'tum'
 
 const VIEWS: { id: ViewId; label: string; hint: string }[] = [
   { id: 'ai',    label: 'AI Tavsiye',   hint: 'Modelin ALIM dediği hisseler' },
   { id: 'dip',   label: 'Dip Fırsatı',  hint: 'Trend sağlam, geri çekilmiş' },
   { id: 'temel', label: 'Temel Analiz', hint: 'Temel skor, F/K, PD/DD, ROE' },
+  // Fonlar AYRI SAYFA değil burada bir görünüm: Faz F'de üç tarama sayfasını
+  // tek yerde birleştirme kararı bozulmuyor (docs/PLAN_TEFAS.md §4).
+  { id: 'fon',   label: 'Fonlar',       hint: 'TEFAS fonları — akran sırası, eşik farkı' },
   { id: 'tum',   label: 'Tümü',         hint: 'Bütün kolonlar' },
 ]
 
@@ -317,7 +320,8 @@ export default function ScreenerPage() {
       <PageHeader
         icon={<Icon name="target" size={20} />}
         title="Tarayıcı"
-        subtitle={<>{VIEWS.find(v => v.id === view)?.hint} · {rows.length} sonuç</>}
+        subtitle={<>{VIEWS.find(v => v.id === view)?.hint}
+                     {view !== 'fon' && <> · {rows.length} sonuç</>}</>}
       />
 
       <div className="mtabs" role="tablist" aria-label="Hazır görünümler">
@@ -334,11 +338,15 @@ export default function ScreenerPage() {
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
                     marginBottom: 'var(--space-3)' }}>
         <input value={q} onChange={e => setQ(e.target.value)}
-               placeholder="Sembol veya şirket ara…"
+               placeholder={view === 'fon' ? 'Fon kodu veya adı ara…' : 'Sembol veya şirket ara…'}
                style={{ flex: '0 1 260px', padding: '5px 9px', fontSize: 12,
                         color: 'var(--text-primary)', background: 'var(--bg-surface)',
                         border: '1px solid var(--border-default)', outline: 'none' }} />
 
+        {/* Arama dışındaki denetimler hisse tablosuna ait: güven eşiği, kolon
+            seçici, dip taraması. Fon tablosunun kendi denetimleri var (dönem,
+            kategori) — ikisini karıştırmak çalışmayan düğmeler üretirdi. */}
+        {view !== 'fon' && <>
         {view === 'dip' && (
           <button onClick={scanDips} disabled={scanning}
                   style={{ fontSize: 11.5, fontWeight: 700, padding: '5px 12px',
@@ -408,7 +416,10 @@ export default function ScreenerPage() {
             ))}
           </span>
         )}
+        </>}
       </div>
+
+      {view === 'fon' ? <FundScreener q={q} /> : <>
 
       {/* Model sıralamasının kanıt durumu — AI kolonları görünürken uyarı şart */}
       {(view === 'ai' || view === 'tum') && <EvidenceBanner />}
@@ -427,6 +438,7 @@ export default function ScreenerPage() {
           ? 'Henüz tarama yapılmadı — yukarıdaki düğmeye bas.'
           : 'Bu görünümde eşleşen hisse yok.'}
       />
+      </>}
     </div>
   )
 }
