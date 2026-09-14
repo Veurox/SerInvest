@@ -1,0 +1,137 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #3f5666; } a:hover { color: #26363f; }
+    .wf { font-family: 'Archivo', system-ui, sans-serif; }
+    .bas { font-family: 'Archivo', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: #ffffff; background: #c0392b; padding: 1px 5px; }
+    .kut { border: 1px dashed #bdbdb6; }
+    .dolu { background: #e4e4df; }
+    .yaz { color: #6f6f68; }
+    .an { display: flex; gap: 12px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid #dedcd6; }
+  </style>
+</helmet>
+
+<div class="wf" style="width: 1440px; height: 900px; background: #f5f5f2; color: #2a2a27; font-size: 13px; line-height: 1.45; display: flex; flex-direction: column; overflow: hidden;">
+
+  <div style="flex-shrink: 0; display: flex; align-items: baseline; gap: 14px; padding: 14px 24px 10px; border-bottom: 2px solid #2a2a27;">
+    <span style="font-size: 17px; font-weight: 700;">YAPI 4 · Bugünün akışı</span>
+    <span class="yaz" style="font-size: 13px;">Düzenleyici ilke modül değil <b>zaman</b>. Ne olduysa sırayla, tek sütunda.</span>
+    <div style="flex-grow: 1;"></div>
+    <span style="font-size: 12px; font-weight: 600;">1 başlık</span>
+    <span class="yaz" style="font-size: 12px;">(tarih)</span>
+  </div>
+
+  <div style="flex-shrink: 0; height: 30px; display: flex; align-items: center; gap: 18px; padding: 0 24px; background: #e9e9e4; border-bottom: 1px solid #d3d3cc;">
+    <span style="font-size: 11px; font-weight: 700;">aurion</span>
+    <span class="yaz" style="font-size: 11px;">USD/TRY 48,62 · Altın 4.308 · Brent 108,71 · XU100 14.284 · ruh hali 37</span>
+    <div style="flex-grow: 1;"></div>
+    <span class="yaz" style="font-size: 11px;">Grafik · Tarayıcı · Portföy · Model · <b style="color: #2a2a27;">Terminal</b></span>
+  </div>
+
+  <div style="flex-grow: 1; display: grid; grid-template-columns: minmax(0, 1fr) 470px; gap: 0; min-height: 0;">
+
+    <!-- AKIŞ -->
+    <div style="padding: 18px 24px; display: flex; flex-direction: column; gap: 10px; min-height: 0; border-right: 1px solid #d3d3cc;">
+      <div style="display: flex; align-items: center; gap: 9px;">
+        <span class="bas">BAŞLIK 1</span>
+        <span style="font-size: 19px; font-weight: 700; letter-spacing: -0.015em;">14 Eylül, Pazartesi</span>
+        <div style="flex-grow: 1;"></div>
+        <span class="yaz" style="font-size: 11.5px;">model · haber · piyasa · pozisyon</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; min-height: 0;">
+        <div class="an" style="background: #2a2a27; color: #f5f5f2; padding-left: 9px; padding-right: 9px; border-bottom-color: transparent;">
+          <span style="font-size: 12px; width: 42px; opacity: 0.75;">16:41</span>
+          <span style="font-size: 10px; width: 54px; font-weight: 700; letter-spacing: 0.07em;">MODEL</span>
+          <span style="font-size: 13px;">TSKB için <b>ALIM</b> · güven %58 · hedef 12,39 / stop 10,89</span>
+        </div>
+        <div class="an">
+          <span class="yaz" style="font-size: 12px; width: 42px;">16:32</span>
+          <span class="yaz" style="font-size: 10px; width: 54px; font-weight: 700; letter-spacing: 0.07em;">PİYASA</span>
+          <span style="font-size: 13px;">Kısa vade <b>aşağı</b> (orta güven) · genişlik zayıf, 30/83 artıda</span>
+        </div>
+        <div class="an">
+          <span class="yaz" style="font-size: 12px; width: 42px;">15:58</span>
+          <span class="yaz" style="font-size: 10px; width: 54px; font-weight: 700; letter-spacing: 0.07em;">MODEL</span>
+          <span style="font-size: 13px;">EREGL için <b>ALIM</b> · güven %58</span>
+        </div>
+        <div class="an">
+          <span class="yaz" style="font-size: 12px; width: 42px;">15:20</span>
+          <span class="yaz" style="font-size: 10px; width: 54px; font-weight: 700; letter-spacing: 0.07em;">HABER</span>
+          <span style="font-size: 13px;">Jeopolitik başlık akışı yoğunlaştı · duyarlılık −0,31</span>
+        </div>
+        <div class="an">
+          <span class="yaz" style="font-size: 12px; width: 42px;">14:05</span>
+          <span class="yaz" style="font-size: 10px; width: 54px; font-weight: 700; letter-spacing: 0.07em;">POZİSYON</span>
+          <span style="font-size: 13px;">DOHOL hedefe ulaştı, kapandı · <b>+%3,4</b></span>
+        </div>
+        <div class="an">
+          <span class="yaz" style="font-size: 12px; width: 42px;">12:00</span>
+          <span class="yaz" style="font-size: 10px; width: 54px; font-weight: 700; letter-spacing: 0.07em;">MODEL</span>
+          <span style="font-size: 13px;">Veri kayması uyarısı (PSI) · <span class="yaz">otomatik eğitimi tetiklemez</span></span>
+        </div>
+        <div class="an">
+          <span class="yaz" style="font-size: 12px; width: 42px;">10:15</span>
+          <span class="yaz" style="font-size: 10px; width: 54px; font-weight: 700; letter-spacing: 0.07em;">HABER</span>
+          <span style="font-size: 13px;">Brent duyarlılığı −0,34 · altın −0,28</span>
+        </div>
+        <div class="an" style="border-bottom: none;">
+          <span class="yaz" style="font-size: 12px; width: 42px;">09:40</span>
+          <span class="yaz" style="font-size: 10px; width: 54px; font-weight: 700; letter-spacing: 0.07em;">PİYASA</span>
+          <span style="font-size: 13px;">Seans açıldı · XU100 14.284, EMA200 üzerinde</span>
+        </div>
+      </div>
+
+      <div style="flex-grow: 1;"></div>
+      <div class="kut" style="padding: 9px 11px; border-color: #c0392b;">
+        <span style="font-size: 10.5px; font-weight: 700; color: #c0392b; display: block;">BEDELİ</span>
+        <span class="yaz" style="font-size: 11.5px; line-height: 1.5;">“Bugün ne oldu” sorusunu en iyi bu cevaplıyor. Ama “<b>şu an</b> durum ne” sorusuna kötü: mevcut durumu görmek için akışta geriye doğru okumak gerekiyor. Kapalı kalınan bir günün ertesinde çok iyi, sürekli açık duran ekranda zayıf.</span>
+      </div>
+    </div>
+
+    <!-- SEÇİLİ OLAYIN AYRINTISI -->
+    <div style="padding: 18px 22px; display: flex; flex-direction: column; gap: 13px; min-height: 0;">
+      <span class="yaz" style="font-size: 11px;">akıştan seçilen olayın ayrıntısı — kendi başlığı yok</span>
+      <div style="display: flex; align-items: baseline; gap: 11px;">
+        <span style="font-size: 26px; font-weight: 700; letter-spacing: -0.02em;">TSKB</span>
+        <span style="font-size: 14px; font-weight: 700;">ALIM</span>
+        <span style="font-size: 17px;">₺11,49</span>
+        <div style="flex-grow: 1;"></div>
+        <span class="yaz" style="font-size: 11.5px;">16:41</span>
+      </div>
+      <div class="kut dolu" style="height: 250px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; position: relative;">
+        <span class="yaz" style="font-size: 13px;">fiyat + bariyerler</span>
+        <span style="position: absolute; left: 0; right: 0; top: 26%; border-top: 1px dashed #8f8f88;"></span>
+        <span style="position: absolute; left: 0; right: 0; bottom: 24%; border-top: 1px dashed #8f8f88;"></span>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;">
+        <div style="display: flex; flex-direction: column; gap: 1px;"><span class="yaz" style="font-size: 11px;">Hedef</span><span style="font-size: 15px; font-weight: 700;">12,39</span></div>
+        <div style="display: flex; flex-direction: column; gap: 1px;"><span class="yaz" style="font-size: 11px;">Stop</span><span style="font-size: 15px; font-weight: 700;">10,89</span></div>
+        <div style="display: flex; flex-direction: column; gap: 1px;"><span class="yaz" style="font-size: 11px;">R:R</span><span style="font-size: 15px; font-weight: 700;">1,5</span></div>
+        <div style="display: flex; flex-direction: column; gap: 1px;"><span class="yaz" style="font-size: 11px;">Pozisyon</span><span style="font-size: 15px; font-weight: 700;">%4,3</span></div>
+      </div>
+      <div style="height: 1px; background: #dedcd6;"></div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="font-size: 12.5px; font-weight: 600;">Bu karara ne itti</span>
+        <span class="yaz" style="font-size: 12px; line-height: 1.55;">EMA hızlanması <b style="color: #2a2a27;">+0,35</b> · 52 hafta zirveye uzaklık <b style="color: #2a2a27;">+0,11</b> · EMA200 üstü <b style="color: #2a2a27;">−0,24</b></span>
+      </div>
+      <div style="height: 1px; background: #dedcd6;"></div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="font-size: 12.5px; font-weight: 600;">Ne kadar güvenilir</span>
+        <span class="yaz" style="font-size: 12px; line-height: 1.55;">Bu modelin AL isabeti <b style="color: #2a2a27;">%51,5</b>, başabaş eşiği <b style="color: #2a2a27;">%42</b>. Kalibrasyon henüz <b style="color: #2a2a27;">0/150</b> — dürüst okuma birkaç hafta sonra.</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

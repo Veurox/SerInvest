@@ -1,0 +1,62 @@
+{
+  "pages": [
+    { "id": "page-1", "name": "Yapı" },
+    { "id": "page-2", "name": "Yüzey (eski)" }
+  ],
+  "artboards": [
+    { "file": "Main.dc.html",      "title": "Yapı 1 · Tek karar, tüm kanıt", "page": "page-1", "x": 0,    "y": 0,    "w": 1440, "h": 900 },
+    { "file": "Yapi2.dc.html",     "title": "Yapı 2 · Üç soru, sırayla",     "page": "page-1", "x": 1560, "y": 0,    "w": 1440, "h": 900 },
+    { "file": "Yapi3.dc.html",     "title": "Yapı 3 · Kontrol odası",        "page": "page-1", "x": 0,    "y": 1180, "w": 1440, "h": 900 },
+    { "file": "Yapi4.dc.html",     "title": "Yapı 4 · Bugünün akışı",        "page": "page-1", "x": 1560, "y": 1180, "w": 1440, "h": 900 },
+
+    { "file": "YuzeyA.dc.html",    "title": "Yüzey A · Kurumsal terminal",   "page": "page-2", "x": 0,    "y": 0,    "w": 1440, "h": 900 },
+    { "file": "Sakin.dc.html",     "title": "Yüzey B · Modern sakin",        "page": "page-2", "x": 1560, "y": 0,    "w": 1440, "h": 900 },
+    { "file": "Karma.dc.html",     "title": "Yüzey C · Karma",               "page": "page-2", "x": 0,    "y": 1180, "w": 1440, "h": 900 },
+    { "file": "Editoryel.dc.html", "title": "Yüzey D · Editöryel",           "page": "page-2", "x": 1560, "y": 1180, "w": 1440, "h": 900 }
+  ],
+  "annotations": [
+    {
+      "id": "giris",
+      "page": "page-1",
+      "x": 780, "y": -560, "w": 1000,
+      "text": "BUGÜNKÜ TERMİNAL'DE 11 BAŞLIKLI BÖLGE VAR\nmakro şerit · sekmeler · tiker · AI Karar Merkezi · Aktif AL Sinyalleri · Duyarlılık Radarı · grafik başlığı · Piyasa Yorumu · Model Sağlığı · İzleme Listesi · durum çubuğu\n\nSebebi: mevcut düzen ARKA UÇTAKİ SERVİSLERİN HARİTASI. Her servis bir kutu almış. Ekran senin ne yaptığına göre değil, kodun nasıl bölündüğüne göre kurulmuş.\n\nAşağıdaki dördü bunu dört ayrı şekilde çözüyor. Renk ve font yok — bilerek gri: karar verilecek şey yapı, yüzey değil."
+    },
+    {
+      "id": "not-y1",
+      "page": "page-1",
+      "x": 0, "y": -270, "w": 700,
+      "text": "YAPI 1 · TEK KARAR, TÜM KANIT — 2 başlık\n\nEkran tek bir sembolün kararı hakkında; ekrandaki her şey o karara kanıt. Karar satırın kendisi başlık oluyor. İzleme listesi modül olmaktan çıkıp sol tarafta başlıksız bir anahtara dönüşüyor. MLOps paneli tamamen Model sayfasına gidiyor; karara dokunan iki satır kalıyor.\n\nBedeli: Aynı anda tek sembol görüyorsun. Birden fazla çağrıyı yan yana karşılaştırmak istiyorsan bu ekran onu vermiyor."
+    },
+    {
+      "id": "not-y2",
+      "page": "page-1",
+      "x": 1560, "y": -270, "w": 700,
+      "text": "YAPI 2 · ÜÇ SORU, SIRAYLA — 3 başlık, hepsi soru\n\nEkran yukarıdan aşağı bir düşünce zinciri: piyasa nasıl → model ne diyor → neye güvenebilirim. Başlıklar modül adı değil, insanın gerçekten sorduğu soru. Duyarlılık Radarı + Piyasa Yorumu + tiker tek banda iniyor, çünkü üçü de aynı soruyu cevaplıyordu.\n\nBedeli: Dikey bir sıra, yani göz her seferinde baştan akıyor. Tek bir sayıya hızlı bakmak için ideal değil."
+    },
+    {
+      "id": "not-y3",
+      "page": "page-1",
+      "x": 0, "y": 910, "w": 700,
+      "text": "YAPI 3 · KONTROL ODASI — 0 başlık\n\nEkranda yalnız altı büyük durum karosu var: trend filtresi, bugünün çağrısı, ruh hali, açık pozisyon, genişlik, model durumu. Etiket sayının parçası, ayrı başlık yok. Ayrıntı tıklayınca tek panelde açılıyor.\n\nBedeli: Hiçbir ayrıntı aynı anda görünmüyor. 'Göz atıp devam etme' ekranı olarak çok iyi; içine girip inceleme ekranı olarak zayıf — her şey bir tık uzakta."
+    },
+    {
+      "id": "not-y4",
+      "page": "page-1",
+      "x": 1560, "y": 910, "w": 700,
+      "text": "YAPI 4 · BUGÜNÜN AKIŞI — 1 başlık (tarih)\n\nDüzenleyici ilke modül değil ZAMAN. Model çağrıları, haberler, piyasa notları, kapanan pozisyonlar tek kronolojik sütunda; seçilen olayın ayrıntısı sağda.\n\nBedeli: 'Bugün ne oldu' sorusunu en iyi bu cevaplıyor ama 'ŞU AN durum ne' sorusuna kötü — mevcut durumu görmek için akışta geriye okumak gerekiyor. Bilgisayarı sürekli açık tutmadığın için aslında sana uyabilir; düşün."
+    },
+    {
+      "id": "not-secim",
+      "page": "page-1",
+      "x": 780, "y": 2130, "w": 1000,
+      "text": "SEÇİM YAPI ÜZERİNE — yüzey sonra\n\nBir numara söylemen yeter. Karıştırmak da olur: 'Yapı 2'nin üç sorusu ama Yapı 1'in tek-sembol odağı' gibi.\n\nYapı kararı verilince sıra şu: (1) jeton sistemi ve bileşen kütüphanesi yeni yapıya göre kurulur, (2) Terminal baştan sona o yapıyla yazılır, (3) beğenirsen kalan sayfalara yayılır.\n\nİkinci sayfadaki dört yüzey denemesi duruyor — onlar yalnız renk/tipografi çalışması. Yapı seçildikten sonra hangisinin giydirileceğine ayrıca bakarız."
+    },
+    {
+      "id": "not-yuzey",
+      "page": "page-2",
+      "x": 780, "y": -330, "w": 1000,
+      "text": "BUNLAR YÜZEY DENEMESİ — yapı değil\n\nİlk turda üretilenler. Dördü de mevcut iskeleti koruyup rengini, tipografisini ve yerleşimini değiştiriyor; başlık sayısını azaltmıyorlar. Kullanıcının haklı eleştirisi buydu.\n\nYine de atılmadılar: yapı kararı verildikten sonra o yapının hangi tipografi ve palet dilinde giydirileceğine karar verirken işe yarayacaklar."
+    }
+  ],
+  "launch": { "view": "canvas", "page": "page-1" }
+}

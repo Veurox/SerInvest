@@ -1,0 +1,240 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #e2724a; text-decoration: none; }
+    a:hover { color: #f08e6a; }
+    .n { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+    .lbl { font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #7c7a90; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; background: #131218; color: #e8e6ef; font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 13px; line-height: 1.45; display: flex; flex-direction: column; overflow: hidden;">
+
+  <!-- ÜST: ferah -->
+  <div style="height: 58px; flex-shrink: 0; display: flex; align-items: center; gap: 30px; padding: 0 22px; border-bottom: 1px solid rgba(255,255,255,0.07);">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#e2724a" stroke-width="1.6"><path d="M2 13 L6.5 7 L10 10.5 L16 3.5"/><circle cx="16" cy="3.5" r="1.6" fill="#e2724a" stroke="none"/></svg>
+      <span style="font-size: 16px; font-weight: 600; letter-spacing: -0.01em;">Aurion</span>
+    </div>
+    <div style="display: flex; gap: 26px; align-items: baseline;">
+      <span style="display: flex; gap: 7px; align-items: baseline;"><span class="lbl">USD/TRY</span><span class="n" style="font-size: 13px; font-weight: 500;">48,62</span><span class="n" style="font-size: 11px; color: #4fb98a;">+0,13%</span></span>
+      <span style="display: flex; gap: 7px; align-items: baseline;"><span class="lbl">EUR/TRY</span><span class="n" style="font-size: 13px; font-weight: 500;">56,09</span><span class="n" style="font-size: 11px; color: #e06c6c;">−0,40%</span></span>
+      <span style="display: flex; gap: 7px; align-items: baseline;"><span class="lbl">Altın</span><span class="n" style="font-size: 13px; font-weight: 500;">4.308,50</span><span class="n" style="font-size: 11px; color: #4fb98a;">+1,52%</span></span>
+      <span style="display: flex; gap: 7px; align-items: baseline;"><span class="lbl">Brent</span><span class="n" style="font-size: 13px; font-weight: 500;">108,71</span><span class="n" style="font-size: 11px; color: #4fb98a;">+1,70%</span></span>
+    </div>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <span style="width: 6px; height: 6px; border-radius: 999px; background: #4fb98a; display: block;"></span>
+      <span style="font-size: 12.5px; color: #a5a2b8;">Piyasa açık</span>
+      <span class="n" style="font-size: 12.5px; color: #7c7a90;">16:54</span>
+    </div>
+  </div>
+
+  <!-- SEKMELER: ferah -->
+  <div style="height: 44px; flex-shrink: 0; display: flex; align-items: stretch; gap: 2px; padding: 0 22px; border-bottom: 1px solid rgba(255,255,255,0.07);">
+    <div style="display: flex; align-items: center; padding: 0 13px; color: #8e8ba3; font-size: 13px;">Grafik</div>
+    <div style="display: flex; align-items: center; padding: 0 13px; color: #8e8ba3; font-size: 13px;">Tarayıcı</div>
+    <div style="display: flex; align-items: center; padding: 0 13px; color: #8e8ba3; font-size: 13px;">Portföy</div>
+    <div style="display: flex; align-items: center; padding: 0 13px; color: #8e8ba3; font-size: 13px;">Model</div>
+    <div style="display: flex; align-items: center; padding: 0 13px; color: #f2f0f8; font-size: 13px; font-weight: 600; box-shadow: inset 0 -2px 0 #e2724a;">Terminal</div>
+    <div style="display: flex; align-items: center; padding: 0 13px; color: #8e8ba3; font-size: 13px;">Çoklu grafik</div>
+    <div style="display: flex; align-items: center; padding: 0 13px; color: #8e8ba3; font-size: 13px;">Haberler</div>
+  </div>
+
+  <!-- GÖVDE -->
+  <div style="flex-grow: 1; display: grid; grid-template-columns: 350px minmax(0, 1fr) 312px; gap: 14px; padding: 14px 22px 16px; min-height: 0;">
+
+    <!-- SOL -->
+    <div style="display: flex; flex-direction: column; gap: 14px; min-height: 0;">
+
+      <!-- FERAH: karar kartı -->
+      <div style="background: #1b1a23; border-radius: 6px; padding: 18px; display: flex; flex-direction: column; gap: 15px;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between;">
+          <span class="lbl">AI karar merkezi</span>
+          <span class="n" style="font-size: 11px; color: #7c7a90;">16:41</span>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 11px;">
+          <span style="font-size: 28px; font-weight: 600; letter-spacing: -0.02em;">TSKB</span>
+          <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: #4fb98a; background: rgba(79,185,138,0.13); padding: 3px 9px; border-radius: 4px;">Alım</span>
+          <div style="flex-grow: 1;"></div>
+          <span class="n" style="font-size: 20px; font-weight: 500;">₺11,49</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; justify-content: space-between; align-items: baseline;">
+            <span style="font-size: 12px; color: #a5a2b8;">Kalibre güven · 10 gün</span>
+            <span class="n" style="font-size: 13px; font-weight: 600; color: #e2724a;">%58</span>
+          </div>
+          <div style="height: 5px; background: rgba(255,255,255,0.08); border-radius: 999px;">
+            <div style="height: 5px; width: 58%; background: #e2724a; border-radius: 999px;"></div>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;">
+          <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 10.5px; color: #7c7a90;">Hedef</span><span class="n" style="font-size: 14px; font-weight: 600; color: #4fb98a;">12,39</span></div>
+          <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 10.5px; color: #7c7a90;">Stop</span><span class="n" style="font-size: 14px; font-weight: 600; color: #e06c6c;">10,89</span></div>
+          <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 10.5px; color: #7c7a90;">R:R</span><span class="n" style="font-size: 14px; font-weight: 600;">1.5</span></div>
+          <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 10.5px; color: #7c7a90;">Boyut</span><span class="n" style="font-size: 14px; font-weight: 600;">%4.3</span></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; gap: 8px; align-items: baseline;"><span style="color: #4fb98a; font-size: 10px;">▲</span><span style="font-size: 12.5px; color: #b6b3c8;">EMA hızlanması — etki <span class="n" style="color: #4fb98a;">+0.35</span></span></div>
+          <div style="display: flex; gap: 8px; align-items: baseline;"><span style="color: #4fb98a; font-size: 10px;">▲</span><span style="font-size: 12.5px; color: #b6b3c8;">52H zirveye uzaklık — <span class="n" style="color: #4fb98a;">+0.11</span></span></div>
+          <div style="display: flex; gap: 8px; align-items: baseline;"><span style="color: #e06c6c; font-size: 10px;">▼</span><span style="font-size: 12.5px; color: #b6b3c8;">EMA200 üstü — <span class="n" style="color: #e06c6c;">−0.24</span></span></div>
+        </div>
+      </div>
+
+      <!-- YOĞUN: sinyal tablosu -->
+      <div style="background: #1b1a23; border-radius: 6px; padding: 12px 14px 13px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between;">
+          <span class="lbl">Aktif AL sinyalleri</span><span class="n" style="font-size: 11px; color: #7c7a90;">3</span>
+        </div>
+        <div style="display: flex; flex-direction: column;">
+          <div style="display: grid; grid-template-columns: 1fr 62px 48px; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: baseline;"><span style="font-size: 12.5px; font-weight: 500;">TSKB</span><span class="n" style="text-align: right; font-size: 12px;">11,49</span><span class="n" style="text-align: right; font-size: 11px; color: #e2724a;">%58</span></div>
+          <div style="display: grid; grid-template-columns: 1fr 62px 48px; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: baseline;"><span style="font-size: 12.5px; font-weight: 500;">DOHOL</span><span class="n" style="text-align: right; font-size: 12px;">21,82</span><span class="n" style="text-align: right; font-size: 11px; color: #e2724a;">%58</span></div>
+          <div style="display: grid; grid-template-columns: 1fr 62px 48px; gap: 8px; padding: 4px 0; align-items: baseline;"><span style="font-size: 12.5px; font-weight: 500;">EREGL</span><span class="n" style="text-align: right; font-size: 12px;">39,12</span><span class="n" style="text-align: right; font-size: 11px; color: #e2724a;">%58</span></div>
+        </div>
+      </div>
+
+      <!-- YOĞUN: duyarlılık -->
+      <div style="background: #1b1a23; border-radius: 6px; padding: 12px 14px 13px; display: flex; flex-direction: column; gap: 10px; flex-grow: 1; min-height: 0;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between;">
+          <span class="lbl">Duyarlılık radarı</span><span class="n" style="font-size: 11px; color: #7c7a90;">503 · 48s</span>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 9px;">
+          <span class="n" style="font-size: 26px; font-weight: 600; color: #e06c6c; line-height: 1;">37</span>
+          <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: #e06c6c;">Korku</span>
+          <div style="flex-grow: 1;"></div>
+          <div style="width: 120px; height: 5px; border-radius: 999px; background: linear-gradient(90deg, #e06c6c, #56546b, #4fb98a); position: relative;">
+            <div style="position: absolute; left: 37%; top: -2px; width: 2px; height: 9px; background: #f2f0f8;"></div>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: grid; grid-template-columns: 78px minmax(0,1fr) 44px; gap: 9px; align-items: center;"><span style="font-size: 11.5px; color: #b6b3c8;">XAUUSD</span><div style="height: 6px; border-radius: 999px; background: rgba(255,255,255,0.06); display: flex; justify-content: flex-end;"><div style="width: 28%; height: 6px; border-radius: 999px; background: #c25f5f;"></div></div><span class="n" style="font-size: 11px; text-align: right; color: #e06c6c;">−0.28</span></div>
+          <div style="display: grid; grid-template-columns: 78px minmax(0,1fr) 44px; gap: 9px; align-items: center;"><span style="font-size: 11.5px; color: #b6b3c8;">BRENTOIL</span><div style="height: 6px; border-radius: 999px; background: rgba(255,255,255,0.06); display: flex; justify-content: flex-end;"><div style="width: 34%; height: 6px; border-radius: 999px; background: #c25f5f;"></div></div><span class="n" style="font-size: 11px; text-align: right; color: #e06c6c;">−0.34</span></div>
+          <div style="display: grid; grid-template-columns: 78px minmax(0,1fr) 44px; gap: 9px; align-items: center;"><span style="font-size: 11.5px; color: #b6b3c8;">FED</span><div style="height: 6px; border-radius: 999px; background: rgba(255,255,255,0.06); display: flex; justify-content: flex-end;"><div style="width: 37%; height: 6px; border-radius: 999px; background: #c25f5f;"></div></div><span class="n" style="font-size: 11px; text-align: right; color: #e06c6c;">−0.37</span></div>
+          <div style="display: grid; grid-template-columns: 78px minmax(0,1fr) 44px; gap: 9px; align-items: center;"><span style="font-size: 11.5px; color: #b6b3c8;">USDTRY</span><div style="height: 6px; border-radius: 999px; background: rgba(255,255,255,0.06);"><div style="width: 14%; height: 6px; border-radius: 999px; background: #4fb98a;"></div></div><span class="n" style="font-size: 11px; text-align: right; color: #4fb98a;">+0.14</span></div>
+          <div style="display: grid; grid-template-columns: 78px minmax(0,1fr) 44px; gap: 9px; align-items: center;"><span style="font-size: 11.5px; color: #b6b3c8;">JEOPOLİTİK</span><div style="height: 6px; border-radius: 999px; background: rgba(255,255,255,0.06); display: flex; justify-content: flex-end;"><div style="width: 31%; height: 6px; border-radius: 999px; background: #c25f5f;"></div></div><span class="n" style="font-size: 11px; text-align: right; color: #e06c6c;">−0.31</span></div>
+          <div style="display: grid; grid-template-columns: 78px minmax(0,1fr) 44px; gap: 9px; align-items: center;"><span style="font-size: 11.5px; color: #b6b3c8;">MAKRO_TR</span><div style="height: 6px; border-radius: 999px; background: rgba(255,255,255,0.06); display: flex; justify-content: flex-end;"><div style="width: 24%; height: 6px; border-radius: 999px; background: #c25f5f;"></div></div><span class="n" style="font-size: 11px; text-align: right; color: #e06c6c;">−0.24</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ORTA -->
+    <div style="display: flex; flex-direction: column; gap: 14px; min-height: 0;">
+      <div style="background: #1b1a23; border-radius: 6px; flex-grow: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden;">
+        <div style="display: flex; align-items: center; gap: 13px; padding: 15px 18px 12px;">
+          <span style="font-size: 14.5px; font-weight: 600;">TSKB · fiyat ve AI bariyerleri</span>
+          <span class="n" style="font-size: 13px; color: #e06c6c;">−6,81%</span>
+          <div style="flex-grow: 1;"></div>
+          <div style="display: flex; gap: 2px;">
+            <span class="n" style="font-size: 11px; padding: 4px 10px; color: #8e8ba3; border-radius: 4px;">1A</span>
+            <span class="n" style="font-size: 11px; padding: 4px 10px; color: #131218; background: #e2724a; font-weight: 600; border-radius: 4px;">3A</span>
+            <span class="n" style="font-size: 11px; padding: 4px 10px; color: #8e8ba3; border-radius: 4px;">1Y</span>
+          </div>
+        </div>
+        <div style="flex-grow: 1; position: relative; min-height: 0; padding: 0 18px 14px;">
+          <svg viewBox="0 0 700 340" preserveAspectRatio="none" style="width: 100%; height: 100%; display: block;">
+            <g stroke="rgba(255,255,255,0.05)" stroke-width="1">
+              <line x1="0" y1="56" x2="700" y2="56"/><line x1="0" y1="112" x2="700" y2="112"/>
+              <line x1="0" y1="168" x2="700" y2="168"/><line x1="0" y1="224" x2="700" y2="224"/>
+              <line x1="0" y1="280" x2="700" y2="280"/>
+            </g>
+            <rect x="0" y="42" width="700" height="16" fill="rgba(79,185,138,0.08)"/>
+            <line x1="0" y1="50" x2="700" y2="50" stroke="#4fb98a" stroke-width="1.25" stroke-dasharray="5 5"/>
+            <rect x="0" y="272" width="700" height="16" fill="rgba(224,108,108,0.08)"/>
+            <line x1="0" y1="280" x2="700" y2="280" stroke="#e06c6c" stroke-width="1.25" stroke-dasharray="5 5"/>
+            <line x1="0" y1="182" x2="700" y2="182" stroke="#e2724a" stroke-width="1.25" stroke-dasharray="5 5"/>
+            <g stroke-width="5">
+              <line x1="24" y1="92" x2="24" y2="142" stroke="#4fb98a"/><line x1="48" y1="104" x2="48" y2="158" stroke="#c25f5f"/>
+              <line x1="72" y1="114" x2="72" y2="150" stroke="#4fb98a"/><line x1="96" y1="124" x2="96" y2="176" stroke="#c25f5f"/>
+              <line x1="120" y1="136" x2="120" y2="170" stroke="#4fb98a"/><line x1="144" y1="144" x2="144" y2="196" stroke="#c25f5f"/>
+              <line x1="168" y1="154" x2="168" y2="188" stroke="#4fb98a"/><line x1="192" y1="162" x2="192" y2="214" stroke="#c25f5f"/>
+              <line x1="216" y1="172" x2="216" y2="206" stroke="#4fb98a"/><line x1="240" y1="180" x2="240" y2="232" stroke="#c25f5f"/>
+              <line x1="264" y1="190" x2="264" y2="224" stroke="#4fb98a"/><line x1="288" y1="198" x2="288" y2="240" stroke="#c25f5f"/>
+              <line x1="312" y1="206" x2="312" y2="236" stroke="#4fb98a"/><line x1="336" y1="212" x2="336" y2="250" stroke="#c25f5f"/>
+              <line x1="360" y1="218" x2="360" y2="246" stroke="#4fb98a"/><line x1="384" y1="222" x2="384" y2="256" stroke="#c25f5f"/>
+              <line x1="408" y1="226" x2="408" y2="250" stroke="#4fb98a"/><line x1="432" y1="230" x2="432" y2="258" stroke="#c25f5f"/>
+              <line x1="456" y1="220" x2="456" y2="248" stroke="#4fb98a"/><line x1="480" y1="212" x2="480" y2="244" stroke="#c25f5f"/>
+              <line x1="504" y1="204" x2="504" y2="236" stroke="#4fb98a"/><line x1="528" y1="198" x2="528" y2="228" stroke="#4fb98a"/>
+              <line x1="552" y1="194" x2="552" y2="224" stroke="#c25f5f"/><line x1="576" y1="190" x2="576" y2="218" stroke="#4fb98a"/>
+              <line x1="600" y1="186" x2="600" y2="214" stroke="#4fb98a"/><line x1="624" y1="188" x2="624" y2="212" stroke="#c25f5f"/>
+              <line x1="648" y1="184" x2="648" y2="208" stroke="#4fb98a"/><line x1="672" y1="182" x2="672" y2="204" stroke="#4fb98a"/>
+            </g>
+          </svg>
+          <div style="position: absolute; right: 18px; top: 34px;"><span class="n" style="font-size: 11px; font-weight: 600; background: #4fb98a; color: #131218; padding: 2px 8px; border-radius: 4px;">Hedef 12,39</span></div>
+          <div style="position: absolute; right: 18px; top: 174px;"><span class="n" style="font-size: 11px; font-weight: 600; background: #e2724a; color: #131218; padding: 2px 8px; border-radius: 4px;">Analiz 11,49</span></div>
+          <div style="position: absolute; right: 18px; top: 264px;"><span class="n" style="font-size: 11px; font-weight: 600; background: #e06c6c; color: #131218; padding: 2px 8px; border-radius: 4px;">Stop 10,89</span></div>
+        </div>
+      </div>
+
+      <div style="background: #1b1a23; border-radius: 6px; padding: 14px 18px; height: 188px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: baseline; gap: 11px;">
+          <span class="lbl">Piyasa yorumu · otomatik sentez</span>
+          <span style="font-size: 12.5px; font-weight: 600; color: #e06c6c;">▼ Aşağı</span>
+          <span style="font-size: 11.5px; color: #7c7a90;">orta güven</span>
+          <div style="flex-grow: 1;"></div>
+          <span class="n" style="font-size: 11px; color: #7c7a90;">16:32</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #e2724a;">Yön ve rejim</span>
+            <span style="font-size: 12px; color: #9d9ab2; line-height: 1.55;">XU100 <span class="n">14.284</span> ile EMA200 <span class="n">13.575</span> üzerinde. Beş günde <span class="n">%0,9</span> yükseldi; trend filtresi alıma izin veriyor.</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #e2724a;">Genişlik ve hacim</span>
+            <span style="font-size: 12px; color: #9d9ab2; line-height: 1.55;"><span class="n">83</span> hissenin <span class="n">30</span>'u artıda, <span class="n">50</span>'si ekside. Endeks hacmi ortalamanın <span class="n">%17</span> üzerinde.</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #e2724a;">Haber akışı</span>
+            <span style="font-size: 12px; color: #9d9ab2; line-height: 1.55;"><span class="n">24</span> saatte <span class="n">503</span> haber. Ruh hali <span class="n">37</span> puanda; jeopolitik akış yoğun.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SAĞ -->
+    <div style="display: flex; flex-direction: column; gap: 14px; min-height: 0;">
+      <div style="background: #1b1a23; border-radius: 6px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between;">
+          <span class="lbl">Model sağlığı · MLOps</span>
+          <span style="display: flex; gap: 5px; align-items: center;"><span style="width: 5px; height: 5px; border-radius: 999px; background: #4fb98a; display: block;"></span><span style="font-size: 11px; color: #4fb98a;">Aktif</span></span>
+        </div>
+        <div style="display: flex; flex-direction: column;">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05);"><span style="font-size: 12px; color: #9d9ab2;">WF yön doğruluğu</span><span class="n" style="font-size: 12.5px; font-weight: 600;">%58.3</span></div>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05);"><span style="font-size: 12px; color: #9d9ab2;">WF AL-precision</span><span class="n" style="font-size: 12.5px; font-weight: 600;">%51.5</span></div>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05);"><span style="font-size: 12px; color: #9d9ab2;">OOS örneklem</span><span class="n" style="font-size: 12.5px; font-weight: 600;">19.750</span></div>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05);"><span style="font-size: 12px; color: #9d9ab2;">Champion yaşı</span><span class="n" style="font-size: 12.5px; font-weight: 600;">10 gün</span></div>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05);"><span style="font-size: 12px; color: #9d9ab2;">Veri kayması (PSI)</span><span style="font-size: 10.5px; font-weight: 600; color: #d9a441; background: rgba(217,164,65,0.14); padding: 2px 8px; border-radius: 4px;">DRIFT</span></div>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 4px 0;"><span style="font-size: 12px; color: #9d9ab2;">Kalibrasyon</span><span class="n" style="font-size: 11.5px; color: #7c7a90;">0/150</span></div>
+        </div>
+      </div>
+
+      <div style="background: #1b1a23; border-radius: 6px; padding: 14px 16px; display: flex; flex-direction: column; gap: 9px; flex-grow: 1; min-height: 0;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between;">
+          <span class="lbl">İzleme listesi</span><span class="n" style="font-size: 11px; color: #7c7a90;">9</span>
+        </div>
+        <div style="display: flex; flex-direction: column;">
+          <div style="display: grid; grid-template-columns: 1fr 66px 56px; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: baseline;"><span style="font-size: 12.5px; font-weight: 500;">THYAO</span><span class="n" style="text-align: right; font-size: 12px;">297,25</span><span class="n" style="text-align: right; font-size: 11px; color: #e06c6c;">−0,34%</span></div>
+          <div style="display: grid; grid-template-columns: 1fr 66px 56px; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: baseline;"><span style="font-size: 12.5px; font-weight: 500;">GARAN</span><span class="n" style="text-align: right; font-size: 12px;">134,10</span><span class="n" style="text-align: right; font-size: 11px; color: #4fb98a;">+0,79%</span></div>
+          <div style="display: grid; grid-template-columns: 1fr 66px 56px; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: baseline;"><span style="font-size: 12.5px; font-weight: 500;">ASELS</span><span class="n" style="text-align: right; font-size: 12px;">377,25</span><span class="n" style="text-align: right; font-size: 11px; color: #e06c6c;">−3,35%</span></div>
+          <div style="display: grid; grid-template-columns: 1fr 66px 56px; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: baseline;"><span style="font-size: 12.5px; font-weight: 500;">TUPRS</span><span class="n" style="text-align: right; font-size: 12px;">418,00</span><span class="n" style="text-align: right; font-size: 11px; color: #4fb98a;">+0,12%</span></div>
+          <div style="display: grid; grid-template-columns: 1fr 66px 56px; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: baseline;"><span style="font-size: 12.5px; font-weight: 500;">EREGL</span><span class="n" style="text-align: right; font-size: 12px;">39,10</span><span class="n" style="text-align: right; font-size: 11px; color: #7c7a90;">0,00%</span></div>
+          <div style="display: grid; grid-template-columns: 1fr 66px 56px; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: baseline;"><span style="font-size: 12.5px; font-weight: 500;">KCHOL</span><span class="n" style="text-align: right; font-size: 12px;">226,10</span><span class="n" style="text-align: right; font-size: 11px; color: #4fb98a;">+1,07%</span></div>
+          <div style="display: grid; grid-template-columns: 1fr 66px 56px; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: baseline;"><span style="font-size: 12.5px; font-weight: 500;">SAHOL</span><span class="n" style="text-align: right; font-size: 12px;">95,50</span><span class="n" style="text-align: right; font-size: 11px; color: #4fb98a;">+1,00%</span></div>
+          <div style="display: grid; grid-template-columns: 1fr 66px 56px; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); align-items: baseline;"><span style="font-size: 12.5px; font-weight: 500;">BIMAS</span><span class="n" style="text-align: right; font-size: 12px;">431,50</span><span class="n" style="text-align: right; font-size: 11px; color: #4fb98a;">+0,28%</span></div>
+          <div style="display: grid; grid-template-columns: 1fr 66px 56px; gap: 8px; padding: 4px 0; align-items: baseline;"><span style="font-size: 12.5px; font-weight: 500;">SISE</span><span class="n" style="text-align: right; font-size: 12px;">43,96</span><span class="n" style="text-align: right; font-size: 11px; color: #e06c6c;">−1,21%</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

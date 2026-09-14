@@ -1,0 +1,177 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,500;0,600;1,6..72,400&family=Archivo:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #9c4a24; text-decoration: none; }
+    a:hover { color: #7a3819; }
+    .n { font-family: 'Archivo', system-ui, sans-serif; font-variant-numeric: tabular-nums lining-nums; }
+    .kick { font-family: 'Archivo', system-ui, sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #9c4a24; }
+    .meta { font-family: 'Archivo', system-ui, sans-serif; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #8a8279; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; background: #fbfaf7; color: #191713; font-family: 'Newsreader', Georgia, serif; font-size: 15px; line-height: 1.6; display: flex; flex-direction: column; overflow: hidden;">
+
+  <!-- MASTHEAD -->
+  <div style="flex-shrink: 0; padding: 16px 44px 0; display: flex; flex-direction: column; gap: 12px;">
+    <div style="display: flex; align-items: baseline; gap: 22px;">
+      <span style="font-size: 26px; font-weight: 500; letter-spacing: -0.02em;">Aurion</span>
+      <span class="meta">Piyasa Terminali</span>
+      <div style="flex-grow: 1;"></div>
+      <span class="meta">14 Eylül 2026 · Pazartesi · 16.54</span>
+    </div>
+    <div style="height: 2px; background: #191713;"></div>
+    <div style="display: flex; align-items: baseline; gap: 30px; padding: 7px 0 9px; border-bottom: 1px solid rgba(25,23,19,0.16);">
+      <span style="display: flex; gap: 8px; align-items: baseline;"><span class="meta">USD/TRY</span><span class="n" style="font-size: 13.5px; font-weight: 600;">48,62</span><span class="n" style="font-size: 11.5px; color: #2f6b4f;">+0,13</span></span>
+      <span style="display: flex; gap: 8px; align-items: baseline;"><span class="meta">EUR/TRY</span><span class="n" style="font-size: 13.5px; font-weight: 600;">56,09</span><span class="n" style="font-size: 11.5px; color: #9c3024;">−0,40</span></span>
+      <span style="display: flex; gap: 8px; align-items: baseline;"><span class="meta">Altın</span><span class="n" style="font-size: 13.5px; font-weight: 600;">4.308,50</span><span class="n" style="font-size: 11.5px; color: #2f6b4f;">+1,52</span></span>
+      <span style="display: flex; gap: 8px; align-items: baseline;"><span class="meta">Brent</span><span class="n" style="font-size: 13.5px; font-weight: 600;">108,71</span><span class="n" style="font-size: 11.5px; color: #2f6b4f;">+1,70</span></span>
+      <span style="display: flex; gap: 8px; align-items: baseline;"><span class="meta">XU100</span><span class="n" style="font-size: 13.5px; font-weight: 600;">14.284</span><span class="n" style="font-size: 11.5px; color: #2f6b4f;">+0,90</span></span>
+      <div style="flex-grow: 1;"></div>
+      <div style="display: flex; gap: 18px; align-items: baseline;">
+        <span class="meta">Grafik</span><span class="meta">Tarayıcı</span><span class="meta">Portföy</span><span class="meta">Model</span>
+        <span style="font-family: 'Archivo', sans-serif; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: #191713; border-bottom: 2px solid #9c4a24; padding-bottom: 2px;">Terminal</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- GÖVDE -->
+  <div style="flex-grow: 1; display: grid; grid-template-columns: minmax(0, 1fr) 336px; gap: 34px; padding: 20px 44px 22px; min-height: 0;">
+
+    <!-- ANA SÜTUN -->
+    <div style="display: flex; flex-direction: column; gap: 18px; min-height: 0;">
+
+      <div style="display: flex; flex-direction: column; gap: 9px;">
+        <span class="kick">Otomatik sentez · 16.32</span>
+        <span style="font-size: 33px; font-weight: 500; line-height: 1.18; letter-spacing: -0.018em; text-wrap: pretty;">Kısa vadeli görünüm aşağı yönlü, ama trend filtresi hâlâ yeni alımlara açık</span>
+        <span style="font-size: 16px; color: #4c463d; line-height: 1.55; max-width: 800px; text-wrap: pretty;">Piyasa ruh hali <span class="n" style="font-weight: 600; color: #9c3024;">37</span> puanla korku bölgesinde. Genişlik zayıf: takip edilen <span class="n">83</span> hissenin yalnızca <span class="n">30</span>'u artıda. Model tek bir alım çağrısı tutuyor.</span>
+      </div>
+
+      <div style="height: 1px; background: rgba(25,23,19,0.16);"></div>
+
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px;">
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span class="kick">Piyasa yönü ve rejim</span>
+          <span style="font-size: 14.5px; color: #4c463d; line-height: 1.62;">Endeks tarafında XU100 <span class="n" style="font-weight: 600;">14.284</span> ile EMA200'ün (<span class="n">13.575</span>) üzerinde. Son beş işlem gününde <span class="n">%0,9</span> yükseldi; trend filtresi bu yüzden yeni alımlara izin veriyor.</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span class="kick">Genişlik ve hacim</span>
+          <span style="font-size: 14.5px; color: #4c463d; line-height: 1.62;">Takip edilen <span class="n" style="font-weight: 600;">83</span> hissenin <span class="n">30</span>'u artıda, <span class="n">50</span>'si ekside; ortalama RSI <span class="n">52,0</span>. Endeks hacmi yirmi günlük ortalamasının <span class="n">%17</span> üzerinde.</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span class="kick">Haber akışı ve duyarlılık</span>
+          <span style="font-size: 14.5px; color: #4c463d; line-height: 1.62;">Son yirmi dört saatte <span class="n" style="font-weight: 600;">503</span> haber tarandı. Jeopolitik başlıklar öne çıkıyor; altın ve Brent duyarlılığı negatif.</span>
+        </div>
+      </div>
+
+      <div style="height: 1px; background: rgba(25,23,19,0.16);"></div>
+
+      <!-- GÜNÜN ÇAĞRISI -->
+      <div style="display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 30px; flex-grow: 1; min-height: 0;">
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <span class="kick">Günün çağrısı</span>
+          <div style="display: flex; align-items: baseline; gap: 11px;">
+            <span style="font-size: 38px; font-weight: 500; letter-spacing: -0.025em; line-height: 1;">TSKB</span>
+            <span style="font-family: 'Archivo', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #2f6b4f;">Alım</span>
+          </div>
+          <span class="n" style="font-size: 24px; font-weight: 500;">₺11,49</span>
+          <div style="display: flex; flex-direction: column; gap: 0;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-top: 1px solid rgba(25,23,19,0.12);"><span style="font-size: 14px; color: #6b6459;">Kalibre güven</span><span class="n" style="font-size: 14.5px; font-weight: 600; color: #9c4a24;">%58</span></div>
+            <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-top: 1px solid rgba(25,23,19,0.12);"><span style="font-size: 14px; color: #6b6459;">Hedef</span><span class="n" style="font-size: 14.5px; font-weight: 600; color: #2f6b4f;">12,39</span></div>
+            <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-top: 1px solid rgba(25,23,19,0.12);"><span style="font-size: 14px; color: #6b6459;">Stop</span><span class="n" style="font-size: 14.5px; font-weight: 600; color: #9c3024;">10,89</span></div>
+            <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-top: 1px solid rgba(25,23,19,0.12);"><span style="font-size: 14px; color: #6b6459;">Risk / kazanç</span><span class="n" style="font-size: 14.5px; font-weight: 600;">1,5</span></div>
+            <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-top: 1px solid rgba(25,23,19,0.12); border-bottom: 1px solid rgba(25,23,19,0.12);"><span style="font-size: 14px; color: #6b6459;">Pozisyon boyutu</span><span class="n" style="font-size: 14.5px; font-weight: 600;">%4,3</span></div>
+          </div>
+          <span style="font-size: 13.5px; font-style: italic; color: #6b6459; line-height: 1.55;">Gerekçe: EMA hızlanması ve 52 haftalık zirveye uzaklık lehte; EMA200'ün altında kalması aleyhte.</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; min-height: 0;">
+          <div style="display: flex; align-items: baseline; gap: 12px;">
+            <span class="kick">Fiyat ve bariyerler · son üç ay</span>
+            <div style="flex-grow: 1;"></div>
+            <span class="n" style="font-size: 13px; color: #9c3024; font-weight: 600;">−6,81%</span>
+          </div>
+          <div style="flex-grow: 1; position: relative; min-height: 0;">
+            <svg viewBox="0 0 620 300" preserveAspectRatio="none" style="width: 100%; height: 100%; display: block;">
+              <line x1="0" y1="44" x2="620" y2="44" stroke="#2f6b4f" stroke-width="1" stroke-dasharray="4 4"/>
+              <line x1="0" y1="252" x2="620" y2="252" stroke="#9c3024" stroke-width="1" stroke-dasharray="4 4"/>
+              <line x1="0" y1="299" x2="620" y2="299" stroke="rgba(25,23,19,0.22)" stroke-width="1"/>
+              <path d="M0,84 C55,78 82,106 128,120 C174,134 212,154 258,172 C304,190 340,206 386,216 C432,226 470,212 516,194 C562,176 596,184 620,178" fill="none" stroke="#191713" stroke-width="1.75" stroke-linecap="round"/>
+              <circle cx="620" cy="178" r="3.5" fill="#9c4a24"/>
+            </svg>
+            <span class="n" style="position: absolute; left: 0; top: 30px; font-size: 11px; color: #2f6b4f; background: #fbfaf7; padding-right: 6px;">Hedef 12,39</span>
+            <span class="n" style="position: absolute; left: 0; top: 238px; font-size: 11px; color: #9c3024; background: #fbfaf7; padding-right: 6px;">Stop 10,89</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span class="meta">15 Haziran</span><span class="meta">1 Ağustos</span><span class="meta">14 Eylül</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SAĞ RAF -->
+    <div style="display: flex; flex-direction: column; gap: 18px; min-height: 0; border-left: 1px solid rgba(25,23,19,0.16); padding-left: 28px;">
+
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <span class="kick">Piyasa ruh hali</span>
+        <div style="display: flex; align-items: baseline; gap: 11px;">
+          <span class="n" style="font-size: 40px; font-weight: 600; color: #9c3024; line-height: 1; letter-spacing: -0.02em;">37</span>
+          <span style="font-size: 17px; color: #9c3024;">Korku</span>
+          <div style="flex-grow: 1;"></div>
+          <span class="meta">503 haber · 48 saat</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 7px; padding-top: 2px;">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 5px; border-bottom: 1px solid rgba(25,23,19,0.10);"><span style="font-size: 14px; color: #4c463d;">Altın</span><span class="n" style="font-size: 13px; color: #9c3024;">−0,28</span></div>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 5px; border-bottom: 1px solid rgba(25,23,19,0.10);"><span style="font-size: 14px; color: #4c463d;">Brent</span><span class="n" style="font-size: 13px; color: #9c3024;">−0,34</span></div>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 5px; border-bottom: 1px solid rgba(25,23,19,0.10);"><span style="font-size: 14px; color: #4c463d;">Fed</span><span class="n" style="font-size: 13px; color: #9c3024;">−0,37</span></div>
+          <div style="display: flex; justify-content: space-between; align-items: baseline;"><span style="font-size: 14px; color: #4c463d;">USD/TRY</span><span class="n" style="font-size: 13px; color: #2f6b4f;">+0,14</span></div>
+        </div>
+      </div>
+
+      <div style="height: 1px; background: rgba(25,23,19,0.16);"></div>
+
+      <div style="display: flex; flex-direction: column; gap: 9px;">
+        <div style="display: flex; align-items: baseline; gap: 10px;">
+          <span class="kick">Model sağlığı</span>
+          <div style="flex-grow: 1;"></div>
+          <span class="meta" style="color: #2f6b4f;">Champion aktif</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0;">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 5px 0; border-bottom: 1px solid rgba(25,23,19,0.10);"><span style="font-size: 14px; color: #4c463d;">Yön doğruluğu</span><span class="n" style="font-size: 13.5px; font-weight: 600;">%58,3</span></div>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 5px 0; border-bottom: 1px solid rgba(25,23,19,0.10);"><span style="font-size: 14px; color: #4c463d;">AL isabeti</span><span class="n" style="font-size: 13.5px; font-weight: 600;">%51,5</span></div>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 5px 0; border-bottom: 1px solid rgba(25,23,19,0.10);"><span style="font-size: 14px; color: #4c463d;">Örneklem</span><span class="n" style="font-size: 13.5px; font-weight: 600;">19.750</span></div>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 5px 0; border-bottom: 1px solid rgba(25,23,19,0.10);"><span style="font-size: 14px; color: #4c463d;">Model yaşı</span><span class="n" style="font-size: 13.5px; font-weight: 600;">10 gün</span></div>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 5px 0;"><span style="font-size: 14px; color: #4c463d;">Veri kayması</span><span style="font-family: 'Archivo', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #9c4a24;">Sapma</span></div>
+        </div>
+        <span style="font-size: 13px; font-style: italic; color: #8a8279; line-height: 1.5;">Sapma uyarısı otomatik eğitimi tetiklemez.</span>
+      </div>
+
+      <div style="height: 1px; background: rgba(25,23,19,0.16);"></div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px; flex-grow: 1; min-height: 0;">
+        <span class="kick">İzleme listem</span>
+        <div style="display: flex; flex-direction: column;">
+          <div style="display: grid; grid-template-columns: 1fr 72px 60px; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(25,23,19,0.10); align-items: baseline;"><span style="font-size: 14.5px;">THYAO</span><span class="n" style="text-align: right; font-size: 13px;">297,25</span><span class="n" style="text-align: right; font-size: 12px; color: #9c3024;">−0,34</span></div>
+          <div style="display: grid; grid-template-columns: 1fr 72px 60px; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(25,23,19,0.10); align-items: baseline;"><span style="font-size: 14.5px;">GARAN</span><span class="n" style="text-align: right; font-size: 13px;">134,10</span><span class="n" style="text-align: right; font-size: 12px; color: #2f6b4f;">+0,79</span></div>
+          <div style="display: grid; grid-template-columns: 1fr 72px 60px; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(25,23,19,0.10); align-items: baseline;"><span style="font-size: 14.5px;">ASELS</span><span class="n" style="text-align: right; font-size: 13px;">377,25</span><span class="n" style="text-align: right; font-size: 12px; color: #9c3024;">−3,35</span></div>
+          <div style="display: grid; grid-template-columns: 1fr 72px 60px; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(25,23,19,0.10); align-items: baseline;"><span style="font-size: 14.5px;">TUPRS</span><span class="n" style="text-align: right; font-size: 13px;">418,00</span><span class="n" style="text-align: right; font-size: 12px; color: #2f6b4f;">+0,12</span></div>
+          <div style="display: grid; grid-template-columns: 1fr 72px 60px; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(25,23,19,0.10); align-items: baseline;"><span style="font-size: 14.5px;">EREGL</span><span class="n" style="text-align: right; font-size: 13px;">39,10</span><span class="n" style="text-align: right; font-size: 12px; color: #8a8279;">0,00</span></div>
+          <div style="display: grid; grid-template-columns: 1fr 72px 60px; gap: 8px; padding: 5px 0; align-items: baseline;"><span style="font-size: 14.5px;">KCHOL</span><span class="n" style="text-align: right; font-size: 13px;">226,10</span><span class="n" style="text-align: right; font-size: 12px; color: #2f6b4f;">+1,07</span></div>
+        </div>
+        <span class="meta">3 sembol daha</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
