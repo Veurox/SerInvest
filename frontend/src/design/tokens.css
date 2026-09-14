@@ -439,3 +439,126 @@
   color: var(--u-accent);
   border-color: var(--u-accent-line);
 }
+
+/* ── Taşınan sayfalardaki eski sınıfların yeni dile uyarlanması ──────────
+   Tarama sayfası (ve sonrakiler) mantığını koruyarak taşınıyor: JSX'teki
+   sınıf adları duruyor, yalnız `.ui2` altındaki GÖRÜNÜMLERİ değişiyor.
+
+   NEDEN BÖYLE: bu sayfalarda biriken şey CSS değil DAVRANIŞ — kayıtlı
+   görünümler, kolon seçici, CSV, dip taraması, kanıt şeridi, terim ipuçları,
+   fon uyarıları. JSX'i yeniden yazmak o davranışı düşürme riskini taşıyordu.
+   Renkler zaten yukarıdaki köprüden geliyor; burada ŞEKİL ayarlanıyor.
+
+   Bu blok da geçici: son sayfa taşınınca sınıflar yeni adlarıyla yeniden
+   yazılacak ve burası kalkacak. */
+
+/* Görünüm sekmeleri */
+.ui2 .mtabs {
+  border-bottom: 1px solid var(--u-line);
+  margin-bottom: var(--u-s4);
+  gap: var(--u-s1);
+}
+.ui2 .mtab {
+  padding: var(--u-s2) var(--u-s4);
+  border-bottom: 2px solid transparent;
+  border-radius: var(--u-r-sm) var(--u-r-sm) 0 0;
+  color: var(--u-text-3);
+  gap: 2px;
+}
+.ui2 .mtab:hover { background: none; color: var(--u-text-2); }
+.ui2 .mtab--on { color: var(--u-text); border-bottom-color: var(--u-accent); }
+.ui2 .mtab > :first-child {
+  font-size: var(--u-t-body);
+  font-weight: var(--u-w-bold);
+  letter-spacing: -0.005em;
+}
+.ui2 .mtab__q { font-size: var(--u-t-micro); color: var(--u-text-4); }
+.ui2 .mtab--on .mtab__q { color: var(--u-text-3); }
+
+/* Araç çubuğu düğmeleri */
+.ui2 .scr-btn {
+  font-size: var(--u-t-micro);
+  font-weight: var(--u-w-bold);
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border: 1px solid var(--u-line);
+  border-radius: var(--u-r-sm);
+  background: none;
+  color: var(--u-text-3);
+}
+.ui2 .scr-btn:hover { color: var(--u-accent); border-color: var(--u-accent-line); }
+.ui2 .scr-btn b { color: var(--u-accent); }
+
+.ui2 .scr-pop {
+  background: var(--u-panel);
+  border: 1px solid var(--u-line-strong);
+  border-radius: var(--u-r-md);
+  box-shadow: var(--u-shadow);
+}
+.ui2 .scr-pop__row { font-size: var(--u-t-small); color: var(--u-text-2); }
+.ui2 .scr-pop__row:hover { background: var(--u-panel-2); }
+.ui2 .scr-chip {
+  border: 1px solid var(--u-line);
+  border-radius: var(--u-r-full);
+  overflow: hidden;
+}
+.ui2 .scr-chip button { font-size: var(--u-t-micro); color: var(--u-text-3); }
+.ui2 .scr-chip button:hover { color: var(--u-text); }
+
+/* Dönem/seçim şeridi (mc-seg) — u-seg ile aynı dil */
+.ui2 .mc-seg { border: 1px solid var(--u-line); border-radius: var(--u-r-sm); }
+.ui2 .mc-seg button {
+  font-size: var(--u-t-micro);
+  font-weight: var(--u-w-bold);
+  padding: 4px 10px;
+  color: var(--u-text-3);
+  border-right-color: var(--u-line);
+}
+.ui2 .mc-seg button:hover { background: none; color: var(--u-text-2); }
+.ui2 .mc-seg button[aria-pressed='true'] {
+  background: none;
+  color: var(--u-accent);
+  box-shadow: inset 0 -2px 0 var(--u-accent);
+}
+.ui2 .mc-bar__label { font-size: var(--u-t-small); color: var(--u-text-3); }
+
+/* Tablo — yoğunluk korunuyor (tarama işi budur), yalnız dil değişiyor. */
+.ui2 .dt-wrap {
+  border: 1px solid var(--u-line);
+  border-radius: var(--u-r-md);
+  background: var(--u-panel);
+}
+.ui2 .dt { font-size: var(--u-t-small); }
+.ui2 .dt thead th {
+  padding: 7px 11px;
+  font-size: var(--u-t-micro);
+  letter-spacing: 0.08em;
+  color: var(--u-text-3);
+  background: var(--u-panel-2);
+  border-bottom: 1px solid var(--u-line-strong);
+}
+.ui2 .dt tbody td {
+  padding: 7px 11px;
+  border-bottom: 1px solid var(--u-line);
+  color: var(--u-text-2);
+}
+.ui2 .dt tbody tr:hover td { background: var(--u-panel-2); }
+.ui2 .dt-row--active td { background: var(--u-accent-bg); }
+.ui2 .dt-row--active td:first-child { box-shadow: inset 2px 0 0 var(--u-accent); }
+.ui2 .dt-caret--on { color: var(--u-accent); }
+.ui2 .dt-empty { color: var(--u-text-3); font-size: var(--u-t-small); }
+
+/* Girdi alanları */
+.ui2 input[type="text"],
+.ui2 input:not([type]),
+.ui2 select {
+  font-family: var(--u-sans);
+  font-size: var(--u-t-small);
+  color: var(--u-text);
+  background: var(--u-panel);
+  border: 1px solid var(--u-line);
+  border-radius: var(--u-r-sm);
+  padding: 5px 9px;
+  outline: none;
+}
+.ui2 input::placeholder { color: var(--u-text-4); }

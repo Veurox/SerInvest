@@ -273,6 +273,26 @@ def tarama(satirlar: list[dict], referans: datetime.date,
                                      if v is not None and esik[ad] is not None
                                      else None)
 
+    # ── Risk-düzeltilmiş fazla getiri ────────────────────────────────────
+    # (getiri − eşik) / oynaklık. "Aynı fazla getiriyi daha az sarsılarak
+    # kazanan hangisi" sorusunun cevabı; ham getiri sıralaması en oynak fonu
+    # tepeye taşır.
+    #
+    # YALNIZ 1 YIL İÇİN HESAPLANIR. Oynaklık yıllıklaştırılmış; onu 1 aylık
+    # bir fazla getiriye bölmek FARKLI BİRİMLERİ bölmek olur ve anlamsız bir
+    # sayı üretir. Kısa dönemi yıllıklaştırmak (×12) ise gürültüyü on iki
+    # katına çıkarır. İkisi de yapılmadı: kısa dönemlerde alan boş kalıyor.
+    for f in fonlar:
+        g = f.get("getiri_1y")
+        o = f.get("oynaklik")
+        e = esik.get("1y")
+        f["risk_duzeltilmis_1y"] = (
+            (g - e) / o
+            if (g is not None and e is not None and o is not None and o > 0
+                and not f["bayat"])
+            else None
+        )
+
     fonlar.sort(key=lambda f: (f["kategori_kod"], f["kod"]))
     return {
         "referans": referans.isoformat(),

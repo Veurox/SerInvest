@@ -230,3 +230,78 @@ def test_gelecek_veri_kullanilmaz():
     assert f["son_gun"] <= "2026-09-14"
     assert f["fiyat"] == pytest.approx(
         100.0 * (1.001 ** (REF - datetime.date(2025, 9, 1)).days))
+
+
+# ── risk-düzeltilmiş fazla getiri ────────────────────────────────────────────
+
+def test_risk_duzeltilmis_yalniz_1_YIL_icin():
+    """
+    Oynaklık yıllıklaştırılmış. Onu 1 aylık bir fazla getiriye bölmek farklı
+    birimleri bölmektir — teknik olarak bir sayı çıkar ama anlamı yoktur.
+    Bu yüzden yalnız 1 yıl için hesaplanıyor; başka dönem alanı bile yok.
+    """
+    t = M.tarama(_evren(), REF)
+    f = t["fonlar"][0]
+    assert "risk_duzeltilmis_1y" in f
+    assert "risk_duzeltilmis_1a" not in f
+    assert "risk_duzeltilmis_3a" not in f
+
+
+def test_risk_duzeltilmis_formulu():
+    t = M.tarama(_evren(), REF)
+    by = {f["kod"]: f for f in t["fonlar"]}
+    iyi = by["IYI"]
+    beklenen = (iyi["getiri_1y"] - t["esik"]["1y"]) / iyi["oynaklik"]
+    assert iyi["risk_duzeltilmis_1y"] == pytest.approx(beklenen)
+
+
+def test_daha_az_oynak_fon_daha_yuksek_skor_alir():
+    """
+    Aynı fazla getiriyi daha az sarsılarak kazanan öne çıkmalı — bu kolonun
+    varlık sebebi bu. Ham getiri sıralaması en oynak fonu tepeye taşıyor.
+    """
+    bas = datetime.date(2025, 9, 1)
+    # İki fon da ~aynı yere varıyor; biri az, diğeri çok sarsılarak.
+    # KUSURSUZ DÜZ seri kullanılmıyor: oynaklığı tam sıfır olur, bölme
+    # tanımsız kalır ve ölçüm (doğru olarak) None döner. Gerçek bir fonda
+    # oynaklık hiç sıfır olmaz; testin de öyle olması gerekiyor.
+    duz, zikzak = [], []
+    fd = fz = 100.0
+    for i in range(380):
+        g = (bas + datetime.timedelta(days=i)).isoformat()
+        fd *= (1.0 + 0.0012 + (0.0004 if i % 2 == 0 else -0.0004))
+        fz *= (1.0 + 0.0012 + (0.0200 if i % 2 == 0 else -0.0190))
+        duz.append(_satir("DUZ", g, fd, "104"))
+        zikzak.append(_satir("ZIK", g, fz, "104"))
+    t = M.tarama(duz + zikzak + _gunluk("PP1", bas, 380, 100.0, 0.0008, "107"), REF)
+    by = {x["kod"]: x for x in t["fonlar"]}
+    assert by["DUZ"]["oynaklik"] < by["ZIK"]["oynaklik"]
+    assert by["DUZ"]["risk_duzeltilmis_1y"] > by["ZIK"]["risk_duzeltilmis_1y"]
+
+
+def test_bayat_fon_risk_skoru_almaz():
+    satirlar = _evren() + _gunluk("OLU", datetime.date(2025, 9, 1), 120, 100.0, 0.01, "104")
+    t = M.tarama(satirlar, REF)
+    by = {f["kod"]: f for f in t["fonlar"]}
+    assert by["OLU"]["risk_duzeltilmis_1y"] is None
+
+
+def test_esik_yoksa_risk_skoru_da_yok():
+    sadece_hisse = [s for s in _evren() if s["kategori_kod"] == "104"]
+    t = M.tarama(sadece_hisse, REF)
+    assert all(f["risk_duzeltilmis_1y"] is None for f in t["fonlar"])
+
+
+def test_oynaklik_sifirken_bolme_yapilmaz():
+    """
+    Sıfıra bölmek tanımsızdır; "sonsuz iyi" diye bir fon yoktur. Kusursuz
+    sabit artan bir seri (gerçekte olmaz ama testte kolayca üretilir) bu
+    durumu yaratıyor — ölçüm None dönmeli, patlamamalı.
+    """
+    bas = datetime.date(2025, 9, 1)
+    satirlar = (_gunluk("SABIT", bas, 380, 100.0, 0.0012, "104")
+                + _gunluk("PP1", bas, 380, 100.0, 0.0008, "107"))
+    t = M.tarama(satirlar, REF)
+    by = {f["kod"]: f for f in t["fonlar"]}
+    assert by["SABIT"]["oynaklik"] == pytest.approx(0.0, abs=1e-12)
+    assert by["SABIT"]["risk_duzeltilmis_1y"] is None

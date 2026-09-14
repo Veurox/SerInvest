@@ -48,6 +48,8 @@ interface Fon {
   esik_farki_1a: number | null
   esik_farki_3a: number | null
   esik_farki_1y: number | null
+  /** (getiri − eşik) / oynaklık. YALNIZ 1 yıl için — bkz. tefas_metrik.py. */
+  risk_duzeltilmis_1y: number | null
 }
 
 interface Tarama {
@@ -176,6 +178,27 @@ export function FundScreener({ q }: { q: string }) {
       render: f => <Oran v={f[`esik_farki_${donem}`]} />,
     },
     {
+      // Dönem seçiciden BAĞIMSIZ olarak hep 1 yıl: oynaklık yıllıklaştırılmış,
+      // onu 1 aylık bir fazla getiriye bölmek farklı birimleri bölmek olurdu.
+      // Dönem başlıkta yazılı (PLAN_ARAYUZ.md §4: dönem her grafikte yazılı).
+      key: 'riskduz', header: 'Risk-düz. 1Y', numeric: true, width: 104,
+      title: 'Para piyasası eşiğinin üstündeki getirinin, o getiriyi kazanırken '
+           + 'yaşanan oynaklığa bölümü. "Aynı fazla getiriyi daha az sarsılarak '
+           + 'kazanan hangisi" sorusunun cevabı. Yalnız 1 yıllık dönem için '
+           + 'hesaplanır; kısa dönemlerde oynaklıkla birimi uyuşmaz.',
+      sortValue: f => f.risk_duzeltilmis_1y,
+      render: f => {
+        const v = f.risk_duzeltilmis_1y
+        if (v == null) return <span style={{ color: 'var(--text-disabled)' }}>—</span>
+        return (
+          <span className={v > 0 ? 'dir-up' : v < 0 ? 'dir-down' : undefined}
+                style={{ fontWeight: 700 }}>
+            {v.toFixed(2)}
+          </span>
+        )
+      },
+    },
+    {
       key: 'oynaklik', header: 'Oynaklık', numeric: true, width: 86, priority: 2,
       title: 'Yıllıklaştırılmış dalgalanma (son 1 yıl). Yüksek = fiyat çok zıplıyor.',
       sortValue: f => f.oynaklik,
@@ -201,12 +224,13 @@ export function FundScreener({ q }: { q: string }) {
   const csvIndir = () => {
     downloadCsv(
       ['Fon', 'Unvan', 'Kategori', `Getiri ${DONEM_ETIKET[donem]}`, 'Gün',
-       'Akran %', 'Akran sayısı', 'Eşik farkı', 'Oynaklık', 'Maks düşüş',
-       'Büyüklük', 'Yatırımcı', 'Birim pay', 'Son veri'],
+       'Akran %', 'Akran sayısı', 'Eşik farkı', 'Risk-düz. 1Y', 'Oynaklık',
+       'Maks düşüş', 'Büyüklük', 'Yatırımcı', 'Birim pay', 'Son veri'],
       rows.map(f => [
         f.kod, f.unvan, f.kategori, f[`getiri_${donem}`], f[`gun_${donem}`],
         f[`akran_${donem}`], f[`akran_n_${donem}`], f[`esik_farki_${donem}`],
-        f.oynaklik, f.max_dusus, f.buyukluk, f.kisi_sayisi, f.fiyat, f.son_gun,
+        f.risk_duzeltilmis_1y, f.oynaklik, f.max_dusus, f.buyukluk,
+        f.kisi_sayisi, f.fiyat, f.son_gun,
       ]),
       `fonlar-${donem}-${data?.referans ?? 'bugun'}.csv`,
     )

@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useOutletContext, useSearchParams } from 'react-router-dom'
 import type { SharedData } from '../App'
-import { PageHeader, Icon, DataTable, type Column } from '../components/ui'
+import { DataTable, type Column } from '../components/ui'
 import { EvidenceBanner, FundScreener } from '../components/finance'
 import { API } from '../lib/api'
 import { downloadCsv } from '../lib/format'
@@ -316,13 +316,16 @@ export default function ScreenerPage() {
   }
 
   return (
-    <div style={{ paddingTop: 'var(--space-2)' }}>
-      <PageHeader
-        icon={<Icon name="target" size={20} />}
-        title="Tarayıcı"
-        subtitle={<>{VIEWS.find(v => v.id === view)?.hint}
-                     {view !== 'fon' && <> · {rows.length} sonuç</>}</>}
-      />
+    <div className="ui2" style={{ minHeight: '100%', padding: 'var(--u-s4) var(--u-s5) var(--u-s5)' }}>
+      {/* Sayfanın başlığı bir SORU (docs/PLAN_ARAYUZ.md §1). "Tarayıcı" bir
+          modül adıydı; "Hangisini alayım?" kullanıcının gerçekten sorduğu şey. */}
+      <div className="u-band__head" style={{ marginBottom: 'var(--u-s3)' }}>
+        <h1 className="u-band__q">Hangisini alayım?</h1>
+        <span className="u-sub">
+          {VIEWS.find(v => v.id === view)?.hint}
+          {view !== 'fon' && <> · {rows.length} sonuç</>}
+        </span>
+      </div>
 
       <div className="mtabs" role="tablist" aria-label="Hazır görünümler">
         {VIEWS.map(v => (
