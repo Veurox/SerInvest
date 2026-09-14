@@ -44,7 +44,10 @@ export const WORKSPACES: Workspace[] = [
     soru: 'bugün alınacak bir şey var mı?',
     sections: [
       { to: '/bugun', label: 'Bugün' },
-      // Geçici: haber akışı Bugün'ün içine girecek.
+      // 14.09: yeni dile taşındı. Bugün'ün İÇİNE alınmadı — 200 haberlik
+      // bir akış tek bir banda sığmıyor, Bugün'ü kendi sorusundan
+      // ("bugün alınacak bir şey var mı") uzaklaştırırdı. Bugün özeti
+      // gösteriyor, ayrıntı burada.
       { to: '/news', label: 'Haberler', badgeKey: 'news' },
     ],
   },
@@ -53,7 +56,10 @@ export const WORKSPACES: Workspace[] = [
     soru: 'bu sembolde ne oluyor?',
     sections: [
       { to: '/sembol', label: 'Sembol' },
-      // Geçici: pano Sembol'ün "karşılaştır" modu olacak.
+      // 14.09: yeni dile taşındı (kendi yoğun ızgara görünümünü koruyarak —
+      // karşılaştırmada yoğunluk işin kendisi). Sembol'ün bir "modu" haline
+      // getirilmedi: Sembol tek karara odaklı, bu ekran 8 sembole aynı anda
+      // bakmak için; ikisini tek sayfaya sıkıştırmak ikisini de bozardı.
       { to: '/coklu-grafik', label: 'Karşılaştır' },
     ],
   },

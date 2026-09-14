@@ -43,6 +43,18 @@ export interface SicilSatiri {
 
 export type Sonuc = 'hedef' | 'stop' | 'ortada' | 'bekliyor'
 
+/**
+ * Sonuçların ekrandaki adı. Bileşende DEĞİL burada: bir dosya ya bileşen
+ * ya yardımcı dışa açar (fast-refresh kuralı), ve bu adlar sunumdan
+ * bağımsız — hem şerit hem lejant hem ekran okuyucu aynısını kullanıyor.
+ */
+export const SONUC_AD: Record<Sonuc, string> = {
+  hedef:    'hedefe değdi',
+  stop:     'stopa değdi',
+  ortada:   'ikisine de değmedi',
+  bekliyor: 'sonucu bekleniyor',
+}
+
 export interface Cagri {
   gun: string
   guven: number

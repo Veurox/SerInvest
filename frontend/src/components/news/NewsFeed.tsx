@@ -1,129 +1,100 @@
 // =============================================================================
-// SerInvest — Haber Feed'i
-// Kategori + sentiment filtreli haber listesi; her haber genişleyebilir kart.
+// SerInvest — Haber Akışı
+//
+// Kategori + duyarlılık süzgeçli liste; her haber genişleyebilir kart.
+//
+// YENİ DİLE TAŞINDI (14.09.2026). Eski hâlinde renkler kodun içine gömülüydü
+// (#22c55e, #ef4444, #94a3b8, #f97316) — tema değişince kartlar tek başına
+// eski paletle kalıyordu. Artık hepsi jeton.
+//
+// SÜZGEÇLER TEK SATIRDA. Eskiden iki ayrı satır vardı (kategori, sonra
+// duyarlılık) ve ikisinin arasında "200 haber gösteriliyor" yazıyordu; liste
+// başlamadan üç sıra kumanda geliyordu. İkisi aynı şeyin iki ekseni, yan
+// yana duruyorlar.
+//
+// "DAHA FAZLA" GERÇEK BİR DÜĞME. Eskiden liste 30'da kesiliyor ve altına
+// "+170 daha fazla haber (API'den daha fazla çekmek için limit artırılabilir)"
+// yazıyordu — kullanıcıya söylenmiş bir geliştirici notu. Veri zaten elde;
+// düğme onu gösteriyor.
 // =============================================================================
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { NewsSignal } from '../../lib/types'
+import { HABER_KATEGORILERI, duyarlilikBilgi, gecenSure, haberKategorisi,
+         type HaberKategori } from '../../lib/haber'
 
-type NewsCategory = 'TÜM' | 'BIST' | 'EMTİA' | 'KÜRESEL' | 'MAKRO'
-
-const NEWS_CATEGORIES: { key: NewsCategory; label: string }[] = [
-  { key: 'TÜM',     label: 'Tümü' },
-  { key: 'BIST',    label: 'BIST' },
-  { key: 'EMTİA',   label: 'Emtialar' },
-  { key: 'KÜRESEL', label: 'Küresel' },
-  { key: 'MAKRO',   label: 'Ekonomi & Makro' },
-]
-
-const GLOBAL_ENTITIES = new Set([
-  'NASDAQ', 'SP500', 'DJI', 'GLOBAL', 'GLOBAL MARKET', 'MACRO_GLOBAL', 'BIST100', 'DAX', 'MSCI_EM',
-])
-
-function classifyNews(item: NewsSignal): NewsCategory {
-  if (item.assetType === 'BIST') return 'BIST'
-  if (item.assetType === 'COMMODITY') return 'EMTİA'
-  const ent = (item.entity ?? '').toUpperCase()
-  if (GLOBAL_ENTITIES.has(ent)) return 'KÜRESEL'
-  return 'MAKRO'  // MACRO + GENERAL + FOREX + diğerleri
-}
-
-function sentimentMeta(label: string) {
-  if (label === 'BULLISH') return { color: '#22c55e', bg: 'rgba(34,197,94,.12)',  border: 'rgba(34,197,94,.25)',  icon: '▲', text: 'Yükseliş' }
-  if (label === 'BEARISH') return { color: '#ef4444', bg: 'rgba(239,68,68,.12)',  border: 'rgba(239,68,68,.25)',  icon: '▼', text: 'Düşüş' }
-  return                          { color: '#94a3b8', bg: 'rgba(148,163,184,.08)', border: 'rgba(148,163,184,.2)', icon: '●', text: 'Nötr' }
-}
+/** Bir seferde gösterilen haber sayısı; "daha fazla" bu kadar ekler. */
+const SAYFA = 30
 
 function NewsCard({ item }: { item: NewsSignal }) {
-  const [expanded, setExpanded] = useState(false)
-  const sm = sentimentMeta(item.sentimentLabel)
-  const ts = new Date(item.createdAt.endsWith('Z') ? item.createdAt : item.createdAt + 'Z')
-  const now = new Date()
-  const diffMin = Math.floor((now.getTime() - ts.getTime()) / 60000)
-  const timeStr = diffMin < 1 ? 'şimdi' : diffMin < 60 ? `${diffMin}dk önce`
-    : diffMin < 1440 ? `${Math.floor(diffMin / 60)}sa önce`
-    : ts.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })
+  const [acik, setAcik] = useState(false)
+  const d = duyarlilikBilgi(item.sentimentLabel)
 
   return (
     <div
-      onClick={() => setExpanded(e => !e)}
-      style={{
-        background: 'var(--surface)', border: `1px solid ${expanded ? sm.border : 'var(--border)'}`,
-        borderRadius: '10px', padding: '.85rem 1rem', cursor: 'pointer',
-        transition: 'border-color .15s, background .15s',
+      onClick={() => setAcik(a => !a)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAcik(a => !a) }
       }}
-      onMouseEnter={e => { if (!expanded) e.currentTarget.style.borderColor = sm.border }}
-      onMouseLeave={e => { if (!expanded) e.currentTarget.style.borderColor = 'var(--border)' }}
+      style={{
+        background: 'var(--u-panel)',
+        borderRadius: 'var(--u-r-md)',
+        padding: 'var(--u-s3) var(--u-s4)',
+        cursor: 'pointer',
+        minWidth: 0,
+        // Duyarlılık SOL KENARDA bir şerit: kart içinde ayrı bir renkli rozet
+        // daha az yer kaplıyor ve göz listeyi dikey tarayabiliyor.
+        boxShadow: `inset 3px 0 0 ${d.renk}`,
+      }}
     >
-      {/* Üst satır: sentiment pill + başlık + zaman */}
-      <div style={{ display: 'flex', gap: '.75rem', alignItems: 'flex-start' }}>
-        <div style={{
-          flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
-          gap: '.2rem', paddingTop: '.1rem',
-        }}>
-          <span style={{
-            fontSize: '.65rem', fontWeight: 800, color: sm.color,
-            background: sm.bg, border: `1px solid ${sm.border}`,
-            padding: '.15rem .4rem', borderRadius: '5px', letterSpacing: '.03em',
-          }}>
-            {sm.icon} {sm.text}
-          </span>
-        </div>
-
-        {/* Başlık */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ display: 'flex', gap: 'var(--u-s3)', alignItems: 'flex-start', minWidth: 0 }}>
+        <div style={{ flexGrow: 1, minWidth: 0 }}>
           <div style={{
-            fontSize: '.875rem', fontWeight: 600, color: 'var(--text)',
-            lineHeight: 1.45, marginBottom: '.35rem',
+            fontSize: 'var(--u-t-body)', fontWeight: 'var(--u-w-med)',
+            color: 'var(--u-text)', lineHeight: 'var(--u-lh-snug)',
+            marginBottom: 'var(--u-s2)',
             overflow: 'hidden', display: '-webkit-box',
-            WebkitLineClamp: expanded ? 'unset' : 2,
-            WebkitBoxOrient: 'vertical',
+            WebkitLineClamp: acik ? 'unset' : 2, WebkitBoxOrient: 'vertical',
           }}>
             {item.headline || item.summary?.slice(0, 120) || '(Başlık yok)'}
           </div>
 
-          {/* Meta satırı */}
-          <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{
-              fontSize: '.67rem', color: 'var(--text-muted)', background: 'var(--surface-2)',
-              padding: '.1rem .45rem', borderRadius: '4px', border: '1px solid var(--border)',
-            }}>
-              {item.source}
+          <div style={{ display: 'flex', gap: 'var(--u-s2)', flexWrap: 'wrap',
+                        alignItems: 'center', fontSize: 'var(--u-t-micro)',
+                        color: 'var(--u-text-3)' }}>
+            <span style={{ color: d.renk, fontWeight: 'var(--u-w-bold)' }}>
+              {d.isaret} {d.ad}
             </span>
-            <span style={{
-              fontSize: '.67rem', fontWeight: 700, color: sm.color,
-              background: sm.bg, padding: '.1rem .45rem', borderRadius: '4px',
-              border: `1px solid ${sm.border}`,
-            }}>
-              {item.entity}
-            </span>
+            <span>{item.entity}</span>
+            <span style={{ color: 'var(--u-text-4)' }}>{item.source}</span>
             {item.isGeopolitical && (
-              <span style={{ fontSize: '.67rem', color: '#f97316', background: 'rgba(249,115,22,.1)', padding: '.1rem .4rem', borderRadius: '4px', border: '1px solid rgba(249,115,22,.25)' }}>
-                Jeopolitik
-              </span>
+              <span style={{ color: 'var(--u-warn)' }}>jeopolitik</span>
             )}
-            <span style={{ fontSize: '.67rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
-              {timeStr}
+            <span style={{ marginLeft: 'auto', color: 'var(--u-text-4)' }}>
+              {gecenSure(item.createdAt)}
             </span>
           </div>
         </div>
-
-        {/* Expand ikonu */}
-        <span style={{ flexShrink: 0, fontSize: '.65rem', color: 'var(--text-muted)', paddingTop: '.2rem' }}>
-          {expanded ? '▲' : '▼'}
+        <span style={{ flexShrink: 0, fontSize: 'var(--u-t-micro)',
+                       color: 'var(--u-text-4)', paddingTop: 2 }}>
+          {acik ? '▲' : '▼'}
         </span>
       </div>
 
-      {/* Özet (genişletilince) */}
-      {expanded && item.summary && (
+      {acik && item.summary && (
         <div style={{
-          marginTop: '.75rem', paddingTop: '.75rem', borderTop: '1px solid var(--border)',
-          fontSize: '.8rem', color: 'var(--text-dim)', lineHeight: 1.6,
+          marginTop: 'var(--u-s3)', paddingTop: 'var(--u-s3)',
+          borderTop: '1px solid var(--u-line)',
+          fontSize: 'var(--u-t-small)', color: 'var(--u-text-2)',
+          lineHeight: 'var(--u-lh-base)',
         }}>
           {item.summary}
           {item.url && (
             <a href={item.url} target="_blank" rel="noopener noreferrer"
-              onClick={e => e.stopPropagation()}
-              style={{ display: 'inline-block', marginTop: '.5rem', fontSize: '.75rem', color: sm.color }}>
+               onClick={e => e.stopPropagation()}
+               style={{ display: 'inline-block', marginTop: 'var(--u-s2)',
+                        fontSize: 'var(--u-t-micro)' }}>
               Habere git →
             </a>
           )}
@@ -134,89 +105,82 @@ function NewsCard({ item }: { item: NewsSignal }) {
 }
 
 export function NewsFeed({ news }: { news: NewsSignal[] }) {
-  const [category, setCategory] = useState<NewsCategory>('TÜM')
-  const [sentFilter, setSentFilter] = useState<string>('TÜM')
+  const [kategori, setKategori] = useState<HaberKategori>('TÜM')
+  const [duyarlilik, setDuyarlilik] = useState<string>('TÜM')
+  const [limit, setLimit] = useState(SAYFA)
 
-  if (news.length === 0) return <div className="empty">Henüz haber yok. Analyst-engine haberler topluyor...</div>
+  const sayilar = useMemo(() => {
+    const s: Record<HaberKategori, number> = {
+      'TÜM': news.length, 'BIST': 0, 'EMTİA': 0, 'KÜRESEL': 0, 'MAKRO': 0,
+    }
+    for (const n of news) s[haberKategorisi(n)]++
+    return s
+  }, [news])
 
-  // Her kategori için sayıları hesapla
-  const counts: Record<NewsCategory, number> = {
-    'TÜM': news.length,
-    'BIST': 0, 'EMTİA': 0, 'KÜRESEL': 0, 'MAKRO': 0,
+  const kategoriliste = useMemo(
+    () => (kategori === 'TÜM' ? news : news.filter(n => haberKategorisi(n) === kategori)),
+    [news, kategori])
+
+  const gorunen = useMemo(
+    () => (duyarlilik === 'TÜM' ? kategoriliste
+                                : kategoriliste.filter(n => n.sentimentLabel === duyarlilik)),
+    [kategoriliste, duyarlilik])
+
+  if (news.length === 0) {
+    return (
+      <span className="u-sub">
+        Henüz haber yok — analyst-engine toplamaya devam ediyor.
+      </span>
+    )
   }
-  news.forEach(n => { counts[classifyNews(n)]++ })
 
-  const catFiltered = category === 'TÜM' ? news : news.filter(n => classifyNews(n) === category)
-  const visible = sentFilter === 'TÜM' ? catFiltered
-    : catFiltered.filter(n => n.sentimentLabel === sentFilter)
-
-  const sentCounts = { BULLISH: 0, BEARISH: 0, NEUTRAL: 0 }
-  catFiltered.forEach(n => {
-    if (n.sentimentLabel in sentCounts) sentCounts[n.sentimentLabel as keyof typeof sentCounts]++
-  })
+  const sec = (k: HaberKategori) => {
+    setKategori(k); setDuyarlilik('TÜM'); setLimit(SAYFA)
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--u-s3)', minWidth: 0 }}>
 
-      {/* ── Kategori tab'ları ── */}
-      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        {NEWS_CATEGORIES.map(({ key, label }) => {
-          const cnt = counts[key]
-          const active = category === key
-          return (
-            <button key={key} className={`fpill${active ? ' on' : ''}`}
-              onClick={() => { setCategory(key); setSentFilter('TÜM') }}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-              <span>{label}</span>
-              {cnt > 0 && <span style={{ opacity: 0.7 }}>({cnt})</span>}
+      {/* Süzgeçler: iki eksen, tek satır */}
+      <div style={{ display: 'flex', gap: 'var(--u-s2)', flexWrap: 'wrap',
+                    alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          {HABER_KATEGORILERI.map(({ key, label }) => (
+            <button key={key} className="u-seg" aria-pressed={kategori === key}
+                    onClick={() => sec(key)}>
+              {label}{sayilar[key] > 0 && ` ${sayilar[key]}`}
             </button>
-          )
-        })}
-
-        {/* Sentiment dağılımı */}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '.35rem', alignItems: 'center', fontSize: '.72rem' }}>
-          <span style={{ color: '#22c55e', fontWeight: 700 }}>▲{sentCounts.BULLISH}</span>
-          <span style={{ color: '#94a3b8' }}>●{sentCounts.NEUTRAL}</span>
-          <span style={{ color: '#ef4444', fontWeight: 700 }}>▼{sentCounts.BEARISH}</span>
+          ))}
         </div>
-      </div>
 
-      {/* ── Sentiment alt filtresi ── */}
-      <div style={{ display: 'flex', gap: '.4rem' }}>
-        {[
-          { key: 'TÜM',     label: 'Tümü',       color: 'var(--text-muted)' },
-          { key: 'BULLISH', label: '▲ Yükseliş', color: '#22c55e' },
-          { key: 'NEUTRAL', label: '● Nötr',     color: '#94a3b8' },
-          { key: 'BEARISH', label: '▼ Düşüş',    color: '#ef4444' },
-        ].map(({ key, label, color }) => (
-          <button key={key} onClick={() => setSentFilter(key)}
-            style={{
-              padding: '.2rem .65rem', borderRadius: '6px', fontSize: '.72rem',
-              border: `1px solid ${sentFilter === key ? color + '55' : 'transparent'}`,
-              background: sentFilter === key ? color + '15' : 'transparent',
-              color: sentFilter === key ? color : 'var(--text-muted)',
-              fontWeight: sentFilter === key ? 700 : 400, cursor: 'pointer',
-            }}>
-            {label}
-          </button>
-        ))}
-        <span style={{ marginLeft: 'auto', fontSize: '.72rem', color: 'var(--text-muted)', alignSelf: 'center' }}>
-          {visible.length} haber gösteriliyor
+        <span style={{ width: 1, height: 16, background: 'var(--u-line)' }} />
+
+        <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          {[['TÜM', 'Hepsi'], ['BULLISH', '▲ Yükseliş'],
+            ['NEUTRAL', '● Nötr'], ['BEARISH', '▼ Düşüş']].map(([k, ad]) => (
+            <button key={k} className="u-seg" aria-pressed={duyarlilik === k}
+                    onClick={() => { setDuyarlilik(k); setLimit(SAYFA) }}>
+              {ad}
+            </button>
+          ))}
+        </div>
+
+        <span className="u-exact" style={{ marginLeft: 'auto' }}>
+          {gorunen.length} haber
         </span>
       </div>
 
-      {/* ── Haber listesi ── */}
-      {visible.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)', fontSize: '.9rem' }}>
-          Bu kategoride haber bulunamadı.
-        </div>
+      {/* Liste */}
+      {gorunen.length === 0 ? (
+        <span className="u-sub">Bu süzgeçte haber yok.</span>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
-          {visible.slice(0, 30).map(item => <NewsCard key={item.id} item={item} />)}
-          {visible.length > 30 && (
-            <div style={{ textAlign: 'center', fontSize: '.75rem', color: 'var(--text-muted)', padding: '.5rem' }}>
-              + {visible.length - 30} daha fazla haber (API'den daha fazla çekmek için limit artırılabilir)
-            </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--u-s2)' }}>
+          {gorunen.slice(0, limit).map(item => <NewsCard key={item.id} item={item} />)}
+          {gorunen.length > limit && (
+            <button className="u-seg" style={{ alignSelf: 'center', padding: '6px 14px' }}
+                    onClick={() => setLimit(l => l + SAYFA)}>
+              {gorunen.length - limit} haber daha göster
+            </button>
           )}
         </div>
       )}

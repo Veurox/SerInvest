@@ -232,7 +232,7 @@ export default function MultiChartPage() {
   const focusSym = focus != null ? slots[focus] : null
 
   return (
-    <div className="mc-page">
+    <div className="mc-page ui2">
       <div className="mc-bar">
         <span className="mc-bar__label">Düzen</span>
         <span className="mc-seg" role="group" aria-label="Grafik sayısı">

@@ -15,6 +15,7 @@ import { PriceChart, type Bar, type CrosshairInfo, type Overlay } from '../chart
 import { barAtOrBefore, toPercent } from '../../lib/bars'
 import type { OracleAnalysis, PriceData } from '../../lib/types'
 import { SymbolPicker } from './SymbolPicker'
+import { fmt, yuzde } from '../../lib/format'
 
 export type TF = '1H' | '1D' | '1W' | '1M' | '3M' | '1Y' | '5Y'
 
@@ -52,9 +53,9 @@ interface Props {
 const num = (d: number) => new Intl.NumberFormat('tr-TR', { minimumFractionDigits: d, maximumFractionDigits: d })
 const vol = (v: number | null) => {
   if (v == null) return '—'
-  if (v >= 1e9) return `${(v / 1e9).toFixed(2)}B`
-  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`
-  if (v >= 1e3) return `${(v / 1e3).toFixed(0)}K`
+  if (v >= 1e9) return `${fmt(v / 1e9, 2)} Mr`
+  if (v >= 1e6) return `${fmt(v / 1e6, 1)} Mn`
+  if (v >= 1e3) return `${fmt(v / 1e3, 0)} B`
   return String(Math.round(v))
 }
 
@@ -184,7 +185,7 @@ export function ChartTile({
               // alışılmış "günlük değişim" DEĞİL — yanındaki etiket bunu söyler.
               <span className="mc-chg" style={{ color: up ? 'var(--profit)' : 'var(--loss)' }}
                     title={`${symbol} · seçili aralık (${tf}) değişimi`}>
-                {up ? '+' : ''}{chgPct.toFixed(2)}%
+                {yuzde(chgPct, 2, true)}
                 <span className="mc-chg__tf">{tf}</span>
               </span>
             )}

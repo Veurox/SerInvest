@@ -417,6 +417,22 @@
 
   --t-mono:         var(--u-mono);
   --t-sans:         var(--u-sans);
+
+  /* Çoklu Grafik panosunun kullandığı adlar. Pano 423 satırlık kendi
+     CSS'iyle geliyor ve zaten JETON ADLARI kullanıyordu — yeniden yazmak
+     yerine köprü genişletildi. Yoğun "terminal" görünümü kasıtlı ve
+     korunuyor: karşılaştırma ızgarasında yoğunluk işin kendisi. */
+  --accent-bg:      var(--u-accent-bg);
+  --accent-border:  var(--u-accent-line);
+  --bg-surface-hover: var(--u-panel-hi);
+  --profit-border:  color-mix(in srgb, var(--u-up) 35%, transparent);
+  --loss-border:    color-mix(in srgb, var(--u-down) 35%, transparent);
+  --warning-bg:     var(--u-warn-bg);
+  --warning-border: color-mix(in srgb, var(--u-warn) 35%, transparent);
+  --shadow-md:      var(--u-shadow);
+  --shadow-lg:      var(--u-shadow);
+  --transition-fast: var(--u-fast);
+  --border-focus:   var(--u-accent);
 }
 
 /* Küçük seçim düğmesi (zaman dilimi, mum/çizgi). Seçili olan DOLGULU değil

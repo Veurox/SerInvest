@@ -15,20 +15,13 @@
 // olduğundan kesin gösterirdi: "16 sonuç" ile "16 sonuç + 9 bekleyen" aynı
 // şey değil.
 // =============================================================================
-import type { Sonuc } from '../../lib/sicil'
+import { SONUC_AD, type Sonuc } from '../../lib/sicil'
 
 const RENK: Record<Sonuc, string> = {
   hedef:    'var(--u-up)',
   stop:     'var(--u-down)',
   ortada:   'var(--u-flat)',
   bekliyor: 'var(--viz-track)',
-}
-
-export const SONUC_AD: Record<Sonuc, string> = {
-  hedef:    'hedefe değdi',
-  stop:     'stopa değdi',
-  ortada:   'ikisine de değmedi',
-  bekliyor: 'sonucu bekleniyor',
 }
 
 /** Çizim sırası: iyi → kötü → belirsiz → bilinmiyor. */

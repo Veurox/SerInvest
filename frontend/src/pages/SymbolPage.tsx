@@ -27,8 +27,9 @@ import { seviyeleriTopla, uzaklikYuzde, type Seviye } from '../lib/levels'
 import type { Bar } from '../lib/bars'
 import { COMPANY_NAMES } from '../lib/companies'
 import { PriceBarriers, BarWithRef, ContribBars, DotStrip, OutcomeStrip,
-         SONUC_AD, IntervalBar } from '../components/viz'
-import { sicilCikar, sicilYorumu, type SicilSatiri, type Sonuc } from '../lib/sicil'
+         IntervalBar } from '../components/viz'
+import { sicilCikar, sicilYorumu, SONUC_AD,
+         type SicilSatiri, type Sonuc } from '../lib/sicil'
 import { TerimTip } from '../components/ui'
 
 interface AdminStatus {
