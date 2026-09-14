@@ -77,7 +77,8 @@ export default function SymbolPage() {
   const [secilenSeviyeler, setSecilenSeviyeler] = useState<Set<string>>(new Set())
   const seviyeSec = (ad: string) => setSecilenSeviyeler(k => {
     const y = new Set(k)
-    y.has(ad) ? y.delete(ad) : y.add(ad)
+    if (y.has(ad)) y.delete(ad)
+    else y.add(ad)
     return y
   })
 
@@ -89,15 +90,15 @@ export default function SymbolPage() {
       adminFetch(`${ADMIN}/status`).then(r => r.ok ? r.json() : null)
         .then(d => { if (!dur && d) setSt(d) }).catch(() => {})
 
-    // Genel isabet: özet TÜM günlük üzerinden hesaplanıyor, dönen satırlar
-    // gerekmiyor — o yüzden limit en düşükte.
-    adminFetch(`${ADMIN}/prediction-log?limit=50`)
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => {
-        if (!dur && d?.summary?.buy_accuracy != null) {
-          setGenelIsabet(d.summary.buy_accuracy * 100)
-        }
-      }).catch(() => {})
+      // Genel isabet: özet TÜM günlük üzerinden hesaplanıyor, dönen satırlar
+      // gerekmiyor — o yüzden limit en düşükte.
+      adminFetch(`${ADMIN}/prediction-log?limit=50`)
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => {
+          if (!dur && d?.summary?.buy_accuracy != null) {
+            setGenelIsabet(d.summary.buy_accuracy * 100)
+          }
+        }).catch(() => {})
       adminFetch(`${ADMIN}/commentary`).then(r => r.ok ? r.json() : null)
         .then(d => { if (!dur && d && !d.error) setYorum(d) }).catch(() => {})
     }

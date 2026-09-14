@@ -15,6 +15,7 @@
 // =============================================================================
 import { useEffect, useMemo, useState } from 'react'
 import { DataTable, type Column, EmptyState, Icon } from '../ui'
+import { FonDetay } from './FonDetay'
 import { API } from '../../lib/api'
 import { downloadCsv, fmt, yuzde, oranYuzde } from '../../lib/format'
 
@@ -83,6 +84,8 @@ function Oran({ v, d = 1 }: { v: number | null; d?: number }) {
 }
 
 export function FundScreener({ q }: { q: string }) {
+  /** Açık fon detayı. Hisse tablosunda satır grafik açıyor; burada ölü uçtu. */
+  const [secili, setSecili] = useState<string | null>(null)
   const [data, setData] = useState<Tarama | null>(null)
   const [hata, setHata] = useState<string | null>(null)
   const [yukleniyor, setYukleniyor] = useState(true)
@@ -312,9 +315,13 @@ export function FundScreener({ q }: { q: string }) {
         columns={columns}
         rowKey={f => f.kod}
         defaultSort={{ key: 'getiri', dir: 'desc' }}
-        maxHeight="calc(100vh - 400px)"
+        maxHeight={secili ? 'calc(100vh - 720px)' : 'calc(100vh - 400px)'}
         empty="Bu süzgeçte fon yok."
+        onRowClick={f => setSecili(k => (k === f.kod ? null : f.kod))}
+        activeKey={secili}
       />
+
+      {secili && <FonDetay kod={secili} onKapat={() => setSecili(null)} />}
 
       <div style={{ marginTop: 'var(--space-2)', fontSize: 10.5, color: 'var(--text-muted)' }}>
         {data.referans} tarihli veriyle · {rows.length}/{data.adet} fon gösteriliyor ·

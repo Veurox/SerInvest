@@ -69,7 +69,16 @@ interface Props {
    * olan hücreye GÖNDERİLMEZ (kendi gerçek crosshair'i zaten var).
    */
   crosshairAt?: number | null
-  /** Yüzde modunda eksen "%" ile biçimlenir (fiyat ondalığı yerine). */
+  /**
+   * Yüzde modunda eksen "%" ile biçimlenir (fiyat ondalığı yerine).
+   *
+   * YALNIZ ETİKETİ DEĞİŞTİRİR — VERİYİ DÖNÜŞTÜRMEZ.
+   * Normalizasyon çağıranın işidir: `toPercent(bars)` (lib/bars.ts) ile
+   * geçilmiş barlar verin. Atlanırsa grafik ham fiyatı yüzde diye yazar ve
+   * bunu SESSİZCE yapar — konsolda hata yok, grafik boş değil, yalnız
+   * sayılar yanlış. (14.09.2026'da fon detayında tam olarak bu oldu:
+   * 3,039939 ₺ ekranda "+3,04%" göründü, gerçek değişim +%44,99'du.)
+   */
   percent?: boolean
   height?: number | string
 }
@@ -169,11 +178,18 @@ export function PriceChart({
     })
     chartRef.current = chart
 
-    // Yüzde modunda eksen "+12.4%" okur; fiyat ondalığı burada anlamsızdır.
+    // Eksen ve imleç etiketi Türkçe biçimde: ondalık virgül, yüzde işareti
+    // sayının önünde (uygulamanın geri kalanıyla aynı dil — lib/format.ts).
+    // Kütüphanenin kendi 'price' biçimi nokta kullanıyor, o yüzden ikisi de
+    // özel biçimlendirici.
+    const trSayi = (v: number, b: number) =>
+      v.toLocaleString('tr-TR', { minimumFractionDigits: b, maximumFractionDigits: b })
     const priceFormat = percent
       ? { type: 'custom' as const, minMove: 0.01,
-          formatter: (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(2)}%` }
-      : { type: 'price' as const, precision, minMove: 1 / 10 ** precision }
+          formatter: (v: number) =>
+            `${v < 0 ? '-' : v > 0 ? '+' : ''}%${trSayi(Math.abs(v), 2)}` }
+      : { type: 'custom' as const, minMove: 1 / 10 ** precision,
+          formatter: (v: number) => trSayi(v, precision) }
 
     mainRef.current = kind === 'candle'
       ? chart.addSeries(CandlestickSeries, {

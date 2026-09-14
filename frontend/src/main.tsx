@@ -57,8 +57,14 @@ createRoot(document.getElementById('root')!).render(
                 Eski rotalar korunur; yer imi/derin link kırılmasın. */}
             <Route path="model"         element={<ModelPage />} />
             <Route path="degerlendirme" element={<EvaluationPage />} />
-            {/* Bilinmeyen route → Piyasa Genel */}
-            <Route path="*"             element={<OverviewPage />} />
+            {/* Bilinmeyen adres → açılış sayfası.
+                Önce eski Piyasa Genel'e düşüyordu ve bu iki şeyi birden
+                bozuyordu: kullanıcı yanlış yazdığını anlamıyordu (sayfa
+                açılıyor, ama istediği değil) ve karşısına taşınmamış ESKİ
+                tasarım çıkıyordu — üstelik menüde "Bugün" sekmesi yanarken.
+                Yönlendirme, adres çubuğunu da düzelttiği için sessiz
+                kalmıyor: kullanıcı nereye düştüğünü görüyor. */}
+            <Route path="*"             element={<Navigate to="/bugun" replace />} />
           </Route>
         </Routes>
       </BrowserRouter>

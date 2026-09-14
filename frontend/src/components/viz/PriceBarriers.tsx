@@ -15,7 +15,7 @@
 // SATIŞ/TUT ÇAĞRISINDA BARİYER ÇİZİLMEZ. Hedef ve stop yalnız ALIM kararının
 // parçası; başka bir karara iliştirmek uygulanamayan bir sayı gösterirdi.
 // =============================================================================
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { API } from '../../lib/api'
 import { useConfig } from '../../lib/useConfig'
 import { PriceChart, type CrosshairInfo, type Overlay } from '../charts/PriceChart'
@@ -59,6 +59,11 @@ export function PriceBarriers({
   const [yukleniyor, setYukleniyor] = useState(false)
   const [hata, setHata] = useState<string | null>(null)
   const [imlec, setImlec] = useState<CrosshairInfo | null>(null)
+  // Geri çağrıyı ref'te tutuyoruz: çağıran satır içi bir lambda geçerse her
+  // render'da kimliği değişir ve efekt veriyi yeniden çekerdi. Bağımlılıkta
+  // olmaması da sessiz bir bayatlama riskiydi; ref ikisini birden çözüyor.
+  const barCb = useRef(onBarlar)
+  barCb.current = onBarlar
 
   useEffect(() => {
     let dur = false
@@ -68,7 +73,7 @@ export function PriceBarriers({
       .then((j: Cevap) => {
         if (dur) return
         if (j.error || !j.points?.length) { setHata(j.error || 'veri yok'); setBarlar([]) }
-        else { setBarlar(j.points); onBarlar?.(j.points) }
+        else { setBarlar(j.points); barCb.current?.(j.points) }
       })
       .catch(e => { if (!dur) setHata(String(e)) })
       .finally(() => { if (!dur) setYukleniyor(false) })
