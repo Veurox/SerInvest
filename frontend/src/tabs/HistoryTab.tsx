@@ -59,10 +59,11 @@ export function HistoryTab() {
   })()
 
   return (
-    <div style={{ paddingTop: 'var(--space-2)' }}>
+    <div className="ui2" style={{ minHeight: '100%', padding: 'var(--u-s4) var(--u-s5) var(--u-s5)' }}>
+      {/* Model sayfasının "doğruluk" tarafı — çağrılar tuttu mu
+          (docs/PLAN_ARAYUZ.md §1: Model = DOĞRULUK, Portföy = PARA). */}
       <PageHeader
-        icon={<Icon name="history" size={20} />}
-        title="Tahmin Geçmişi"
+        title="Çağrılar tuttu mu?"
         subtitle={<>ml v3 · 10 işlem-günü sonucu · long-only · {data?.rows.length ?? 0} kayıt <span className="tech-tag" style={{ marginLeft: 6 }}>● saf teknik</span></>}
         right={
           <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>

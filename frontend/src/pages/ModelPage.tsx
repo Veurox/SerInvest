@@ -7,9 +7,10 @@
 // "İleri metrikler" panelinde gizlidir.
 // =============================================================================
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ReliabilityCurve } from '../components/viz'
 import { ADMIN, API, adminFetch } from '../lib/api'
 import { useConfig } from '../lib/useConfig'
-import { PageHeader, Icon } from '../components/ui'
+import { PageHeader } from '../components/ui'
 import { useSearchParams } from 'react-router-dom'
 import { ModelStory, JobStatus, SelfTestPanel, ModelVersions, ModelEvidence,
          RiskFilterPanel, DataDepth } from '../components/finance'
@@ -29,7 +30,12 @@ interface DriftResp {
                   /** Gün düzeyi karar — havuzlanmış ECE anlamlılığı şişiriyordu. */
                   n_days?: number; min_days?: number
                   day_level?: { observed_up: number; predicted_cal_p: number
-                                t: number; gap: number } | null }
+                                t: number; gap: number } | null
+                  /** Canlı güvenilirlik eğrisinin kovaları (monitoring.py). */
+                  bins?: Array<{ raw_p_range?: [number, number]; n: number
+                                 predicted_cal_p: number; observed_up: number
+                                 gap?: number }>
+                  ece?: number | null; brier?: number | null }
 }
 
 /** /admin/job-progress — done/total GERÇEK iş birimidir (sembol/adım/pencere).
@@ -103,6 +109,13 @@ export default function ModelPage() {
   const [status, setStatus] = useState<AdminStatus | null>(null)
   const [cal, setCal]     = useState<CalSummary | null>(null)
   const [drift, setDrift] = useState<DriftResp | null>(null)
+  /** Eğitim/sınav kalibrasyonu — canlıyla YAN YANA gösterilecek.
+      ModelStory de aynı uç noktayı çekiyor; iki istek yerine tek yerden
+      dağıtmak daha temiz olurdu ama o bileşen bağımsız kalsın diye
+      şimdilik ayrı. (5 dakikada bir, kişisel kullanım.) */
+  const [egitimKalib, setEgitimKalib] = useState<
+    Array<{ raw_p_range: [number, number]; n: number
+            calibrated_p: number; observed_up: number }> | null>(null)
   const [logs, setLogs]   = useState<SysLog[]>([])
   const [feats, setFeats] = useState<{ features: { name: string; pct: number }[]; groups: Record<string, number> } | null>(null)
   const [busy, setBusy]   = useState(false)
@@ -116,6 +129,9 @@ export default function ModelPage() {
     g('status', setStatus)
     g('feature-importance', setFeats)
     g('drift', setDrift)
+    adminFetch(`${ADMIN}/model-story`).then(r => r.ok ? r.json() : null)
+      .then(d => d?.calibration?.reliability && setEgitimKalib(d.calibration.reliability))
+      .catch(() => {})
     adminFetch(`${ADMIN}/prediction-calendar`).then(r => r.ok ? r.json() : null)
       .then(d => d?.summary && setCal(d.summary)).catch(() => {})
     fetch(`${API}/oracle/syslogs`).then(r => r.ok ? r.json() : null)
@@ -170,10 +186,11 @@ export default function ModelPage() {
     : { txt: 'Model tabandan farklı sonuç üretmiyor', tone: 'var(--loss)' }
 
   return (
-    <div style={{ paddingTop: 'var(--space-2)' }}>
+    <div className="ui2" style={{ minHeight: '100%', padding: 'var(--u-s4) var(--u-s5) var(--u-s5)' }}>
+      {/* Sayfanın başlığı bir SORU (docs/PLAN_ARAYUZ.md §1). Sekmeler zaten
+          üç alt soruya bölünmüştü; başlık da onların çatısı. */}
       <PageHeader
-        icon={<Icon name="mlops" size={20} />}
-        title="Model"
+        title="Buna güvenebilir miyim?"
         subtitle={TAB_SUB[tab]}
       />
 
@@ -401,6 +418,61 @@ export default function ModelPage() {
 
         {/* Ölçülmüş sıralama gücü — açık başlar, sekmenin asıl konusu bu */}
         <ModelEvidence />
+
+        {/* CANLI güvenilirlik eğrisi — ModelStory'dekiyle KARIŞTIRILMAMALI.
+            Oradaki eğri eğitim/sınav verisinden: "model kurulurken dürüst
+            müydü". Buradaki canlı tahminlerden: "sahada dürüst mü". İkincisi
+            asıl sorudur ve şu an henüz birikiyor; boş grafik yerine ne kadar
+            kaldığı yazıyor. */}
+        <div style={{ marginBottom: 'var(--space-3)', padding: 'var(--u-s4) var(--u-s5)',
+                      background: 'var(--u-panel)', borderRadius: 'var(--u-r-md)',
+                      display: 'flex', gap: 'var(--u-s6)', flexWrap: 'wrap',
+                      alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--u-s2)',
+                        minWidth: 0, flex: '1 1 320px' }}>
+            <span className="u-label">Canlı güvenilirlik — sahada dürüst mü?</span>
+            <span className="u-sub" style={{ maxWidth: 440 }}>
+              Model bir sembole “%70” dediğinde, öyle dediği yüz tahminin
+              gerçekten yetmişi yukarı mı gitti? Bu, doğruluktan ayrı bir
+              sorudur: güvenini abartan bir model, pozisyon büyüklüğünü
+              olasılığa göre hesaplayan bir sistemde para kaybettirir.
+            </span>
+            {drift?.calibration?.day_level && (
+              <span className="u-sub">
+                Gün düzeyi karşılaştırma: model{' '}
+                <b className="u-num">%{(drift.calibration.day_level.predicted_cal_p * 100).toFixed(1)}</b>
+                {' '}dedi, gerçekleşen{' '}
+                <b className="u-num">%{(drift.calibration.day_level.observed_up * 100).toFixed(1)}</b>.
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 'var(--u-s5)', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--u-s2)' }}>
+              <span className="u-label">Eğitim/sınav — kurulurken</span>
+              <ReliabilityCurve
+                kovalar={(egitimKalib ?? []).map(r => ({
+                  raw_p_range: r.raw_p_range, n: r.n,
+                  predicted_cal_p: r.calibrated_p, observed_up: r.observed_up,
+                }))}
+                nToplam={(egitimKalib ?? []).reduce((t, r) => t + r.n, 0) || null}
+                bekleyen="Eğitim kalibrasyon raporu okunamadı."
+                boyut={268}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--u-s2)' }}>
+              <span className="u-label">Canlı — sahada</span>
+              <ReliabilityCurve
+                kovalar={drift?.calibration?.bins ?? []}
+                ece={drift?.calibration?.ece ?? null}
+                brier={drift?.calibration?.brier ?? null}
+                nToplam={drift?.calibration?.n_evaluated ?? null}
+                gunSayisi={drift?.calibration?.n_days ?? null}
+                bekleyen={drift?.calibration?.message}
+                boyut={268}
+              />
+            </div>
+          </div>
+        </div>
 
         {/* Modelin görsel künyesi: sınav grafiği ve kalibrasyon eğrisi burada,
             çünkü ikisi de "gerçekten bir şey biliyor mu" sorusunun kanıtı. */}
