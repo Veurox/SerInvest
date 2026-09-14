@@ -380,3 +380,62 @@
   background: var(--u-panel);
   border-left-color: var(--u-accent);
 }
+
+/* ── Eski jeton adlarının köprüsü ────────────────────────────────────────
+   Taşıma sürerken eski bileşenler yeni sayfaların içinde kullanılıyor
+   (grafik motoru, terim ipucu). Onlar eski adları okuyor; burada o adlar
+   yeni değerlere bağlanıyor, böylece aynı ekranda iki farklı yeşil olmuyor.
+
+   Bu blok GEÇİCİDİR: son sayfa da taşındığında `.ui2` kalkacak ve bu
+   köprüye gerek kalmayacak.
+
+   UYARI: terim ipucunun balonu <body> altına portal ile basılıyor, yani
+   `.ui2` kapsamının DIŞINDA kalıyor ve eski paletle çiziliyor. Sayfalar
+   taşındıkça kendiliğinden düzelecek; şimdilik bilinçli bir kusur. */
+.ui2 {
+  --text-primary:   var(--u-text);
+  --text-secondary: var(--u-text-2);
+  --text-muted:     var(--u-text-3);
+  --text-disabled:  var(--u-text-4);
+
+  --bg-app:         var(--u-bg);
+  --bg-surface:     var(--u-panel);
+  --bg-surface-2:   var(--u-panel-2);
+  --bg-surface-3:   var(--u-panel-hi);
+
+  --border-subtle:  var(--u-line);
+  --border-default: var(--u-line);
+  --border-strong:  var(--u-line-strong);
+
+  --profit:         var(--u-up);
+  --profit-bg:      var(--u-up-bg);
+  --loss:           var(--u-down);
+  --loss-bg:        var(--u-down-bg);
+  --warning:        var(--u-warn);
+  --accent:         var(--u-accent);
+  --info:           var(--viz-1);
+
+  --t-mono:         var(--u-mono);
+  --t-sans:         var(--u-sans);
+}
+
+/* Küçük seçim düğmesi (zaman dilimi, mum/çizgi). Seçili olan DOLGULU değil
+   çizgiyle işaretli — vurgu rengi yapısal kullanılıyor (renk disiplini). */
+.ui2 .u-seg {
+  font: inherit;
+  font-size: var(--u-t-micro);
+  font-weight: var(--u-w-bold);
+  letter-spacing: 0.04em;
+  padding: 3px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--u-r-sm);
+  background: none;
+  color: var(--u-text-3);
+  cursor: pointer;
+  transition: color var(--u-fast), border-color var(--u-fast);
+}
+.ui2 .u-seg:hover { color: var(--u-text-2); }
+.ui2 .u-seg[aria-pressed="true"] {
+  color: var(--u-accent);
+  border-color: var(--u-accent-line);
+}

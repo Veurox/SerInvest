@@ -32,7 +32,7 @@ import type { SharedData } from '../App'
 import { API, ADMIN, adminFetch } from '../lib/api'
 import { useConfig } from '../lib/useConfig'
 import { ruhHaliHesapla, type AggRow } from '../lib/sentiment'
-import { Gauge, DotStrip, Donut, BarWithRef } from '../components/viz'
+import { Gauge, DotStrip, Donut, BarWithRef, PriceBarriers } from '../components/viz'
 import { TerimTip } from '../components/ui'
 
 // ── Arka uç şekilleri (mevcut Terminal bileşenlerinden birebir) ──────────────
@@ -64,7 +64,7 @@ const YON_RENK: Record<string, string> = {
 }
 
 export default function TodayPage() {
-  const { assets, oracle, openChart } = useOutletContext<SharedData>()
+  const { assets, oracle } = useOutletContext<SharedData>()
   const cfg = useConfig()
 
   const [agg, setAgg] = useState<AggRow[] | null>(null)
@@ -320,15 +320,11 @@ export default function TodayPage() {
                 </span>
               </div>
 
-              <button onClick={() => sembol && openChart(sembol)}
-                      style={{ minHeight: 300, background: 'var(--u-panel)',
-                               border: '1px dashed var(--u-line-strong)',
-                               borderRadius: 'var(--u-r-lg)', color: 'var(--u-text-3)',
-                               cursor: 'pointer', font: 'inherit',
-                               fontSize: 'var(--u-t-small)' }}>
-                {sembol} grafiğini aç — bariyerli grafik Sembol sayfasında
-                doğacak ve buraya gömülecek
-              </button>
+              {sembol && (
+                <PriceBarriers sembol={sembol} analiz={analiz}
+                               yukseklik={300}
+                               ondalik={varlik?.assetType === 'FOREX' ? 4 : 2} />
+              )}
             </div>
           </div>
         )}

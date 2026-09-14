@@ -87,8 +87,16 @@ interface Props {
 // (yeni halka arz, işlem durdurma) grafikleri sessizce FARKLI TARİHLERE
 // kaydırıyordu. Tarih hizalaması bar sayısından bağımsızdır.
 
-const cssVar = (name: string, fallback: string) => {
-  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+/**
+ * Jeton değerini GRAFİĞİN KENDİ KABINDAN okur, kökten değil.
+ *
+ * Özel özellikler miras alındığı için kap kökteki değeri zaten görür; ama
+ * kapsamlı bir tema (yeni arayüzün `.ui2` bloğu) aynı adı yeniden tanımlarsa
+ * grafik de onu alır. Kökten okusaydı yeni sayfada eski paletle çizerdi —
+ * aynı ekranda iki farklı yeşil olurdu.
+ */
+const cssVar = (el: Element, name: string, fallback: string) => {
+  const v = getComputedStyle(el).getPropertyValue(name).trim()
   return v || fallback
 }
 
@@ -120,17 +128,17 @@ export function PriceChart({
     const box = boxRef.current
     if (!box) return
 
-    const text   = cssVar('--text-muted', '#8b94a7')
-    const border = cssVar('--border-subtle', '#252b36')
-    const up     = cssVar('--profit', '#059669')
-    const down   = cssVar('--loss', '#dc2626')
+    const text   = cssVar(box, '--text-muted', '#8b94a7')
+    const border = cssVar(box, '--border-subtle', '#252b36')
+    const up     = cssVar(box, '--profit', '#059669')
+    const down   = cssVar(box, '--loss', '#dc2626')
 
     const chart = createChart(box, {
       layout: {
         background: { color: 'transparent' },
         textColor: text,
         fontSize: compact ? 9 : 11,
-        fontFamily: cssVar('--t-mono', 'ui-monospace, monospace'),
+        fontFamily: cssVar(box, '--t-mono', 'ui-monospace, monospace'),
         attributionLogo: false,          // kütüphane rozeti — kendi arayüzümüz
       },
       grid: {
@@ -150,8 +158,8 @@ export function PriceChart({
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: text, width: 1, style: 2, labelBackgroundColor: cssVar('--bg-surface-3', '#1c222c') },
-        horzLine: { color: text, width: 1, style: 2, labelBackgroundColor: cssVar('--bg-surface-3', '#1c222c') },
+        vertLine: { color: text, width: 1, style: 2, labelBackgroundColor: cssVar(box, '--bg-surface-3', '#1c222c') },
+        horzLine: { color: text, width: 1, style: 2, labelBackgroundColor: cssVar(box, '--bg-surface-3', '#1c222c') },
       },
       handleScroll: interactive,
       handleScale: interactive
@@ -175,7 +183,7 @@ export function PriceChart({
           priceFormat,
         })
       : chart.addSeries(LineSeries, {
-          color: cssVar('--info', '#2563eb'),
+          color: cssVar(box, '--info', '#2563eb'),
           lineWidth: 2,
           priceLineVisible: false,
           priceFormat,
@@ -257,10 +265,13 @@ export function PriceChart({
     }
 
     if (volRef.current) {
+      // Renkler yine KABIN kendisinden okunuyor (kapsamlı tema için);
+      // bu efektte `box` yok, ref üzerinden alınıyor.
+      const kap = boxRef.current
       volRef.current.setData(toVolume(
         clean,
-        cssVar('--profit-bg', 'rgba(5,150,105,.25)'),
-        cssVar('--loss-bg', 'rgba(220,38,38,.25)'),
+        kap ? cssVar(kap, '--profit-bg', 'rgba(5,150,105,.25)') : 'rgba(5,150,105,.25)',
+        kap ? cssVar(kap, '--loss-bg', 'rgba(220,38,38,.25)') : 'rgba(220,38,38,.25)',
       ) as never)
     }
 
