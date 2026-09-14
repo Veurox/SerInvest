@@ -283,3 +283,62 @@ model hiç tutturamıyor, GARAN'da iyi" cümlesi **kurulamaz** — ham oranlar
 
 Sicili ham oranıyla göstermek, bu projede reddedilen şeyin ta kendisi
 olurdu: ölçüm gibi duran, arkasında ölçüm olmayan bir sayı.
+
+---
+
+## Baştan sona denetim (14.09.2026)
+
+Taşıma bitince uygulama uçtan uca gezildi: on sayfa, konsol, derleme, lint,
+testler. On beş bulgu çıktı; on biri düzeltildi.
+
+### Düzeltilenler
+
+| # | Bulgu | Not |
+|---|---|---|
+| 1 | Üç ayrı sayı yazımı | `lib/format.ts` + `bicim.py` (Python ikizi) |
+| 2 | Başlık NÖTR'de hedef/stop gösteriyordu | `alim` koşuluna bağlandı |
+| 3 | Terim ipucu `.ui2` dışında kalıyordu | Portal kapsamı tetikleyiciden okuyor |
+| 4 | Yan etki için ternary | if/else |
+| 5 | Fon satırı ölü uçtu | `FonDetay` — fiyat, büyüklük, yatırımcı |
+| 6 | Haberler ve Pano eski tasarımda | İkisi de taşındı |
+| 8 | Hatalı adres eski sayfaya düşüyordu | `*` → `/bugun` |
+| 9 | İki ölü bileşen | Silindi |
+| 10 | Seviye numaraları sahte sıra vaat ediyordu | Numara kalktı, `anahtar` geldi |
+| 11 | BÜYÜK HARF etiketler | `u-label` |
+| 13 | tefas imajında pytest yoktu | requirements.txt |
+
+### Biçim tutarlılığı bir hatayı saklıyormuş
+
+Denetimin en öğretici kısmı 1. maddeydi. Üç ayrı yüzde yazımı (`%53,6`,
+`%53.6`, `147.5%`) yalnız çirkin değildi — arasında **bin yedi yüz küsur
+temettü verimi** duruyordu ve kimse görmemişti:
+
+```
+DOAS   %1.817,00   →   %18,17
+TTRAK  %1.696,00   →   %16,96
+FROTO  %1.170,00   →   %11,70
+```
+
+Temettü verimi arka uçtan zaten yüzde biriminde geliyor (ROE'nin aksine
+oran değil); arayüz onu bir kez daha 100'le çarpıyordu. Üç sayfada birden.
+
+**Ders:** tutarsız biçim, gürültü üretir; gürültü hatayı saklar.
+
+### İkinci sessiz yalan: `percent` bayrağı
+
+Fon detayına grafik koyarken ekran "+%3,04" yazdı, gerçek dönem değişimi
++%44,99'du. `PriceChart`'ın `percent` bayrağı yalnız EKSEN ETİKETİNİ
+değiştiriyor, veriyi dönüştürmüyor — normalizasyon çağıranın işi.
+
+Konsolda hata yoktu, grafik boş değildi, çizginin şekli bile doğruydu.
+Yalnız eksendeki sayılar uydurmaydı. Gauge dersinin (14.09, "gözle
+doğrulamak yetmiyor") ikinci kez tekrarı. Bayrağın tanımına tuzak yazıldı.
+
+### Devam eden
+
+| # | Bulgu | Neden bekliyor |
+|---|---|---|
+| 7 | `/piyasa-genel`, `/terminal`, `/degerlendirme` menüde yok | Silme kararı kullanıcının; üçü de Bugün/Sembol'ün kapsadığı işi yapıyor |
+| 12 | 47 lint hatası, tek 880 KB paket | Çoğu eski kodda `any` ve `set-state-in-effect`; hata değil, biçem |
+| 14 | HMR sırasında lightweight-charts "Object is disposed" | Normal gezinmede tekrarlanmıyor, üretimde görünmez |
+| 15 | 375px'te büyük sayılar kırpılıyor | Masaüstü uygulaması; mobil hedef değilse düşer |
