@@ -594,3 +594,48 @@
   border-color: var(--u-accent-line);
   background: none;
 }
+
+/* ── Terim ipucu (portal) ────────────────────────────────────────────────
+   Balon <body> altına basılıyor, yani normalde `.ui2` kapsamının dışında
+   kalır ve eski paletle/fontla çizilirdi. TerimTip artık tetikleyicisinin
+   kapsamına bakıp balona da `ui2` veriyor; burası o balonun yeni dildeki
+   görünümü.
+
+   Köprü bloğu (--text-primary vb.) renkleri zaten taşıyor; burada ŞEKİL
+   ve ölçü yeni jetonlara bağlanıyor — eski --space-3/--radius-sm/--shadow-lg
+   hâlâ eski sistemden geliyordu.
+
+   Gölge burada MEŞRU: balon gerçekten üstte duran bir katman. Karolar
+   gölge kullanmaz, o kural buraya işlemez. */
+.terim-pop.ui2 {
+  padding: var(--u-s3) var(--u-s4);
+  background: var(--u-panel);
+  border: 1px solid var(--u-line-strong);
+  border-radius: var(--u-r-md);
+  box-shadow: var(--u-shadow);
+  font-family: var(--u-sans);
+  font-size: var(--u-t-small);
+  font-weight: var(--u-w-reg);
+  line-height: var(--u-lh-base);
+  color: var(--u-text-2);
+}
+.terim-pop.ui2 .terim-pop__baslik {
+  color: var(--u-text);
+  font-weight: var(--u-w-bold);
+  margin-bottom: var(--u-s1);
+}
+.terim-pop.ui2 .terim-pop__satir b { color: var(--u-text); }
+.terim-pop.ui2 .terim-pop__uyari {
+  margin-top: var(--u-s2);
+  padding-top: var(--u-s2);
+  border-top: 1px solid var(--u-line);
+  color: var(--u-warn);
+}
+
+/* Tetikleyici: yeni dilde vurgu mercan, alt çizgi daha sessiz. */
+.ui2 .terim { border-bottom-color: var(--u-text-4); }
+.ui2 .terim:hover,
+.ui2 .terim:focus-visible {
+  color: var(--u-accent);
+  border-bottom-color: var(--u-accent-line);
+}

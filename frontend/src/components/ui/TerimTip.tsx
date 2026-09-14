@@ -13,6 +13,18 @@
 //
 // Ekranda dar yer olduğunda ipucu kendini yukarı/aşağı çevirir ve yatayda
 // pencere içine sıkıştırılır; küçük ekranda taşmaz.
+//
+// PORTALIN BEDELİ: KAPSAM KAYBI
+// <body> altına basmak, kutuyu yeni arayüzün `.ui2` kapsamının DIŞINA da
+// çıkarıyordu. Sonuç: sayfa Space Grotesk ve sıcak paletteyken açılan
+// balon eski Inter fontu ve mavi-gri paletle çiziliyordu — üstelik tam da
+// finansal okuryazarlığı olmayan birine yardım etmesi beklenen yerde,
+// "buraya ait değil" diye okunan bir kutu.
+//
+// Çözüm: tetikleyici `.ui2` içindeyse kutu da o sınıfı alıyor. Tespit
+// kapsamdan yapılıyor, sabit bir bayraktan değil; henüz taşınmamış
+// sayfalarda (Haberler, Çoklu Grafik) balon eski diliyle kalıyor, yani
+// her sayfa kendi diline uygun ipucu gösteriyor.
 // =============================================================================
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -27,11 +39,14 @@ export function TerimTip({ ad, children }: { ad: string; children?: ReactNode })
   const terim = terimBul(ad)
   const ref = useRef<HTMLSpanElement>(null)
   const [konum, setKonum] = useState<Konum | null>(null)
+  /** Tetikleyici yeni arayüzün kapsamında mı? Balon aynı dili konuşsun. */
+  const [yeniDil, setYeniDil] = useState(false)
   const id = useId()
 
   const ac = useCallback(() => {
     const el = ref.current
     if (!el) return
+    setYeniDil(!!el.closest('.ui2'))
     const r = el.getBoundingClientRect()
     // Aşağıda yer yoksa yukarı çevir. 200px, en uzun metnin kabaca yüksekliği.
     const ust = r.bottom + 200 > window.innerHeight && r.top > 200
@@ -77,7 +92,7 @@ export function TerimTip({ ad, children }: { ad: string; children?: ReactNode })
       {konum && createPortal(
         <span
           id={id}
-          className="terim-pop"
+          className={`terim-pop${yeniDil ? ' ui2' : ''}`}
           role="tooltip"
           style={{
             left: konum.x,

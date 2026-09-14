@@ -303,19 +303,27 @@ export default function SymbolPage() {
             <span className="u-sub">{COMPANY_NAMES[sembol]}</span>
           )}
           <div style={{ flexGrow: 1 }} />
-          {analiz && (
+
+          {/* Hedef/stop/boyut YALNIZ ALIM kararında.
+              Grafiğin altındaki not zaten bu kuralı söylüyor ("Bu karar ALIM
+              değil — hedef/stop çizilmez"), ama başlık onu çiğniyordu: NÖTR
+              bir çağrıda da "Hedef — · Stop — · R:R — · Boyut %0,0" yazıyordu.
+              Uygulanamayan bir sayıyı boş göstermek, göstermemekten kötü:
+              okuyan "veri gelmemiş" sanıyor, oysa böyle bir sayı YOK.
+
+              Burada AYRICA bir açıklama yazılmıyor: grafiğin altındaki not
+              aynı şeyi zaten söylüyor ve eksikliğin hissedildiği yere daha
+              yakın duruyor. İkisi birden, azaltmaya çalıştığımız tekrardı. */}
+          {alim && (
             <span className="u-sub">
               <TerimTip ad="Hedef">Hedef</TerimTip>{' '}
-              <b className="u-num u-up">{sayi(analiz.shortTermTarget, ondalik)}</b>
+              <b className="u-num u-up">{sayi(analiz?.shortTermTarget, ondalik)}</b>
               {' · '}<TerimTip ad="Stop">Stop</TerimTip>{' '}
-              <b className="u-num u-down">{sayi(analiz.shortTermStop, ondalik)}</b>
+              <b className="u-num u-down">{sayi(analiz?.shortTermStop, ondalik)}</b>
               {' · '}<TerimTip ad="R:R">R:R</TerimTip>{' '}
-              <b className="u-num">{fmt(analiz.riskRewardRatio ?? null)}</b>
+              <b className="u-num">{fmt(analiz?.riskRewardRatio ?? null)}</b>
               {' · '}Boyut{' '}
-              <b className="u-num">
-                {analiz.positionSizePct != null
-                  ? oranYuzde(analiz.positionSizePct, 1) : '—'}
-              </b>
+              <b className="u-num">{oranYuzde(analiz?.positionSizePct, 1)}</b>
             </span>
           )}
         </div>
