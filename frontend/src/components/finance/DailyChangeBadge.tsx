@@ -1,7 +1,12 @@
 /**
- * Günlük değişim rozeti: ▲ %1.42 / ▼ %0.85
+ * Günlük değişim rozeti: ▲ %1,42 / ▼ %0,85
+ *
+ * İşareti OK taşıyor, o yüzden sayı mutlak değerle yazılıyor; başına ayrıca
+ * +/- koymak aynı bilgiyi iki kez söylerdi.
  * Pozitif yeşil, negatif kırmızı, sıfır nötr.
  */
+import { oranYuzde } from '../../lib/format'
+
 interface DailyChangeBadgeProps {
   changePct: number | null            // 0.0142 = %1.42
   size?: 'sm' | 'md'
@@ -40,7 +45,7 @@ export function DailyChangeBadge({ changePct, size = 'sm', showSymbol = true }: 
       fontVariantNumeric: 'tabular-nums',
     }}>
       {arrow && <span style={{ fontSize: '0.85em' }}>{arrow}</span>}
-      {Math.abs(changePct * 100).toFixed(2)}%
+      {oranYuzde(Math.abs(changePct), 2)}
     </span>
   )
 }

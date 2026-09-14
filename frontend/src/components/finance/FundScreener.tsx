@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DataTable, type Column, EmptyState, Icon } from '../ui'
 import { API } from '../../lib/api'
-import { downloadCsv } from '../../lib/format'
+import { downloadCsv, fmt, yuzde, oranYuzde } from '../../lib/format'
 
 type Donem = '1a' | '3a' | '1y'
 
@@ -62,9 +62,6 @@ interface Tarama {
   not?: string
 }
 
-const yuzde = (v: number | null | undefined, d = 1) =>
-  v == null ? '—' : `${v >= 0 ? '' : ''}${(v * 100).toFixed(d)}%`
-
 const buyuklukYaz = (v: number | null): string => {
   if (v == null) return '—'
   if (v >= 1e9) return `${(v / 1e9).toLocaleString('tr-TR', { maximumFractionDigits: 1 })} Mr`
@@ -80,7 +77,7 @@ function Oran({ v, d = 1 }: { v: number | null; d?: number }) {
   if (v == null) return <span style={{ color: 'var(--text-disabled)' }}>—</span>
   return (
     <span className={v > 0 ? 'dir-up' : v < 0 ? 'dir-down' : undefined}>
-      {(v * 100).toFixed(d)}%
+      {oranYuzde(v, d)}
     </span>
   )
 }
@@ -165,7 +162,7 @@ export function FundScreener({ q }: { q: string }) {
           <span title={`${n} fon içinde`}
                 style={{ fontWeight: 700,
                          color: v >= 75 ? 'var(--profit)' : v <= 25 ? 'var(--loss)' : 'var(--text-secondary)' }}>
-            %{v.toFixed(0)}
+            {yuzde(v, 0)}
           </span>
         )
       },
@@ -193,7 +190,7 @@ export function FundScreener({ q }: { q: string }) {
         return (
           <span className={v > 0 ? 'dir-up' : v < 0 ? 'dir-down' : undefined}
                 style={{ fontWeight: 700 }}>
-            {v.toFixed(2)}
+            {fmt(v)}
           </span>
         )
       },
@@ -202,14 +199,14 @@ export function FundScreener({ q }: { q: string }) {
       key: 'oynaklik', header: 'Oynaklık', numeric: true, width: 86, priority: 2,
       title: 'Yıllıklaştırılmış dalgalanma (son 1 yıl). Yüksek = fiyat çok zıplıyor.',
       sortValue: f => f.oynaklik,
-      render: f => f.oynaklik == null ? '—' : `${(f.oynaklik * 100).toFixed(1)}%`,
+      render: f => oranYuzde(f.oynaklik, 1),
     },
     {
       key: 'dusus', header: 'Maks. düşüş', numeric: true, width: 96, priority: 2,
       title: 'Son 1 yılda zirveden dibe en büyük kayıp. "En kötü ne oldu" sorusunun cevabı.',
       sortValue: f => f.max_dusus,
       render: f => f.max_dusus == null ? '—'
-        : <span className="dir-down">{(f.max_dusus * 100).toFixed(1)}%</span>,
+        : <span className="dir-down">{oranYuzde(f.max_dusus, 1)}</span>,
     },
     { key: 'buyukluk', header: 'Büyüklük', numeric: true, width: 92, priority: 3,
       title: 'Fonun toplam portföy büyüklüğü (TL)',
@@ -293,7 +290,7 @@ export function FundScreener({ q }: { q: string }) {
         <span style={{ color: 'var(--text-muted)' }}>
           Kıyas eşiği ({DONEM_ETIKET[donem]}) — para piyasası fonlarının medyanı:
         </span>
-        <b style={{ color: 'var(--accent)' }}>{yuzde(esik)}</b>
+        <b style={{ color: 'var(--accent)' }}>{oranYuzde(esik)}</b>
         <span style={{ color: 'var(--text-muted)' }}>
           “Eşik farkı” kolonu her fonun buna göre ne kadar fazla/eksik kazandırdığını gösterir.
           Negatif değer, para piyasası fonunda durmanın daha iyi olacağı anlamına gelir.

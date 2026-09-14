@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react'
 import { Button, KPI, EmptyState, useToast, PageHeader, Icon } from '../components/ui'
 import { API } from '../lib/api'
-import { downloadCsv } from '../lib/format'
+import { downloadCsv, fmt, yuzde, oranYuzde } from '../lib/format'
 import { Donut } from '../components/viz'
 import { PnLValue, PositionDrawer, DailyChangeBadge } from '../components/finance'
 import { COMPANY_NAMES } from '../lib/companies'
@@ -81,7 +81,7 @@ export function PortfolioTab() {
   useEffect(() => { fetchAll(); const t = setInterval(fetchAll, 30_000); return () => clearInterval(t) }, [])
 
   const fmtTL = (n: number) => n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₺'
-  const fmtPct = (n: number) => `${n >= 0 ? '+' : ''}${(n * 100).toFixed(2)}%`
+  const fmtPct = (n: number) => oranYuzde(n, 2, true)
 
   return (
     <div className="ui2" style={{ minHeight: '100%', padding: 'var(--u-s4) var(--u-s5) var(--u-s5)' }}>
@@ -372,8 +372,8 @@ export function PortfolioTab() {
                       </div>
                     </td>
                     <td style={{ padding: '.6rem .8rem', fontSize: '.7rem', color: 'var(--text-muted)' }}>
-                      {pos.targetPrice ? <div>Hedef {pos.targetPrice.toFixed(2)}</div> : null}
-                      {pos.stopPrice   ? <div>Stop {pos.stopPrice.toFixed(2)}</div> : null}
+                      {pos.targetPrice ? <div>Hedef {fmt(pos.targetPrice)}</div> : null}
+                      {pos.stopPrice   ? <div>Stop {fmt(pos.stopPrice)}</div> : null}
                     </td>
                     <td style={{ padding: 'var(--space-2) var(--space-3)', whiteSpace: 'nowrap' }}
                       onClick={e => e.stopPropagation()}>
@@ -610,8 +610,8 @@ function ClosePositionModal({ position, onClose, onSaved }: {
       <div style={{ display: 'grid', gap: '.75rem' }}>
         <div style={{ padding: '.6rem .8rem', background: 'var(--surface-2, var(--tint-2))',
           borderRadius: '8px', fontSize: '.8rem' }}>
-          Açık pozisyon: <strong>{position.quantity}</strong> lot @ {position.buyPrice.toFixed(2)} ₺<br/>
-          Güncel değer: <strong>{position.currentValue.toFixed(2)} ₺</strong>
+          Açık pozisyon: <strong>{position.quantity}</strong> lot @ {fmt(position.buyPrice)} ₺<br/>
+          Güncel değer: <strong>{fmt(position.currentValue)} ₺</strong>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
           <Field label={`Satış Adedi (max: ${position.quantity})`}>
@@ -822,7 +822,7 @@ function PortfolioEquityChart({ positions }: { positions: PortfolioPosition[] })
           </div>
         </div>
         <div style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color, fontVariantNumeric: 'tabular-nums' }}>
-          {isUp ? '+' : ''}{pctChg.toFixed(2)}%
+          {yuzde(pctChg, 2, true)}
           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>
             {fmtDate(d0)} → {fmtDate(dN)}
           </span>

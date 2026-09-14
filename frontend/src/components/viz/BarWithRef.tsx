@@ -15,6 +15,7 @@
 // Eşik verilmezse çubuk yine çizilir ama o zaman yalnız "ne kadar" der,
 // "yeterli mi" demez — çağıranın bunu bilerek seçmesi gerekir.
 // =============================================================================
+import { fmt, yuzde } from '../../lib/format'
 
 export function BarWithRef({
   deger, esik, esikEtiket, renk, yukseklik = 9, gosterDeger = true, birim = '%',
@@ -60,13 +61,17 @@ export function BarWithRef({
           {gosterDeger && (
             <span className="u-num" style={{ fontSize: 'var(--u-t-small)',
                                              color: 'var(--u-text-2)', fontWeight: 600 }}>
-              {v == null ? '—' : `${birim}${v.toFixed(v % 1 === 0 ? 0 : 1)}`}
+              {v == null ? '—'
+                : birim === '%' ? yuzde(v, v % 1 === 0 ? 0 : 1)
+                : `${birim}${fmt(v, v % 1 === 0 ? 0 : 1)}`}
             </span>
           )}
           {e != null && esikEtiket && (
             <span style={{ fontSize: 'var(--u-t-micro)', color: 'var(--u-text-3)',
                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {esikEtiket} {birim}{e.toFixed(e % 1 === 0 ? 0 : 1)}
+              {esikEtiket}{' '}
+              {birim === '%' ? yuzde(e, e % 1 === 0 ? 0 : 1)
+                             : `${birim}${fmt(e, e % 1 === 0 ? 0 : 1)}`}
             </span>
           )}
         </div>

@@ -21,6 +21,7 @@
 // VERİ YOKKEN GRAFİK ÇİZİLMEZ. Boş bir kutu yerine kaç tahmin biriktiği ve
 // ne zaman okunabileceği yazıyor.
 // =============================================================================
+import { fmt, oranYuzde } from '../../lib/format'
 
 export interface Kova {
   /** Ham olasılık aralığı [alt, üst] */
@@ -94,8 +95,8 @@ export function ReliabilityCurve({
       <svg width={boyut} height={boyut} viewBox={`0 0 ${boyut} ${boyut}`}
            role="img"
            aria-label={`Güvenilirlik eğrisi: ${kovalar.length} kova, ` +
-             kovalar.map(k => `model %${(k.predicted_cal_p * 100).toFixed(0)} dedi, ` +
-               `gerçekleşen %${(k.observed_up * 100).toFixed(0)}`).join('; ')}
+             kovalar.map(k => `model ${oranYuzde(k.predicted_cal_p, 0)} dedi, ` +
+               `gerçekleşen ${oranYuzde(k.observed_up, 0)}`).join('; ')}
            style={{ display: 'block' }}>
 
         {/* Izgara */}
@@ -166,17 +167,17 @@ export function ReliabilityCurve({
 
       <div style={{ display: 'flex', gap: 'var(--u-s4)', flexWrap: 'wrap',
                     fontSize: 'var(--u-t-micro)', color: 'var(--u-text-3)' }}>
-        {ece != null && <span>ECE <b className="u-num">{ece.toFixed(3)}</b></span>}
-        {brier != null && <span>Brier <b className="u-num">{brier.toFixed(3)}</b></span>}
+        {ece != null && <span>ECE <b className="u-num">{fmt(ece, 3)}</b></span>}
+        {brier != null && <span>Brier <b className="u-num">{fmt(brier, 3)}</b></span>}
         {nToplam != null && <span><b className="u-num">{nToplam.toLocaleString('tr-TR')}</b> tahmin</span>}
         {gunSayisi != null && <span><b className="u-num">{gunSayisi}</b> gün</span>}
       </div>
 
       <span className="u-sub" style={{ maxWidth: 420 }}>
         Model olasılıkları{' '}
-        <b className="u-num">%{(enAz * 100).toFixed(1)}</b>–
-        <b className="u-num">%{(enCok * 100).toFixed(1)}</b> arasında
-        {' '}(<b className="u-num">{yayilimPuan.toFixed(1)}</b> puanlık bant).
+        <b className="u-num">{oranYuzde(enAz, 1)}</b>–
+        <b className="u-num">{oranYuzde(enCok, 1)}</b> arasında
+        {' '}(<b className="u-num">{fmt(yayilimPuan, 1)}</b> puanlık bant).
         {yayilimPuan < DUSUK_AYRIM && (
           <b style={{ color: 'var(--u-warn)' }}>
             {' '}Bu dar bir bant: model neredeyse hep “yazı tura” diyor.

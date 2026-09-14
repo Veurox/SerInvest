@@ -6,6 +6,40 @@
 export const fmt = (n: number | null, dec = 2): string =>
   n == null ? '—' : n.toLocaleString('tr-TR', { minimumFractionDigits: dec, maximumFractionDigits: dec })
 
+// ── Yüzde ───────────────────────────────────────────────────────────────────
+//
+// NEDEN MERKEZÎ BİR YARDIMCI
+// Bu yardımcı yokken herkes `toFixed(1)}%` yazdı ve ekranda üç ayrı yazım
+// oluştu: Sembol sayfası "%53,6", Bugün sayfası "%53.6", fon tablosu ise
+// aynı SATIRDA hem "147.5%" hem "%100". Aynı sayının iki türlü yazılması,
+// okuyanda "bunlar farklı ölçüler mi?" sorusunu doğuruyor.
+//
+// KARARLAR
+//   • İşaret en dışta: -%7,51  (+%0,72 · %53,6)
+//   • Ondalık ayracı virgül; binlik ayracı nokta (tr-TR).
+//   • Eksi işareti HER ZAMAN yazılır; artı yalnız istenirse.
+//   • null/NaN → "—". Sıfır yazmak veri yokluğunu gizlerdi.
+
+/**
+ * Yüzde biçimi. `n` ZATEN yüzde birimindedir (53.6 → "%53,6").
+ * Oran (0–1) elinizdeyse `oranYuzde` kullanın.
+ */
+export const yuzde = (
+  n: number | null | undefined, basamak = 1, isaret = false,
+): string => {
+  if (n == null || !Number.isFinite(n)) return '—'
+  const govde = Math.abs(n).toLocaleString('tr-TR', {
+    minimumFractionDigits: basamak, maximumFractionDigits: basamak,
+  })
+  const on = n < 0 ? '-' : isaret ? '+' : ''
+  return `${on}%${govde}`
+}
+
+/** Oranı (0–1) yüzdeye çevirip biçimler: 0.536 → "%53,6". */
+export const oranYuzde = (
+  n: number | null | undefined, basamak = 1, isaret = false,
+): string => (n == null || !Number.isFinite(n) ? '—' : yuzde(n * 100, basamak, isaret))
+
 /** Backend'den JSON-string olarak gelen string[]'leri güvenle parse eder. */
 export const parseArr = (s: string): string[] => {
   try { return JSON.parse(s) } catch { return [] }

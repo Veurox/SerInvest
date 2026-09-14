@@ -31,6 +31,7 @@ import { useOutletContext } from 'react-router-dom'
 import type { SharedData } from '../App'
 import { API, ADMIN, adminFetch } from '../lib/api'
 import { useConfig } from '../lib/useConfig'
+import { fmt, yuzde, oranYuzde } from '../lib/format'
 import { ruhHaliHesapla, type AggRow } from '../lib/sentiment'
 import { Gauge, DotStrip, Donut, BarWithRef, PriceBarriers } from '../components/viz'
 import { TerimTip } from '../components/ui'
@@ -221,7 +222,7 @@ export default function TodayPage() {
             <span className="u-label">Kâğıt üstü portföy</span>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--u-s3)' }}>
               <span className={`u-big u-num ${getiri == null ? 'u-flat' : getiri >= 0 ? 'u-up' : 'u-down'}`}>
-                {getiri == null ? '—' : `${getiri >= 0 ? '+' : ''}%${getiri.toFixed(1)}`}
+                {yuzde(getiri, 1, true)}
               </span>
               <span className="u-exact">
                 {pozisyonSayisi == null ? '' : `${pozisyonSayisi} açık`}
@@ -229,9 +230,9 @@ export default function TodayPage() {
             </div>
             <span className="u-sub u-sub--clamp">
               {kiyas != null && getiri != null
-                ? <>Endeks aynı dönemde <b className="u-num">{kiyas >= 0 ? '+' : ''}%{kiyas.toFixed(1)}</b>
+                ? <>Endeks aynı dönemde <b className="u-num">{yuzde(kiyas, 1, true)}</b>
                     {' · '}fark <b className={`u-num ${getiri - kiyas >= 0 ? 'u-up' : 'u-down'}`}>
-                      {getiri - kiyas >= 0 ? '+' : ''}%{(getiri - kiyas).toFixed(1)}</b></>
+                      {yuzde(getiri - kiyas, 1, true)}</b></>
                 : (paper?.market_status ?? 'durum bilinmiyor')}
             </span>
           </div>
@@ -276,12 +277,12 @@ export default function TodayPage() {
                                 gosterDeger={false} yukseklik={5} />
                   </span>
                   <span className="u-num u-exact" style={{ alignSelf: 'center' }}>
-                    %{(c.confidence * 100).toFixed(0)}
+                    {oranYuzde(c.confidence, 0)}
                   </span>
                 </button>
               ))}
               <span className="u-sub" style={{ padding: '6px var(--u-s3) 0' }}>
-                Çubuktaki işaret başabaş eşiği (%{basabas?.toFixed(0) ?? '—'},
+                Çubuktaki işaret başabaş eşiği ({yuzde(basabas, 0)},
                 maliyet hariç). <TerimTip ad="Güven">Güven</TerimTip> doğrulanmış
                 bir olasılık değildir.
               </span>
@@ -305,17 +306,17 @@ export default function TodayPage() {
                 <div style={{ flexGrow: 1 }} />
                 <span className="u-sub">
                   <TerimTip ad="Hedef">Hedef</TerimTip>{' '}
-                  <b className="u-num u-up">{analiz?.shortTermTarget?.toFixed(2) ?? '—'}</b>
+                  <b className="u-num u-up">{fmt(analiz?.shortTermTarget ?? null)}</b>
                   {' · '}
                   <TerimTip ad="Stop">Stop</TerimTip>{' '}
-                  <b className="u-num u-down">{analiz?.shortTermStop?.toFixed(2) ?? '—'}</b>
+                  <b className="u-num u-down">{fmt(analiz?.shortTermStop ?? null)}</b>
                   {' · '}
                   <TerimTip ad="R:R">R:R</TerimTip>{' '}
-                  <b className="u-num">{analiz?.riskRewardRatio?.toFixed(2) ?? '—'}</b>
+                  <b className="u-num">{fmt(analiz?.riskRewardRatio ?? null)}</b>
                   {' · '}Boyut{' '}
                   <b className="u-num">
                     {analiz?.positionSizePct != null
-                      ? `%${(analiz.positionSizePct * 100).toFixed(1)}` : '—'}
+                      ? oranYuzde(analiz.positionSizePct, 1) : '—'}
                   </b>
                 </span>
               </div>
@@ -343,7 +344,7 @@ export default function TodayPage() {
           <div className="u-cell" style={{ minHeight: 0 }}>
             <span className="u-label">AL isabeti</span>
             <span className="u-big u-num">
-              {alIsabet == null ? '—' : `%${alIsabet.toFixed(1)}`}
+              {yuzde(alIsabet, 1)}
             </span>
             <BarWithRef deger={alIsabet} esik={basabas}
                         esikEtiket="başabaş (maliyet hariç)" gosterDeger={false} />

@@ -13,6 +13,7 @@
 // demektir. Dışarıda bırakıyorsa fark var. Bu yüzden bandın rengi referansın
 // nerede kaldığına göre değişiyor — kullanıcının aritmetik yapması gerekmez.
 // =============================================================================
+import { yuzde } from '../../lib/format'
 
 export function IntervalBar({
   deger, alt, ust, referans, referansEtiket, genislik = 260, yukseklik = 20,
@@ -36,10 +37,9 @@ export function IntervalBar({
   const ayirt = referans != null && (referans < a || referans > u)
   const renk = !ayirt ? 'var(--u-flat)' : (d > (referans ?? 50) ? 'var(--u-up)' : 'var(--u-down)')
 
-  const yuzde = (v: number, b = 0) => v.toFixed(b).replace('.', ',')
-  const etiket = `%${yuzde(d, 1)}, %95 güven aralığı %${yuzde(a)}–%${yuzde(u)}`
+  const etiket = `${yuzde(d, 1)}, %95 güven aralığı ${yuzde(a, 0)}–${yuzde(u, 0)}`
     + (referans != null
-        ? `; ${referansEtiket ?? 'karşılaştırma'} %${yuzde(referans, 1)}` : '')
+        ? `; ${referansEtiket ?? 'karşılaştırma'} ${yuzde(referans, 1)}` : '')
 
   return (
     <svg viewBox={`0 0 ${genislik} ${yukseklik}`} width="100%"

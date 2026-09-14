@@ -16,7 +16,7 @@ import type { SharedData } from '../App'
 import { DataTable, type Column } from '../components/ui'
 import { EvidenceBanner, FundScreener } from '../components/finance'
 import { API } from '../lib/api'
-import { downloadCsv } from '../lib/format'
+import { downloadCsv, fmt, yuzde, oranYuzde } from '../lib/format'
 import { COMPANY_NAMES } from '../lib/companies'
 import { scoreDip, isDipCandidate, type ChartPoint, type DipScore } from '../lib/dipDetector'
 import type { PriceData, OracleAnalysis, FundamentalData } from '../lib/types'
@@ -180,7 +180,7 @@ export default function ScreenerPage() {
         sortValue: r => r.chgPct,
         render: r => r.chgPct == null ? '—' : (
           <span className={r.chgPct > 0 ? 'dir-up' : r.chgPct < 0 ? 'dir-down' : undefined}>
-            {Math.abs(r.chgPct).toFixed(2)}%
+            {yuzde(Math.abs(r.chgPct), 2)}
           </span>
         ) },
     ]
@@ -200,7 +200,7 @@ export default function ScreenerPage() {
         } },
       { key: 'conf', header: 'Güven', numeric: true, width: 66, terim: 'Güven',
         sortValue: r => r.oracle?.confidence ?? null,
-        render: r => r.oracle ? `%${(r.oracle.confidence * 100).toFixed(0)}` : '—' },
+        render: r => oranYuzde(r.oracle?.confidence, 0) },
       { key: 'target', header: 'Hedef', numeric: true, width: 82, priority: 2, terim: 'Hedef',
         sortValue: r => r.oracle?.shortTermTarget ?? null,
         render: r => num(r.oracle?.shortTermTarget) },
@@ -209,7 +209,7 @@ export default function ScreenerPage() {
         render: r => num(r.oracle?.shortTermStop) },
       { key: 'rr', header: 'R:R', numeric: true, width: 60, priority: 3, terim: 'R:R',
         sortValue: r => r.oracle?.riskRewardRatio ?? null,
-        render: r => r.oracle?.riskRewardRatio != null ? r.oracle.riskRewardRatio.toFixed(2) : '—' },
+        render: r => fmt(r.oracle?.riskRewardRatio ?? null) },
     ]
 
     const dip: Column<Row>[] = [
@@ -220,7 +220,7 @@ export default function ScreenerPage() {
           : '—' },
       { key: 'pullback', header: 'Geri çekilme', numeric: true, width: 96, terim: 'Geri çekilme',
         sortValue: r => r.dip?.pullbackPct ?? null,
-        render: r => r.dip ? `%${r.dip.pullbackPct.toFixed(1)}` : '—' },
+        render: r => yuzde(r.dip?.pullbackPct, 1) },
     ]
 
     const temel: Column<Row>[] = [
@@ -248,10 +248,13 @@ export default function ScreenerPage() {
         sortValue: r => r.fund?.pbRatio ?? null, render: r => num(r.fund?.pbRatio, 2) },
       { key: 'roe', header: 'ROE', numeric: true, width: 70, priority: 2, terim: 'ROE',
         sortValue: r => r.fund?.roe ?? null,
-        render: r => r.fund?.roe == null ? '—' : `%${(r.fund.roe * 100).toFixed(1)}` },
+        render: r => oranYuzde(r.fund?.roe, 1) },
       { key: 'divy', header: 'Temettü', numeric: true, width: 78, priority: 3, terim: 'Temettü',
         sortValue: r => r.fund?.dividendYield ?? null,
-        render: r => r.fund?.dividendYield == null ? '—' : `%${(r.fund.dividendYield * 100).toFixed(2)}` },
+        // DİKKAT: temettü verimi arka uçtan ZATEN yüzde biriminde geliyor
+        // (DOAS 18.17 = %18,17), ROE'nin aksine oran değil. Yüzle çarpmak
+        // ekranda "%1.817" yazdırıyordu.
+        render: r => yuzde(r.fund?.dividendYield, 2) },
     ]
 
     const rsi: Column<Row>[] = [
@@ -370,7 +373,7 @@ export default function ScreenerPage() {
         <span className="mc-seg" role="group" aria-label="Asgari güven">
           {[0, 0.55, 0.6, 0.7].map(c => (
             <button key={c} aria-pressed={minConf === c} onClick={() => setMinConf(c)}>
-              {c === 0 ? 'Tümü' : `%${(c * 100).toFixed(0)}`}
+              {c === 0 ? 'Tümü' : oranYuzde(c, 0)}
             </button>
           ))}
         </span>

@@ -2,6 +2,7 @@
  * Kar/Zarar değerlerini renklendirilmiş, formatlı, tabular-nums hizalı göster.
  * Pozitif: yeşil + "+" prefix    Negatif: kırmızı    Sıfır: nötr.
  */
+import { fmt, oranYuzde } from '../../lib/format'
 interface PnLValueProps {
   value: number
   format?: 'tl' | 'pct' | 'plain'
@@ -32,15 +33,14 @@ export function PnLValue({
   const sign = showSign && isProfit ? '+' : ''
   const arrow = showArrow ? (isProfit ? '▲ ' : isLoss ? '▼ ' : '') : ''
 
+  // İşaret aşağıda (ok/eksi) ayrıca konuyor; burada mutlak değer biçimlenir.
   let formatted: string
   if (format === 'pct') {
-    formatted = `${(value * 100).toFixed(dec)}%`
+    formatted = oranYuzde(Math.abs(value), dec)
   } else if (format === 'tl') {
-    formatted = `${Math.abs(value).toLocaleString('tr-TR', {
-      minimumFractionDigits: dec, maximumFractionDigits: dec,
-    })} ₺`
+    formatted = `${fmt(Math.abs(value), dec)} ₺`
   } else {
-    formatted = value.toFixed(dec)
+    formatted = fmt(Math.abs(value), dec)
   }
 
   // Negatif gösterim: arrow yoksa minus, arrow varsa zaten okun var

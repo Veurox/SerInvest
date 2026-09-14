@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { ADMIN, adminFetch } from '../lib/api'
-import { fmt } from '../lib/format'
+import { fmt, yuzde, oranYuzde } from '../lib/format'
 import { COMPANY_NAMES } from '../lib/companies'
 import { CompanyLogo } from '../components/common/CompanyLogo'
 import { PageHeader } from '../components/ui'
@@ -178,20 +178,20 @@ export default function ModelPortfolioPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
         gap: '.75rem', marginBottom: '1.25rem' }}>
         <Metric label="Portföy Değeri" value={`${fmt(state.equity)} ₺`}
-          sub={`${retPct >= 0 ? '+' : ''}${retPct.toFixed(2)}%`} subColor={pnlColor(retPct)} big />
+          sub={yuzde(retPct, 2, true)} subColor={pnlColor(retPct)} big />
         <Metric label="Nakit" value={`${fmt(state.cash)} ₺`}
           sub={`Yatırımda: ${fmt(state.invested)} ₺`} />
         <Metric label="Net K/Z" value={`${state.total_net_pnl >= 0 ? '+' : ''}${fmt(state.total_net_pnl)} ₺`}
           valueColor={pnlColor(state.total_net_pnl)} />
         <Metric label="BIST-100 Karşılaştırma"
-          value={benchPct != null ? `${benchPct >= 0 ? '+' : ''}${benchPct.toFixed(2)}%` : '—'}
-          sub={alpha != null ? `Alfa: ${alpha >= 0 ? '+' : ''}${alpha.toFixed(2)}%` : undefined}
+          value={yuzde(benchPct, 2, true)}
+          sub={alpha != null ? `Alfa: ${yuzde(alpha, 2, true)}` : undefined}
           subColor={alpha != null ? pnlColor(alpha) : undefined} />
         <Metric label="Kazanma Oranı"
-          value={state.win_rate != null ? `%${(state.win_rate * 100).toFixed(0)}` : '—'}
+          value={oranYuzde(state.win_rate, 0)}
           sub={`${state.n_closed_trades} kapanan işlem`} />
         <Metric label="Profit Factor"
-          value={state.profit_factor != null ? state.profit_factor.toFixed(2) : '—'}
+          value={fmt(state.profit_factor ?? null)}
           sub={`Ort. K: ${fmt(state.avg_win)} / Z: ${fmt(state.avg_loss)} ₺`} />
       </div>
 
@@ -220,7 +220,7 @@ export default function ModelPortfolioPage() {
                 <td style={{ ...tdNum, color: pnlColor(p.unrealized_pnl), fontWeight: 700 }}>
                   {p.unrealized_pnl >= 0 ? '+' : ''}{fmt(p.unrealized_pnl)} ₺
                   <div style={{ fontSize: '.68rem' }}>
-                    {p.unrealized_pnl_pct >= 0 ? '+' : ''}{(p.unrealized_pnl_pct * 100).toFixed(1)}%
+                    {oranYuzde(p.unrealized_pnl_pct, 1, true)}
                   </div>
                 </td>
                 <td style={{ ...tdNum, fontSize: '.72rem', color: 'var(--text-muted)' }}>{p.hold_days.toFixed(0)}g</td>
@@ -252,7 +252,7 @@ export default function ModelPortfolioPage() {
                     {t.net_pnl >= 0 ? '+' : ''}{fmt(t.net_pnl)} ₺
                   </td>
                   <td style={{ ...tdNum, color: pnlColor(t.pnl_pct) }}>
-                    {t.pnl_pct >= 0 ? '+' : ''}{(t.pnl_pct * 100).toFixed(1)}%
+                    {oranYuzde(t.pnl_pct, 1, true)}
                   </td>
                   <td><span style={{ color: ex.color, fontSize: '.72rem', fontWeight: 700 }}>{ex.txt}</span></td>
                   <td style={{ ...tdNum, fontSize: '.72rem', color: 'var(--text-muted)' }}>{t.hold_days.toFixed(0)}g</td>

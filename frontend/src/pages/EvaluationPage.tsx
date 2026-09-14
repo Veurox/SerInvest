@@ -374,7 +374,8 @@ export default function EvaluationPage() {
                     { k: 'F/K', v: fundD.peRatio?.toFixed(1) ?? '—' },
                     { k: 'F/DD', v: fundD.pbRatio?.toFixed(2) ?? '—' },
                     { k: 'Özkaynak Kârlılığı', v: fundD.roe != null ? `%${(fundD.roe * 100).toFixed(1)}` : '—' },
-                    { k: 'Temettü Verimi', v: fundD.dividendYield != null ? `%${(fundD.dividendYield * 100).toFixed(2)}` : '—' },
+                    // Yüzde biriminde geliyor; yüzle çarpılmaz.
+                    { k: 'Temettü Verimi', v: fundD.dividendYield != null ? `%${fundD.dividendYield.toFixed(2)}` : '—' },
                     { k: 'Piyasa Değeri', v: fundD.marketCap != null ? `${(fundD.marketCap / 1e9).toFixed(2)} mrd ₺` : '—' },
                     { k: 'EBITDA Marjı', v: fundD.ebitdaMargin != null ? `%${(fundD.ebitdaMargin * 100).toFixed(1)}` : '—' },
                     { k: '52H Pozisyon', v: fundD.position52W != null ? `%${(fundD.position52W * 100).toFixed(0)}` : '—' },

@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react'
 import { LiftBars, CalibrationLines } from '../charts/StatCharts'
 import { ADMIN, adminFetch } from '../../lib/api'
 import { useConfig } from '../../lib/useConfig'
+import { fmt, oranYuzde } from '../../lib/format'
 
 interface Fold {
   fold: number; test: string; n_train: number; n_test: number
@@ -191,7 +192,7 @@ export function ModelStory() {
             <Spec k="VERİ ARALIĞI" v={`${(id.date_min ?? '').slice(0, 4)}–${(id.date_max ?? '').slice(0, 4)}`}
                   hint={`${id.date_min} → ${id.date_max}`} />
             <Spec k="EĞİTİM TARİHİ" v={trDate(id.trained_at)} />
-            <Spec k="AL EŞİĞİ" v={`%${((id.buy_threshold ?? 0) * 100).toFixed(0)}`}
+            <Spec k="AL EŞİĞİ" v={oranYuzde(id.buy_threshold ?? 0, 0)}
                   hint="Model bu olasılığın üstünde AL der" />
           </div>
 
@@ -256,7 +257,7 @@ export function ModelStory() {
           <span style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
             {posFolds}/{folds.length} dönemde tabanı geçti · ortalama{' '}
             <b style={{ color: (ex.mean_fold_lift ?? 0) > 0 ? 'var(--profit)' : 'var(--loss)' }}>
-              {((ex.mean_fold_lift ?? 0) * 100).toFixed(1)} puan
+              {fmt((ex.mean_fold_lift ?? 0) * 100, 1)} puan
             </b>
           </span>
         </div>
@@ -309,7 +310,7 @@ export function ModelStory() {
                     {p.windows_total != null
                       ? <>Rakip {p.windows_won}/{p.windows_total} dönemde kazandı</>
                       : p.reason ?? ''}
-                    {p.pooled_precision != null && <> · isabet %{(p.pooled_precision * 100).toFixed(0)}</>}
+                    {p.pooled_precision != null && <> · isabet {oranYuzde(p.pooled_precision, 0)}</>}
                   </span>
                 </div>
               )

@@ -21,6 +21,7 @@ import { useConfig } from '../../lib/useConfig'
 import { PriceChart, type CrosshairInfo, type Overlay } from '../charts/PriceChart'
 import type { Bar } from '../../lib/bars'
 import type { OracleAnalysis } from '../../lib/types'
+import { yuzde } from '../../lib/format'
 
 const DILIMLER = ['1D', '1W', '1M', '3M', '1Y'] as const
 type Dilim = typeof DILIMLER[number]
@@ -115,7 +116,7 @@ export function PriceBarriers({
             {DILIM_AD[dilim]} içinde{' '}
             {degisim == null ? '—' : (
               <b className={`u-num ${degisim >= 0 ? 'u-up' : 'u-down'}`}>
-                {degisim >= 0 ? '+' : ''}{degisim.toFixed(2)}%
+                {yuzde(degisim, 2, true)}
               </b>
             )}
           </span>

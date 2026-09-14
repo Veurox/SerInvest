@@ -8,7 +8,7 @@ import { useWatchlists } from '../../lib/watchlists'
 import { COMPANY_NAMES } from '../../lib/companies'
 import { CompanyLogo } from '../common/CompanyLogo'
 import { Icon } from '../ui'
-import { fmt } from '../../lib/format'
+import { fmt, yuzde } from '../../lib/format'
 import type { PriceData } from '../../lib/types'
 
 const fmtVol = (v: number | null): string => {
@@ -142,7 +142,7 @@ export function WatchlistSidebar({
           <div className="right">
             <div className="px">{fmt(a?.close ?? null, dec)}</div>
             <div className="chg" style={{ color: col }}>
-              {chgPct == null ? '—' : `${chgPct >= 0 ? '+' : ''}${chgPct.toFixed(2)}%`}
+              {yuzde(chgPct, 2, true)}
             </div>
           </div>
         </button>

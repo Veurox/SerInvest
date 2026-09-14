@@ -7,7 +7,7 @@ import { ADMIN, adminFetch } from '../lib/api'
 import { EmptyState, PageHeader, KPI, Icon, DataTable } from '../components/ui'
 import { AccuracyHeatmap, PredictionLifecycle, PredictionResults } from '../components/finance'
 import type { PredRow, PredSummary } from '../lib/types'
-import { downloadCsv } from '../lib/format'
+import { downloadCsv, oranYuzde } from '../lib/format'
 
 export function HistoryTab() {
   const [data, setData]       = useState<{ rows: PredRow[]; summary: PredSummary } | null>(null)
@@ -162,7 +162,7 @@ export function HistoryTab() {
             <KPI label="Toplam Tahmin" value={data.summary.total} tone="neutral" icon="Σ" />
             <KPI label="Değerlendirildi" value={data.summary.evaluated} sub={`${data.summary.pending} bekliyor`} tone="info" icon="✓" />
             <KPI label="AL İsabeti (10g)"
-              value={data.summary.accuracy != null ? `%${(data.summary.accuracy * 100).toFixed(1)}` : '—'}
+              value={oranYuzde(data.summary.accuracy, 1)}
               sub={data.summary.directional != null ? `${data.summary.correct}/${data.summary.directional} yönsel` : undefined}
               tone={data.summary.accuracy == null ? 'neutral' : data.summary.accuracy >= 0.5 ? 'profit' : 'warning'}
               icon={<Icon name="target" size={14} />} />
@@ -265,7 +265,7 @@ export function HistoryTab() {
                   key: 'confidence', header: 'Güven', numeric: true, width: 66,
                   title: 'Modelin ham çıktısı — doğrulanmış bir olasılık değil',
                   sortValue: r => r.confidence ?? 0,
-                  render: r => <>%{(r.confidence * 100).toFixed(0)}</>,
+                  render: r => <>{oranYuzde(r.confidence, 0)}</>,
                 },
                 {
                   key: 'close', header: 'Fiyat', numeric: true, width: 84, priority: 2,
@@ -296,7 +296,7 @@ export function HistoryTab() {
                     // Yön renge EK OLARAK glifle veriliyor (theme.css .dir-up/.dir-down)
                     return <span className={v > 0 ? 'dir-up' : v < 0 ? 'dir-down' : undefined}
                                  style={{ fontWeight: 700, color: v === 0 ? 'var(--text-muted)' : undefined }}>
-                      {Math.abs(v * 100).toFixed(2)}%
+                      {oranYuzde(Math.abs(v), 2)}
                     </span>
                   },
                 },

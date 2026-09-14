@@ -20,6 +20,7 @@ import { useOutletContext, useSearchParams } from 'react-router-dom'
 import type { SharedData } from '../App'
 import { API, ADMIN, adminFetch } from '../lib/api'
 import { useConfig } from '../lib/useConfig'
+import { fmt, yuzde, oranYuzde } from '../lib/format'
 import { ruhHaliHesapla, type AggRow } from '../lib/sentiment'
 import { suruculeriTopla, listeCoz } from '../lib/drivers'
 import { seviyeleriTopla, uzaklikYuzde, type Seviye } from '../lib/levels'
@@ -39,8 +40,8 @@ interface Commentary {
   error?: string
 }
 
-const sayi = (v: number | null | undefined, d = 2) =>
-  v == null ? '—' : v.toLocaleString('tr-TR', { minimumFractionDigits: d, maximumFractionDigits: d })
+/** Yerel kısaltma — biçim merkezden geliyor (lib/format). */
+const sayi = (v: number | null | undefined, d = 2) => fmt(v ?? null, d)
 
 /** "2026-07-08" → "08.07" — Türkçe okuma sırası gün.ay. */
 const gunAy = (g: string | null) =>
@@ -254,7 +255,7 @@ export default function SymbolPage() {
                 <b style={{ fontSize: 'var(--u-t-body)' }}>{c.symbol}</b>
                 <span className="u-sub" style={{ color: 'var(--u-up)' }}>alım</span>
               </span>
-              <span className="u-num u-exact">%{(c.confidence * 100).toFixed(0)}</span>
+              <span className="u-num u-exact">{oranYuzde(c.confidence, 0)}</span>
             </button>
           ))}
 
@@ -295,7 +296,7 @@ export default function SymbolPage() {
           {degisim != null && (
             <span className={`u-num ${degisim >= 0 ? 'u-up' : 'u-down'}`}
                   style={{ fontSize: 'var(--u-t-body)', fontWeight: 600 }}>
-              {degisim >= 0 ? '+' : ''}{degisim.toFixed(2)}%
+              {yuzde(degisim, 2, true)}
             </span>
           )}
           {sembol && COMPANY_NAMES[sembol] && (
@@ -309,11 +310,11 @@ export default function SymbolPage() {
               {' · '}<TerimTip ad="Stop">Stop</TerimTip>{' '}
               <b className="u-num u-down">{sayi(analiz.shortTermStop, ondalik)}</b>
               {' · '}<TerimTip ad="R:R">R:R</TerimTip>{' '}
-              <b className="u-num">{analiz.riskRewardRatio?.toFixed(2) ?? '—'}</b>
+              <b className="u-num">{fmt(analiz.riskRewardRatio ?? null)}</b>
               {' · '}Boyut{' '}
               <b className="u-num">
                 {analiz.positionSizePct != null
-                  ? `%${(analiz.positionSizePct * 100).toFixed(1)}` : '—'}
+                  ? oranYuzde(analiz.positionSizePct, 1) : '—'}
               </b>
             </span>
           )}
@@ -458,7 +459,7 @@ export default function SymbolPage() {
                       </span>
                       <span className={`u-num ${u == null ? '' : u > 0 ? 'u-up' : 'u-down'}`}
                             style={{ fontSize: 'var(--u-t-micro)', textAlign: 'right' }}>
-                        {u == null ? '—' : `${u > 0 ? '+' : ''}${u.toFixed(1)}%`}
+                        {yuzde(u, 1, true)}
                       </span>
                     </div>
                   )
@@ -551,7 +552,7 @@ export default function SymbolPage() {
                                   alignItems: 'baseline' }}>
                       <span className="u-sub">Bu hissede isabet</span>
                       <span className="u-num" style={{ fontWeight: 600 }}>
-                        %{(sicil.isabet * 100).toFixed(1).replace('.', ',')}
+                        {oranYuzde(sicil.isabet, 1)}
                         <span className="u-exact" style={{ marginLeft: 5 }}>
                           ({sicil.hedefe}/{sicil.yonlu})
                         </span>
@@ -562,7 +563,7 @@ export default function SymbolPage() {
                                  referans={genelIsabet}
                                  referansEtiket="modelin bütün hisselerdeki isabeti" />
                     <span className="u-exact" style={{ fontSize: 'var(--u-t-micro)' }}>
-                      Bant: %95 güven aralığı (%{(sicilNot.alt * 100).toFixed(0)}–%{(sicilNot.ust * 100).toFixed(0)})
+                      Bant: %95 güven aralığı ({oranYuzde(sicilNot.alt, 0)}–{oranYuzde(sicilNot.ust, 0)})
                       {genelIsabet != null && ' · kesik çizgi: modelin genel isabeti'}
                     </span>
                   </div>
@@ -585,7 +586,7 @@ export default function SymbolPage() {
                             alignItems: 'baseline' }}>
                 <span className="u-sub">Modelin AL isabeti</span>
                 <span className="u-num" style={{ fontWeight: 600 }}>
-                  {alIsabet == null ? '—' : `%${alIsabet.toFixed(1).replace('.', ',')}`}
+                  {yuzde(alIsabet, 1)}
                 </span>
               </div>
               <BarWithRef deger={alIsabet} esik={basabas}
@@ -600,7 +601,7 @@ export default function SymbolPage() {
                     Bu çağrının <TerimTip ad="Güven">güveni</TerimTip>
                   </span>
                   <span className="u-num" style={{ fontWeight: 600 }}>
-                    %{(analiz.confidence * 100).toFixed(0)}
+                    {oranYuzde(analiz.confidence, 0)}
                   </span>
                 </div>
                 <BarWithRef deger={analiz.confidence * 100} esik={basabas}
@@ -624,7 +625,7 @@ export default function SymbolPage() {
                             alignItems: 'baseline' }}>
                 <span className="u-sub">Teknik skor</span>
                 <span className="u-num" style={{ fontWeight: 600 }}>
-                  {analiz?.technicalScore != null ? analiz.technicalScore.toFixed(2) : '—'}
+                  {fmt(analiz?.technicalScore ?? null)}
                 </span>
               </div>
               <BarWithRef deger={analiz?.technicalScore != null ? analiz.technicalScore * 100 : null}
@@ -702,14 +703,14 @@ export default function SymbolPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span className="u-sub"><TerimTip ad="ROE">ROE</TerimTip></span>
                     <span className="u-num u-exact">
-                      {temel.roe == null ? '—' : `%${(temel.roe * 100).toFixed(1)}`}
+                      {oranYuzde(temel.roe, 1)}
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span className="u-sub"><TerimTip ad="Temettü">Temettü</TerimTip></span>
                     <span className="u-num u-exact">
-                      {temel.dividendYield == null ? '—'
-                        : `%${(temel.dividendYield * 100).toFixed(2)}`}
+                      {/* Yüzde biriminde geliyor — bkz. ScreenerPage notu. */}
+                      {yuzde(temel.dividendYield, 2)}
                     </span>
                   </div>
                 </div>

@@ -52,6 +52,7 @@ from ml.config import (
     XSEC_RANK,
 )
 import ml.atomic as atomic
+import bicim
 from ml.calibration import calibrate, expected_R, kelly_size, load_calibrator
 from ml.config import (COVERAGE_TARGET, EV_FILTER, META_ENABLED, META_VETO_P,
                        PROMOTE_WINDOWS, RISK_FILTER_ON)
@@ -445,12 +446,12 @@ def analyze_symbol(model, sym: str, yf_sym: str, snap: tuple,
     conf_word = "yüksek" if p >= 0.66 else "orta" if p >= 0.55 else "düşük"
     reasoning = (
         f"Saf teknik model, 10 işlem-günü ufkunda yukarı (TP'ye SL'den önce değme) "
-        f"olasılığını %{p*100:.0f} ({conf_word}) hesapladı → {rec}."
+        f"olasılığını {bicim.oran_yuzde(p, 0)} ({conf_word}) hesapladı → {rec}."
     )
     if cal is not None:
         reasoning += (
-            f" Kalibre olasılık %{p_cal*100:.0f}, işlem başına beklenen değer "
-            f"{ev:+.2f}R (maliyet dahil)."
+            f" Kalibre olasılık {bicim.oran_yuzde(p_cal, 0)}, işlem başına "
+            f"beklenen değer {bicim.sayi(ev, 2, isaret=True)}R (maliyet dahil)."
         )
     if gated:
         reasoning += (
@@ -461,9 +462,11 @@ def analyze_symbol(model, sym: str, yf_sym: str, snap: tuple,
     if ev_gated:
         reasoning += (
             f" Model sinyali ALIM'dı; EV kapısı iptal etti (kalibre %{p_cal*100:.0f} "
-            f"olasılıkla beklenen değer {ev:+.2f}R ≤ 0 — maliyet sonrası kazanç beklenmiyor)."
+            f"olasılıkla beklenen değer {bicim.sayi(ev, 2, isaret=True)}R ≤ 0 — "
+            f"maliyet sonrası kazanç beklenmiyor)."
         )
-        risks = [f"EV kapısı: kalibre olasılık %{p_cal*100:.0f} → beklenen değer {ev:+.2f}R ≤ 0"] + (risks or [])
+        risks = [f"EV kapısı: kalibre olasılık {bicim.oran_yuzde(p_cal, 0)} → "
+                 f"beklenen değer {bicim.sayi(ev, 2, isaret=True)}R ≤ 0"] + (risks or [])
     if risk_gated:
         reasoning += (
             " Model sinyali ALIM'dı; risk filtresi eledi — bu hisse bugünün "
@@ -472,19 +475,24 @@ def analyze_symbol(model, sym: str, yf_sym: str, snap: tuple,
         )
         risks = ["Risk filtresi: yüksek oynaklık ve/veya 52h zirveden uzak"] + (risks or [])
     if pm is not None and not meta_gated and is_buy:
-        reasoning += f" Meta-model (haber/rejim) güveni %{pm*100:.0f} → boyut ×{meta.size_multiplier(pm):.2f}."
+        reasoning += (f" Meta-model (haber/rejim) güveni {bicim.oran_yuzde(pm, 0)}"
+                      f" → boyut ×{bicim.sayi(meta.size_multiplier(pm), 2)}.")
     if meta_gated:
         reasoning += (
             f" Model sinyali ALIM'dı; meta-model veto etti (haber/rejim bağlamında "
-            f"başarı olasılığı %{pm*100:.0f} < %{META_VETO_P*100:.0f})."
+            f"başarı olasılığı {bicim.oran_yuzde(pm, 0)} < "
+            f"{bicim.oran_yuzde(META_VETO_P, 0)})."
         )
-        risks = [f"Meta veto: haber/rejim bağlamında P(başarı) %{pm*100:.0f} — eşik altı"] + (risks or [])
+        risks = [f"Meta veto: haber/rejim bağlamında P(başarı) "
+                 f"{bicim.oran_yuzde(pm, 0)} — eşik altı"] + (risks or [])
     watches = [
-        f"Hedef {tp} / Stop {sl} (10g triple-barrier, R:R {rr})",
+        f"Hedef {bicim.sayi(tp)} / Stop {bicim.sayi(sl)} "
+        f"(10g triple-barrier, R:R {bicim.sayi(rr)})",
         "Saf teknik sinyal — haber/temel/makro karışımı yok.",
     ]
     if live_acc > 0:
-        watches.append(f"Model AL isabeti (10g, canlı): {live_acc:.1%}")
+        # Ekranda Türkçe arayüzün ortasında görünüyor — biçim oradan (bicim.py).
+        watches.append(f"Model AL isabeti (10g, canlı): {bicim.oran_yuzde(live_acc)}")
     if not is_buy:
         watches.append("Eşik altı (NÖTR) — pozisyon açılmaz, mevcut pozisyonlar bariyerle yönetilir.")
 

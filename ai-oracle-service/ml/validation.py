@@ -32,6 +32,7 @@ from ml.config import (
 )
 from ml.model import train_model
 import ml.progress as progress
+import bicim
 
 
 def _gap_days() -> int:
@@ -197,9 +198,12 @@ def purged_walk_forward(data: pd.DataFrame, verbose: bool = True,
             "profitable":          (buy_precision is not None and buy_precision > be_c),
         })
 
+    # Bu metin sürüm notu olarak ARAYÜZDE görünüyor, yalnız günlükte değil —
+    # o yüzden Türkçe biçimle (bicim.py), İngilizce ":,"/":.1f" ile değil.
     progress.finish(_ptok, True,
-                    f"{fold} adım, {len(P):,} OOS tahmin — yön doğruluğu %{overall_acc * 100:.1f}"
-                    + (f", kalibratör tazelendi" if fit_calibration else ""))
+                    f"{fold} adım, {bicim.tamsayi(len(P))} OOS tahmin — "
+                    f"yön doğruluğu {bicim.oran_yuzde(overall_acc)}"
+                    + (", kalibratör tazelendi" if fit_calibration else ""))
     return {
         "computed_at":        datetime.datetime.utcnow().isoformat(),
         "n_folds":            fold,

@@ -16,6 +16,7 @@ import { ModelStory, JobStatus, SelfTestPanel, ModelVersions, ModelEvidence,
          RiskFilterPanel, DataDepth } from '../components/finance'
 import { useToast } from '../components/ui/Toast'
 import type { SysLog, TrainingInfo, AdminStatus } from '../lib/types'
+import { fmt, oranYuzde } from '../lib/format'
 
 interface CalSummary {
   total: number; evaluated: number; ripening: number; matured_total: number
@@ -93,7 +94,8 @@ const TAB_SUB: Record<TabId, string> = {
   kunye: 'Eğitim künyesi, sürümler ve modelin baktığı göstergeler',
 }
 
-const pct = (v: number | null | undefined, d = 1) => v == null ? '—' : `%${(v * 100).toFixed(d)}`
+/** Yerel kısaltma — biçim merkezden geliyor (lib/format). */
+const pct = (v: number | null | undefined, d = 1) => oranYuzde(v, d)
 const trDate = (iso?: string | null) =>
   !iso ? '—' : new Date(iso.length <= 10 ? iso + 'T00:00:00' : iso)
     .toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -238,7 +240,7 @@ export default function ModelPage() {
               Sonuçlananlarda isabet <b style={{ color: 'var(--text-primary)' }}>{pct(hit)}</b>
               {baseRate != null && <> — ama “hepsini alsaydık” tabanı <b>{pct(baseRate)}</b> idi</>}.
               {skill && <> <b style={{ color: skill.tone }}>{skill.txt}.</b></>}
-              {lift != null && <span style={{ color: 'var(--text-muted)' }}> (fark {lift >= 0 ? '+' : ''}{(lift * 100).toFixed(1)} puan)</span>}
+              {lift != null && <span style={{ color: 'var(--text-muted)' }}> (fark {fmt(lift * 100, 1)} puan)</span>}
             </li>
           )}
           <li>
@@ -440,9 +442,9 @@ export default function ModelPage() {
             {drift?.calibration?.day_level && (
               <span className="u-sub">
                 Gün düzeyi karşılaştırma: model{' '}
-                <b className="u-num">%{(drift.calibration.day_level.predicted_cal_p * 100).toFixed(1)}</b>
+                <b className="u-num">{oranYuzde(drift.calibration.day_level.predicted_cal_p, 1)}</b>
                 {' '}dedi, gerçekleşen{' '}
-                <b className="u-num">%{(drift.calibration.day_level.observed_up * 100).toFixed(1)}</b>.
+                <b className="u-num">{oranYuzde(drift.calibration.day_level.observed_up, 1)}</b>.
               </span>
             )}
           </div>

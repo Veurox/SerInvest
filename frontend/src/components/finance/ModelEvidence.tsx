@@ -9,6 +9,7 @@
 // =============================================================================
 import { useEffect, useState } from 'react'
 import { ADMIN, adminFetch } from '../../lib/api'
+import { fmt } from '../../lib/format'
 
 export interface Evidence {
   measured: boolean
@@ -51,7 +52,7 @@ export function EvidenceBanner() {
         <b style={{ color: 'var(--warning)' }}>Bu sıralamanın ölçülmüş bir gücü yok.</b>{' '}
         Modelin aynı gün içinde iyi hisseyi kötüden ayırma yeteneği
         {e.n_days ? ` ${e.n_days} bağımsız günde` : ''} sınandı ve şanstan ayırt edilemedi
-        {e.ranking?.t != null && <> (sıra korelasyonu t={e.ranking.t.toFixed(2)}; kanıt için |t|≥2 gerekir)</>}.
+        {e.ranking?.t != null && <> (sıra korelasyonu t={fmt(e.ranking.t, 2)}; kanıt için |t|≥2 gerekir)</>}.
         Güven yüzdeleri modelin çıktısıdır, <b>doğrulanmış bir olasılık değildir</b> —
         yatırım kararına dayanak alınmamalıdır. Ayrıntı: Model sayfası → Kanıt.
       </div>
@@ -130,10 +131,10 @@ export function ModelEvidence() {
               </div>
               <Row label="Gün-içi sıra korelasyonu"
                    note={`${e.n_oos?.toLocaleString('tr-TR')} tahmin · ${e.n_days} bağımsız gün`}
-                   value={r.spearman != null ? r.spearman.toFixed(4) : '—'} />
+                   value={fmt(r.spearman ?? null, 4)} />
               <Row label="İstatistiksel güç (t)"
                    note="Kanıt için |t| ≥ 2 gerekir"
-                   value={r.t != null ? r.t.toFixed(2) : '—'}
+                   value={fmt(r.t ?? null, 2)}
                    tone={proven ? 'var(--profit)' : 'var(--loss)'} />
               <Row label="Yargı"
                    value={proven ? 'sıralayabiliyor' : 'şanstan ayırt edilemiyor'}
@@ -150,12 +151,12 @@ export function ModelEvidence() {
               </div>
               <Row label="Eşit ağırlık — Sharpe"
                    note={`${rf.n_periods} aylık dönem, işlem maliyeti dâhil`}
-                   value={rf.baseline_sharpe?.toFixed(2) ?? '—'} />
+                   value={fmt(rf.baseline_sharpe ?? null, 2)} />
               <Row label="En düşük oynaklık %20 — Sharpe"
-                   value={rf.lowvol_sharpe?.toFixed(2) ?? '—'} />
+                   value={fmt(rf.lowvol_sharpe ?? null, 2)} />
               <Row label="Fark kanıtlanmış mı?"
                    note={rf.sharpe_se != null
-                     ? `Sharpe farkının standart hatası ≈ ${rf.sharpe_se.toFixed(2)}`
+                     ? `Sharpe farkının standart hatası ≈ ${fmt(rf.sharpe_se, 2)}`
                      : undefined}
                    value={rf.proven ? 'evet' : 'hayır — gürültü içinde'}
                    tone={rf.proven ? 'var(--profit)' : 'var(--warning)'} />

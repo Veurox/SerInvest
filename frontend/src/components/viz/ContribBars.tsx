@@ -13,6 +13,7 @@
 // çubuk uydurmak, olmayan bir ölçümü varmış gibi göstermek olurdu; o satır
 // düz metin olarak durur ve bunu kullanıcı da görür.
 // =============================================================================
+import { fmt } from '../../lib/format'
 
 export interface Katki {
   ad: string
@@ -74,7 +75,8 @@ export function ContribBars({
                   style={{ fontSize: 'var(--u-t-small)', textAlign: 'right',
                            color: v == null ? 'var(--u-text-4)'
                                  : artida ? 'var(--u-up)' : 'var(--u-down)' }}>
-              {v == null ? 'ölçülemedi' : `${v >= 0 ? '+' : ''}${v.toFixed(ondalik)}`}
+              {v == null ? 'ölçülemedi'
+                : `${v >= 0 ? '+' : ''}${fmt(v, ondalik)}`}
             </span>
           </div>
         )
