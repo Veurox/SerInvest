@@ -9,7 +9,7 @@ import { ADMIN, adminFetch } from '../lib/api'
 import { fmt } from '../lib/format'
 import { COMPANY_NAMES } from '../lib/companies'
 import { CompanyLogo } from '../components/common/CompanyLogo'
-import { PageHeader, Icon } from '../components/ui'
+import { PageHeader } from '../components/ui'
 
 // ── Tipler (admin/paper-portfolio yanıtı) ────────────────────────────────────
 interface OpenPos {
@@ -133,7 +133,7 @@ export default function ModelPortfolioPage() {
 
   if (!state) {
     return (
-      <div style={{ padding: '2rem 0' }}>
+      <div className="ui2" style={{ padding: 'var(--u-s6) var(--u-s5)' }}>
         <div className="empty"><p>Model portföyü yükleniyor…</p>
           <p style={{ fontSize: '.8rem', marginTop: '.5rem' }}>
             Görünmüyorsa Yönetim sekmesinden admin anahtarını girdiğinizden emin olun.
@@ -148,10 +148,11 @@ export default function ModelPortfolioPage() {
   const alpha = benchPct != null ? retPct - benchPct : null
 
   return (
-    <div style={{ padding: '1rem 0' }}>
+    <div className="ui2" style={{ minHeight: '100%', padding: 'var(--u-s4) var(--u-s5) var(--u-s5)' }}>
+      {/* Başlık soru olarak: Portföy sayfasının sorusu "param ne yaptı",
+          bu sayfa da onun model tarafındaki hâli (docs/PLAN_ARAYUZ.md §1). */}
       <PageHeader
-        icon={<Icon name="bot" size={20} />}
-        title="Model Portföyü"
+        title="Model kendi kendine ne kazandı?"
         subtitle="Otonom paper-trading — model kendi AL/NÖTR kararlarıyla işlem yapar (saf teknik · 10g · long-only)"
         right={
           <>

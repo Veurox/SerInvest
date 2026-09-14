@@ -562,3 +562,35 @@
   outline: none;
 }
 .ui2 input::placeholder { color: var(--u-text-4); }
+
+/* Sayfa başlığı — taşınan sayfalarda PageHeader kullanılmaya devam ediyor,
+   ama yeni dilde başlık bir SORU ve ikon yok. Soru, modül adı gibi değil
+   cümle gibi okunmalı: büyük harf ve harf aralığı yok. */
+.ui2 .page-header__title,
+.ui2 .ph-title {
+  font-size: 21px;
+  font-weight: var(--u-w-black);
+  letter-spacing: -0.018em;
+  color: var(--u-text);
+  text-transform: none;
+}
+.ui2 .page-header__subtitle,
+.ui2 .ph-sub {
+  font-size: var(--u-t-small);
+  color: var(--u-text-3);
+}
+.ui2 .fpill {
+  font-size: var(--u-t-micro);
+  font-weight: var(--u-w-bold);
+  padding: 4px 10px;
+  border: 1px solid var(--u-line);
+  border-radius: var(--u-r-sm);
+  background: none;
+  color: var(--u-text-3);
+}
+.ui2 .fpill:hover { color: var(--u-accent); border-color: var(--u-accent-line); }
+.ui2 .fpill.on {
+  color: var(--u-accent);
+  border-color: var(--u-accent-line);
+  background: none;
+}

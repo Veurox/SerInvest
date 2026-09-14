@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { Button, KPI, EmptyState, useToast, PageHeader, Icon } from '../components/ui'
 import { API } from '../lib/api'
 import { downloadCsv } from '../lib/format'
+import { Donut } from '../components/viz'
 import { PnLValue, PositionDrawer, DailyChangeBadge } from '../components/finance'
 import { COMPANY_NAMES } from '../lib/companies'
 import { CompanyLogo } from '../components/common/CompanyLogo'
@@ -83,10 +84,11 @@ export function PortfolioTab() {
   const fmtPct = (n: number) => `${n >= 0 ? '+' : ''}${(n * 100).toFixed(2)}%`
 
   return (
-    <div style={{ paddingTop: 'var(--space-2)' }}>
+    <div className="ui2" style={{ minHeight: '100%', padding: 'var(--u-s4) var(--u-s5) var(--u-s5)' }}>
+      {/* Sayfanın başlığı bir SORU (docs/PLAN_ARAYUZ.md §1). Portföy = PARA;
+          modelin doğruluğu Model sayfasında. */}
       <PageHeader
-        icon={<Icon name="briefcase" size={20} />}
-        title="Portföyüm"
+        title="Param ne yaptı?"
         subtitle={`${positions.length} açık pozisyon · gerçek portföy takibi`}
         right={
           <>
@@ -867,187 +869,35 @@ function AllocationPieChart({
   emptyMessage?: string
   field?: 'symbol' | 'sector'
 }) {
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
-
-  // Sadece pozitif değerli kayıtlar
   const items = allocation.filter(a => a.value > 0)
-  const sumValues = items.reduce((s, a) => s + a.value, 0)
-
-  if (items.length === 0 || sumValues <= 0) {
-    return (
-      <div style={{
-        background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
-        borderRadius: 'var(--radius-md)', padding: 'var(--space-5)', textAlign: 'center',
-        color: 'var(--text-muted)',
-      }}>
-        <div style={{
-          fontSize: 'var(--text-xs)', textTransform: 'uppercase', letterSpacing: '0.06em',
-          fontWeight: 'var(--fw-bold)', marginBottom: 'var(--space-2)',
-        }}>{title}</div>
-        <div style={{ fontSize: 'var(--text-sm)', padding: 'var(--space-5) 0' }}>{emptyMessage}</div>
-      </div>
-    )
-  }
-
-  // Renk paleti
-  const colors = [
-    '#22c55e', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6',
-    '#14b8a6', '#f97316', '#06b6d4', '#a855f7', '#84cc16',
-    '#10b981', '#6366f1', '#f43f5e', '#eab308', '#0ea5e9',
-  ]
-
-  // Etiket — sembol veya sektör
-  const getLabel = (a: AllocItem) => (field === 'sector' ? (a.sector ?? 'Diğer') : (a.symbol ?? '?'))
-
-  // Sıralı dilimler (büyükten küçüğe)
-  const sorted = [...items]
-    .sort((a, b) => b.value - a.value)
-    .map((a, i) => ({
-      label: getLabel(a),
-      value: a.value,
-      pct: a.value / sumValues,
-      color: colors[i % colors.length],
-    }))
-
-  // SVG geometri
-  const size = 200, cx = 100, cy = 100, R = 80, r = 50
-
-  // Polar -> Cartesian (12 o'clock = 0°, saat yönünde)
-  const polar = (radius: number, deg: number) => {
-    const rad = (deg - 90) * Math.PI / 180
-    return [cx + radius * Math.cos(rad), cy + radius * Math.sin(rad)]
-  }
-
-  // Donut dilim path'i
-  const arcPath = (startDeg: number, endDeg: number, expand: number) => {
-    const Ro = R + expand, Ri = r - (expand > 0 ? 2 : 0)
-    const [x1, y1] = polar(Ro, endDeg)
-    const [x2, y2] = polar(Ro, startDeg)
-    const [x3, y3] = polar(Ri, startDeg)
-    const [x4, y4] = polar(Ri, endDeg)
-    const largeArc = endDeg - startDeg > 180 ? 1 : 0
-    return `M ${x1} ${y1}
-            A ${Ro} ${Ro} 0 ${largeArc} 0 ${x2} ${y2}
-            L ${x3} ${y3}
-            A ${Ri} ${Ri} 0 ${largeArc} 1 ${x4} ${y4} Z`
-  }
-
-  // Tek dilim varsa (özel case — full circle path bug'ını önle)
-  let pathSegments: { d: string; color: string; label: string; pct: number; value: number }[] = []
-  if (sorted.length === 1) {
-    const c = sorted[0]
-    pathSegments = [
-      { ...c, d: arcPath(0, 180, hoverIdx === 0 ? 6 : 0) },
-      { ...c, d: arcPath(180, 360, hoverIdx === 0 ? 6 : 0) },
-    ]
-  } else {
-    let acc = 0
-    pathSegments = sorted.map((s, i) => {
-      const startDeg = acc * 360
-      const endDeg   = (acc + s.pct) * 360
-      acc += s.pct
-      return { ...s, d: arcPath(startDeg, endDeg, hoverIdx === i ? 6 : 0) }
-    })
-  }
-
-  const centerLabel = field === 'sector' ? 'Sektör Toplam' : 'Hisse Toplam'
-  const centerSub   = field === 'sector' ? `${sorted.length} sektör` : `${sorted.length} pozisyon`
+  const etiket = (a: AllocItem) =>
+    field === 'sector' ? (a.sector ?? 'Diğer') : (a.symbol ?? '?')
 
   return (
     <div style={{
       background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
       borderRadius: 'var(--radius-md)', padding: 'var(--space-4) var(--space-5)',
+      display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
     }}>
       <div style={{
-        fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase',
-        letterSpacing: '0.06em', fontWeight: 'var(--fw-bold)', marginBottom: 'var(--space-3)',
+        fontSize: 'var(--text-xs)', textTransform: 'uppercase',
+        letterSpacing: '0.06em', fontWeight: 'var(--fw-bold)',
+        color: 'var(--text-muted)',
       }}>{title}</div>
 
-      <div style={{
-        display: 'flex', gap: 'var(--space-4)', alignItems: 'center', flexWrap: 'wrap',
-        justifyContent: 'center',
-      }}>
-        {/* Donut */}
-        <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
-          <svg width={size} height={size}>
-            {pathSegments.map((p, i) => {
-              const idx = sorted.findIndex(s => s.label === p.label)
-              return (
-                <path key={i} d={p.d} fill={p.color}
-                  stroke="var(--bg-surface)" strokeWidth={2}
-                  opacity={hoverIdx === null || hoverIdx === idx ? 1 : 0.35}
-                  onMouseEnter={() => setHoverIdx(idx)}
-                  onMouseLeave={() => setHoverIdx(null)}
-                  style={{ cursor: 'pointer', transition: 'opacity .2s' }}
-                />
-              )
-            })}
-          </svg>
-          {/* Merkez metni */}
-          <div style={{ position: 'absolute', inset: 0, display: 'flex',
-            flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            pointerEvents: 'none', textAlign: 'center' }}>
-            {hoverIdx !== null && sorted[hoverIdx] ? (
-              <>
-                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-medium)' }}>
-                  {sorted[hoverIdx].label}
-                </div>
-                <div style={{ fontSize: 'var(--text-md)', fontWeight: 'var(--fw-black)', color: sorted[hoverIdx].color }}>
-                  %{(sorted[hoverIdx].pct * 100).toFixed(1)}
-                </div>
-                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                  {sorted[hoverIdx].value.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} ₺
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-medium)' }}>
-                  {centerLabel}
-                </div>
-                <div style={{ fontSize: 'var(--text-base)', fontWeight: 'var(--fw-black)', fontVariantNumeric: 'tabular-nums' }}>
-                  {sumValues.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} ₺
-                </div>
-                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                  {centerSub}
-                </div>
-              </>
-            )}
-          </div>
+      {items.length === 0 ? (
+        <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)',
+                      padding: 'var(--space-5) 0', textAlign: 'center' }}>
+          {emptyMessage}
         </div>
-
-        {/* Legend */}
-        <div style={{ flex: '1 1 180px', minWidth: '170px', display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-          {sorted.slice(0, 8).map((s, i) => (
-            <div key={s.label}
-              onMouseEnter={() => setHoverIdx(i)}
-              onMouseLeave={() => setHoverIdx(null)}
-              style={{
-                display: 'grid', gridTemplateColumns: '12px 1fr auto auto',
-                gap: '.5rem', alignItems: 'center',
-                padding: '.3rem .5rem', borderRadius: '5px',
-                background: hoverIdx === i ? 'var(--tint-3)' : 'transparent',
-                cursor: 'pointer', transition: 'background .15s',
-              }}>
-              <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: s.color }} />
-              <span style={{ fontSize: 'var(--text-xs)', fontWeight: 'var(--fw-bold)' }}>{s.label}</span>
-              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 'var(--fw-medium)', fontVariantNumeric: 'tabular-nums' }}>
-                %{(s.pct * 100).toFixed(1)}
-              </span>
-              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                {s.value >= 1000
-                  ? (s.value / 1000).toFixed(1) + 'K ₺'
-                  : s.value.toFixed(0) + ' ₺'}
-              </span>
-            </div>
-          ))}
-          {sorted.length > 8 && (
-            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', padding: 'var(--space-1) var(--space-2)' }}>
-              +{sorted.length - 8} {field === 'sector' ? 'sektör' : 'pozisyon'} daha
-            </div>
-          )}
-        </div>
-      </div>
-
+      ) : (
+        <Donut
+          dilimler={items.map(a => ({ ad: etiket(a), deger: a.value }))}
+          boyut={148}
+          ortaAlt={field === 'sector' ? 'sektör' : 'sembol'}
+          ortaUst={String(items.length)}
+        />
+      )}
     </div>
   )
 }
