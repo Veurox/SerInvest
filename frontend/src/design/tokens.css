@@ -197,15 +197,70 @@
 
 /* Karo: Yapı 3'ün temel birimi. Gölge yok, kenarlık yok — yalnız ton.
    Başlık ETİKETİ karonun parçası; ayrı bir başlık satırı YOK (Yapı 3 kararı:
-   ekranda modül başlığı bulunmaz). */
+   ekranda modül başlığı bulunmaz).
+
+   EŞİT YÜKSEKLİK ŞART — kontrol odası hissi buradan geliyor.
+   İlk yazımda karolar içeriğe göre büzülüp uzuyordu; satırlar tırtıklı
+   çıkınca ekran "altı eşit gösterge" değil "yan yana dizilmiş yedi farklı
+   kutu" gibi okunuyordu. Yükseklik en uzun içeriğe (kadran) göre sabit;
+   kısa içerikli karolar boşluğu koruyor. Ritim, tasarımın kendisi. */
 .ui2 .u-tile {
   background: var(--u-panel);
   border-radius: var(--u-r-lg);
-  padding: var(--u-s4) var(--u-s5);
+  padding: var(--u-s5);
   display: flex;
   flex-direction: column;
   gap: var(--u-s2);
   min-width: 0;
+  min-height: 196px;
+}
+
+/* Altı karonun ızgarası. Geniş ekranda HER ZAMAN üç sütun — auto-fit sütun
+   sayısını içeriğe göre değiştiriyordu ve 3+3 düzeni bozuluyordu. */
+.ui2 .u-grid6 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--u-s4);
+}
+@media (max-width: 1180px) {
+  .ui2 .u-grid6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .ui2 .u-grid6 { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Karonun gövdesi: etiket ve alt satır sabit uçlarda, asıl içerik ortada
+   yayılıyor. Böylece kadranlı karo ile tek sayılı karo aynı hizada durur. */
+.ui2 .u-tile__body {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--u-s2);
+  min-width: 0;
+}
+
+/* Birincil karo: ekranın cevabı. Koyu temada kutuyu ters çevirmek (açık
+   zemin) fazla bağırıyor; onun yerine BOYUTLA öne çıkıyor — aynı ızgara,
+   daha büyük sayı ve vurgulu etiket. */
+.ui2 .u-tile--primary {
+  background: var(--u-panel-2);
+  box-shadow: inset 0 0 0 1px var(--u-accent-line);
+}
+.ui2 .u-tile--primary .u-label { color: var(--u-accent); }
+.ui2 .u-hero {
+  font-size: var(--u-t-hero);
+  font-weight: var(--u-w-black);
+  line-height: var(--u-lh-tight);
+  letter-spacing: -0.028em;
+}
+
+/* Alt satır en çok iki satır: üçüncü satır karonun ritmini bozuyor. */
+.ui2 .u-sub--clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .ui2 .u-tile--on {
   background: var(--u-panel-2);
