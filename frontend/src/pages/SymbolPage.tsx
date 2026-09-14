@@ -25,7 +25,9 @@ import { suruculeriTopla, listeCoz } from '../lib/drivers'
 import { seviyeleriTopla, uzaklikYuzde, type Seviye } from '../lib/levels'
 import type { Bar } from '../lib/bars'
 import { COMPANY_NAMES } from '../lib/companies'
-import { PriceBarriers, BarWithRef, ContribBars, DotStrip } from '../components/viz'
+import { PriceBarriers, BarWithRef, ContribBars, DotStrip, OutcomeStrip,
+         SONUC_AD, IntervalBar } from '../components/viz'
+import { sicilCikar, sicilYorumu, type SicilSatiri, type Sonuc } from '../lib/sicil'
 import { TerimTip } from '../components/ui'
 
 interface AdminStatus {
@@ -40,6 +42,10 @@ interface Commentary {
 const sayi = (v: number | null | undefined, d = 2) =>
   v == null ? '—' : v.toLocaleString('tr-TR', { minimumFractionDigits: d, maximumFractionDigits: d })
 
+/** "2026-07-08" → "08.07" — Türkçe okuma sırası gün.ay. */
+const gunAy = (g: string | null) =>
+  g ? `${g.slice(8, 10)}.${g.slice(5, 7)}` : '—'
+
 const YON_RENK: Record<string, string> = {
   YUKARI: 'var(--u-up)', 'AŞAĞI': 'var(--u-down)', YATAY: 'var(--u-flat)',
 }
@@ -51,6 +57,11 @@ export default function SymbolPage() {
 
   const [agg, setAgg] = useState<AggRow[] | null>(null)
   const [st, setSt] = useState<AdminStatus | null>(null)
+  /** Bu hissenin tahmin günlüğü — modelin buradaki sicili. */
+  const [sicilHam, setSicilHam] = useState<SicilSatiri[] | null>(null)
+  /** Modelin BÜTÜN hisselerdeki gerçekleşmiş AL isabeti — karşılaştırma tabanı.
+      Sembol değişince yeniden çekilmiyor; evrensel bir sayı. */
+  const [genelIsabet, setGenelIsabet] = useState<number | null>(null)
   const [yorum, setYorum] = useState<Commentary | null>(null)
   const [ara, setAra] = useState('')
   /** Grafikten gelen barlar — seviyeler bunlardan hesaplanıyor.
@@ -76,6 +87,16 @@ export default function SymbolPage() {
         .then(d => { if (!dur && d) setAgg(d) }).catch(() => {})
       adminFetch(`${ADMIN}/status`).then(r => r.ok ? r.json() : null)
         .then(d => { if (!dur && d) setSt(d) }).catch(() => {})
+
+    // Genel isabet: özet TÜM günlük üzerinden hesaplanıyor, dönen satırlar
+    // gerekmiyor — o yüzden limit en düşükte.
+    adminFetch(`${ADMIN}/prediction-log?limit=50`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!dur && d?.summary?.buy_accuracy != null) {
+          setGenelIsabet(d.summary.buy_accuracy * 100)
+        }
+      }).catch(() => {})
       adminFetch(`${ADMIN}/commentary`).then(r => r.ok ? r.json() : null)
         .then(d => { if (!dur && d && !d.error) setYorum(d) }).catch(() => {})
     }
@@ -128,6 +149,26 @@ export default function SymbolPage() {
   }, [cfg])
 
   const alIsabet = st?.wf_buy_accuracy != null ? st.wf_buy_accuracy * 100 : null
+
+  const sicil = useMemo(() => sicilCikar(sicilHam ?? []), [sicilHam])
+  // sicilYorumu ORAN (0–1) bekliyor; genelIsabet yüzde tutuluyor çünkü
+  // IntervalBar ve ekrandaki bütün eşikler yüzde ölçeğinde.
+  const sicilNot = useMemo(
+    () => sicilYorumu(sicil, cfg.model.horizon_days,
+                      genelIsabet != null ? genelIsabet / 100 : null),
+    [sicil, cfg.model.horizon_days, genelIsabet])
+  // Sicil: sembol değişince yeniden çekilir.
+  useEffect(() => {
+    if (!sembol) { setSicilHam(null); return }
+    let dur = false
+    setSicilHam(null)
+    adminFetch(`${ADMIN}/prediction-log?symbol=${encodeURIComponent(sembol)}&limit=500`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!dur) setSicilHam(d?.rows ?? []) })
+      .catch(() => { if (!dur) setSicilHam([]) })
+    return () => { dur = true }
+  }, [sembol])
+
   const alim = !!analiz && analiz.recommendation.includes('ALIM')
   const yon = yorum?.stance?.direction ?? null
 
@@ -455,12 +496,96 @@ export default function SymbolPage() {
               Bu karara güvenmeli miyim?
             </h2>
 
+            {/* ── MODELİN BU HİSSEDEKİ SİCİLİ ──────────────────────────────
+                Sayfadaki en somut güven ölçüsü: modelin genel isabeti bir
+                ortalama, bu ise bu hissede olan bitenin kendisi.
+
+                ÖNCE OLGU, SONRA ORAN. Kaç çağrı, kaçı hedefe, kaçı stopa —
+                bunlar tartışılmaz. Oran ise az sayıda ve ÜST ÜSTE BİNEN
+                gözlemden çıkıyor; o yüzden yanında güven aralığıyla ve ne
+                söyleyip söyleyemeyeceği yazılı olarak duruyor. */}
+            {sicilHam != null && sicil.cagri > 0 && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between',
+                              alignItems: 'baseline', gap: 'var(--u-s2)' }}>
+                  <span className="u-label">Model bu hissede ne yaptı?</span>
+                  <span className="u-exact" style={{ fontSize: 'var(--u-t-micro)' }}>
+                    {gunAy(sicil.ilkGun)} – {gunAy(sicil.sonGun)}
+                  </span>
+                </div>
+
+                <span className="u-sub">
+                  <b style={{ color: 'var(--u-text)' }}>{sicil.cagri} kez AL dedi.</b>
+                  {sicil.bekleyen > 0 && ` ${sicil.bekleyen} tanesinin sonucu henüz belli değil.`}
+                </span>
+
+                <OutcomeStrip sayilar={{
+                  hedef: sicil.hedefe, stop: sicil.stopa,
+                  ortada: sicil.ortada, bekliyor: sicil.bekleyen,
+                } as Record<Sonuc, number>} />
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px var(--u-s3)' }}>
+                  {([['hedef', sicil.hedefe], ['stop', sicil.stopa],
+                     ['ortada', sicil.ortada], ['bekliyor', sicil.bekleyen]] as
+                     Array<[Sonuc, number]>)
+                    .filter(([, n]) => n > 0)
+                    .map(([k, n]) => (
+                      <span key={k} style={{ display: 'inline-flex', alignItems: 'center',
+                                             gap: 5, fontSize: 'var(--u-t-micro)',
+                                             color: 'var(--u-text-3)' }}>
+                        <i style={{ width: 7, height: 7, borderRadius: 2, flexShrink: 0,
+                                    background: k === 'hedef' ? 'var(--u-up)'
+                                              : k === 'stop' ? 'var(--u-down)'
+                                              : k === 'ortada' ? 'var(--u-flat)'
+                                              : 'var(--viz-track)' }} />
+                        <b className="u-num" style={{ color: 'var(--u-text-2)' }}>{n}</b>
+                        {SONUC_AD[k]}
+                      </span>
+                    ))}
+                </div>
+
+                {sicil.isabet != null && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5,
+                                marginTop: 2 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between',
+                                  alignItems: 'baseline' }}>
+                      <span className="u-sub">Bu hissede isabet</span>
+                      <span className="u-num" style={{ fontWeight: 600 }}>
+                        %{(sicil.isabet * 100).toFixed(1).replace('.', ',')}
+                        <span className="u-exact" style={{ marginLeft: 5 }}>
+                          ({sicil.hedefe}/{sicil.yonlu})
+                        </span>
+                      </span>
+                    </div>
+                    <IntervalBar deger={sicil.isabet * 100}
+                                 alt={sicilNot.alt * 100} ust={sicilNot.ust * 100}
+                                 referans={genelIsabet}
+                                 referansEtiket="modelin bütün hisselerdeki isabeti" />
+                    <span className="u-exact" style={{ fontSize: 'var(--u-t-micro)' }}>
+                      Bant: %95 güven aralığı (%{(sicilNot.alt * 100).toFixed(0)}–%{(sicilNot.ust * 100).toFixed(0)})
+                      {genelIsabet != null && ' · kesik çizgi: modelin genel isabeti'}
+                    </span>
+                  </div>
+                )}
+
+                {sicilNot.metin && (
+                  <span className="u-sub" style={{
+                    color: sicilNot.ayirt ? 'var(--u-text-2)' : 'var(--u-text-4)',
+                  }}>
+                    {sicilNot.metin}
+                  </span>
+                )}
+
+                <div style={{ height: 1, background: 'var(--u-line)' }} />
+              </>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between',
                             alignItems: 'baseline' }}>
                 <span className="u-sub">Modelin AL isabeti</span>
                 <span className="u-num" style={{ fontWeight: 600 }}>
-                  {alIsabet == null ? '—' : `%${alIsabet.toFixed(1)}`}
+                  {alIsabet == null ? '—' : `%${alIsabet.toFixed(1).replace('.', ',')}`}
                 </span>
               </div>
               <BarWithRef deger={alIsabet} esik={basabas}

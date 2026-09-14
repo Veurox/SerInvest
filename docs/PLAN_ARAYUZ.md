@@ -223,3 +223,63 @@ olduğu gibi taşındı, yalnız yerleşim değişti.
 Yapı seçilince sıra: (1) jeton sistemi ve bileşen kütüphanesi yeni yapıya
 göre kurulur, (2) Bugün baştan sona yazılır, (3) beğenilirse kalan sayfalara
 yayılır.
+
+---
+
+## Sembol sayfasının alt yarısı (14.09.2026)
+
+Boş duran alan dolduruldu. İstenenler: yapay zekâ yorumu, destek/direnç,
+teknik + temel skor, ve "modelin bu hissedeki sicili".
+
+### Ne yapıldı, ne yapılmadı
+
+| İstenen | Karşılığı | Not |
+|---|---|---|
+| YZ yorumu | `analiz.reasoning` + katkı çubukları | Model gerekçeyi zaten üretiyordu, ekrana hiç basılmıyordu |
+| Destek/direnç | **Fiyat seviyeleri** | Ad ve içerik değiştirildi — aşağıya bakınız |
+| Teknik + temel skor | İkisi de var | Haber/makro skorları YOK — ölçülmüyorlar |
+| Modelin sicili | Sonuç şeridi + güven aralığı | Oran değil, önce olgu |
+
+### Destek/direnç neden "fiyat seviyeleri" oldu
+
+"Destek 18,42 · Direnç 20,15" yazmak on dakika sürerdi, ama o sayıların
+nereden geldiği söylenemezdi. Bunun yerine her seviyenin bir TANIMI var ve
+tanım ipucunda yazılı: EMA'lar, Bollinger bantları, dönem zirve/dibi, ve
+"kendisinden önceki ve sonraki 5 barın hepsinden yüksek/düşük bar"
+kuralıyla bulunan belirgin tepe/dipler.
+
+Seviyeler grafiğe **tek tek** çizilir. İlk yazımda tek bir "hepsini çiz"
+düğmesi vardı; on üç kesikli çizgi açılınca grafik okunmaz oluyor ve asıl
+olan (hedef/stop) kayboluyordu.
+
+### Sicil: neden oran öne konmadı
+
+`lib/sicil.ts` · `viz/OutcomeStrip` · `viz/IntervalBar`
+
+Ekranda önce olgu duruyor — kaç çağrı, kaçı hedefe, kaçı stopa, kaçı
+bekliyor — sonra oran. Oranın arkasında iki ayrı zayıflık var:
+
+1. **Sayı az.** Hisse başına iki ayda 12–16 değerlendirilmiş çağrı.
+2. **Gözlemler bağımsız değil.** Çağrı her gün üretiliyor, ufuk 10 gün;
+   ardışık iki çağrının penceresi 9 gün çakışıyor. 39 işlem gününe kabaca
+   **3 bağımsız pencere** sığıyor.
+
+Bu yüzden güven aralığı ham sayıya değil, çakışmayan pencere sayısına göre
+hesaplanıyor (`bagimsizGozlem`), ve Wilson kullanılıyor — normal
+yaklaşıklık 0/13 gibi uçlarda sıfır genişlikte aralık üretip "isabet kesin
+%0" diyordu.
+
+**Sahadaki ölçüm (14.09.2026).** Üç hisse, üç çok farklı görünen sicil:
+
+| Hisse | Sicil | Ham oran | Etkin aralık | Sonuç |
+|---|---|---|---|---|
+| THYAO | 0 hedef / 13 stop | %0,0 | %0–%56 | Fark söylenemez |
+| AEFES | 6 hedef / 10 stop | %37,5 | %6–%79 | Fark söylenemez |
+| GARAN | 7 hedef / 5 stop | %58,3 | %21–%94 | Fark söylenemez |
+
+Üçünün aralığı da modelin genel isabetini (%45,5) kapsıyor. Yani "THYAO'da
+model hiç tutturamıyor, GARAN'da iyi" cümlesi **kurulamaz** — ham oranlar
+öyle diyor gibi görünse de. Ekran bunu açıkça yazıyor.
+
+Sicili ham oranıyla göstermek, bu projede reddedilen şeyin ta kendisi
+olurdu: ölçüm gibi duran, arkasında ölçüm olmayan bir sayı.
