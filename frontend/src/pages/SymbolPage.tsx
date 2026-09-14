@@ -21,7 +21,9 @@ import type { SharedData } from '../App'
 import { API, ADMIN, adminFetch } from '../lib/api'
 import { useConfig } from '../lib/useConfig'
 import { ruhHaliHesapla, type AggRow } from '../lib/sentiment'
-import { suruculeriTopla } from '../lib/drivers'
+import { suruculeriTopla, listeCoz } from '../lib/drivers'
+import { seviyeleriTopla, uzaklikYuzde, type Seviye } from '../lib/levels'
+import type { Bar } from '../lib/bars'
 import { COMPANY_NAMES } from '../lib/companies'
 import { PriceBarriers, BarWithRef, ContribBars, DotStrip } from '../components/viz'
 import { TerimTip } from '../components/ui'
@@ -51,6 +53,21 @@ export default function SymbolPage() {
   const [st, setSt] = useState<AdminStatus | null>(null)
   const [yorum, setYorum] = useState<Commentary | null>(null)
   const [ara, setAra] = useState('')
+  /** Grafikten gelen barlar — seviyeler bunlardan hesaplanıyor.
+      PriceBarriers zaten çekiyor; ikinci kez istemeye gerek yok. */
+  const [barlar, setBarlar] = useState<Bar[]>([])
+  /**
+   * Grafiğe çizilecek seviyeler — HEPSİ değil, SEÇİLENLER.
+   * İlk yazımda tek bir "hepsini çiz" düğmesi vardı; on üç kesikli çizgi
+   * grafiği okunmaz hâle getiriyordu ve asıl olan (hedef/stop) kayboluyordu.
+   * Satıra tıklayınca o seviye çiziliyor.
+   */
+  const [secilenSeviyeler, setSecilenSeviyeler] = useState<Set<string>>(new Set())
+  const seviyeSec = (ad: string) => setSecilenSeviyeler(k => {
+    const y = new Set(k)
+    y.has(ad) ? y.delete(ad) : y.add(ad)
+    return y
+  })
 
   useEffect(() => {
     let dur = false
@@ -111,7 +128,42 @@ export default function SymbolPage() {
   }, [cfg])
 
   const alIsabet = st?.wf_buy_accuracy != null ? st.wf_buy_accuracy * 100 : null
+  const alim = !!analiz && analiz.recommendation.includes('ALIM')
   const yon = yorum?.stance?.direction ?? null
+
+  /** İzlenecekler ve riskler tek listede — ikisi de "neye dikkat"in parçası. */
+  const izlenecekler = useMemo(() => analiz
+    ? [...listeCoz(analiz.watchPoints), ...listeCoz(analiz.risks)].slice(0, 6)
+    : [], [analiz])
+
+  /**
+   * Teknik skorun evrendeki yeri. Tek başına "0,79" iyi mi kötü mü belli
+   * değil; medyan eşik olarak çizilince anlam kazanıyor (BarWithRef'in
+   * varlık sebebi bu).
+   */
+  const teknikMedyan = useMemo(() => {
+    const v = [...sonAnaliz.values()]
+      .map(o => o.technicalScore)
+      .filter((x): x is number => x != null && Number.isFinite(x))
+      .sort((a, b) => a - b)
+    if (v.length === 0) return null
+    const o = Math.floor(v.length / 2)
+    const m = v.length % 2 ? v[o] : (v[o - 1] + v[o]) / 2
+    return m * 100
+  }, [sonAnaliz])
+
+  /**
+   * Fiyat seviyeleri — "destek/direnç" değil, TANIMI OLAN seviyeler.
+   * Gösterge değerleri arka uçtan geliyor; yeniden hesaplanmıyor ki
+   * ekrandaki sayı ile modelin kullandığı sayı aynı kalsın.
+   */
+  const seviyeler = useMemo<Seviye[]>(() => seviyeleriTopla({
+    barlar,
+    ema20: varlik?.ema20, ema50: varlik?.ema50, ema200: varlik?.ema200,
+    bbUst: varlik?.bbUpper, bbOrta: varlik?.bbMiddle, bbAlt: varlik?.bbLower,
+    hedef: alim ? analiz?.shortTermTarget : null,
+    stop: alim ? analiz?.shortTermStop : null,
+  }).sort((a, b) => b.fiyat - a.fiyat), [barlar, varlik, analiz, alim])
 
   /** Sol sütun: önce çağrılar, sonra kalan semboller. Arama ikisini de süzer. */
   const liste = useMemo(() => {
@@ -133,7 +185,6 @@ export default function SymbolPage() {
   const degisim = varlik?.close != null && varlik?.open
     ? ((varlik.close - varlik.open) / varlik.open) * 100 : null
 
-  const alim = !!analiz && analiz.recommendation.includes('ALIM')
   const ondalik = varlik?.assetType === 'FOREX' ? 4 : 2
 
   return (
@@ -227,34 +278,66 @@ export default function SymbolPage() {
           )}
         </div>
 
-        {/* Grafik: sayfanın ana görseli */}
+        {/* Grafik: sayfanın ana görseli. Tanımlı seviyeler İSTEĞE BAĞLI
+            çiziliyor — hepsi birden açıkken grafik çizgi ormanına dönüyor
+            ve asıl olan (hedef/stop) kayboluyor. */}
         {sembol && (
           <PriceBarriers sembol={sembol} analiz={analiz} yukseklik={360}
-                         ondalik={ondalik} />
+                         ondalik={ondalik} onBarlar={setBarlar}
+                         ekSeviyeler={seviyeler
+                           .filter(x => x.tur !== 'model' && secilenSeviyeler.has(x.ad))
+                           .map(x => ({ ad: x.ad, fiyat: x.fiyat }))} />
         )}
 
-        {/* İki sütun: gerekçe (sol) · güven (sağ) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 330px',
+        {/* Üç sütun: gerekçe · seviyeler ve göstergeler · güven */}
+        <div style={{ display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1.15fr) minmax(0, 1fr) 300px',
                       gap: 'var(--u-s5)', alignItems: 'start' }}>
 
+          {/* ── 1 · GEREKÇE ─────────────────────────────────────────────── */}
           <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--u-s3)',
                             minWidth: 0 }}>
             <h2 className="u-band__q" style={{ fontSize: 'var(--u-t-lead)' }}>
               Bu karara ne itiyor?
             </h2>
-            <ContribBars ogeler={surucular.map(s => ({
-              ad: s.ad, deger: s.etki, baslik: s.metin,
+
+            {/* Modelin kendi gerekçesi — arka uçta zaten üretiliyordu, ekranda
+                yoktu. Harici LLM YOK: bu metin deterministik şablon sentezi
+                (commentary.py'nin ilk satırındaki proje ilkesi). Şablon
+                uyduramaz; bir dil modeli olmayan bir seviye icat edebilirdi. */}
+            {analiz?.reasoning && (
+              <p style={{ margin: 0, fontSize: 'var(--u-t-body)',
+                          color: 'var(--u-text-2)', lineHeight: 'var(--u-lh-base)' }}>
+                {analiz.reasoning}
+              </p>
+            )}
+
+            <ContribBars ogeler={surucular.map(x => ({
+              ad: x.ad, deger: x.etki, baslik: x.metin,
             }))} />
-            <span className="u-sub">
-              Çubuk uzunluğu etkenler ARASINDAKİ göreli ağırlığı gösterir.
-              Sayısı çıkarılamayan etken çubuksuz kalır — uydurma bir çubuk
-              olmayan bir ölçüm demek olurdu.
+            <span className="u-sub" style={{ color: 'var(--u-text-4)' }}>
+              Çubuk uzunluğu etkenler ARASINDAKİ göreli ağırlık. Sayısı
+              çıkarılamayan etken çubuksuz kalır.
             </span>
+
+            {izlenecekler.length > 0 && (
+              <>
+                <div style={{ height: 1, background: 'var(--u-line)' }} />
+                <span className="u-label">Neye dikkat</span>
+                <ul style={{ margin: 0, paddingLeft: 16, display: 'flex',
+                             flexDirection: 'column', gap: 5 }}>
+                  {izlenecekler.map((t, i) => (
+                    <li key={i} style={{ fontSize: 'var(--u-t-small)',
+                                         color: 'var(--u-text-2)',
+                                         lineHeight: 'var(--u-lh-base)' }}>{t}</li>
+                  ))}
+                </ul>
+              </>
+            )}
 
             {sembolHaber.length > 0 && (
               <>
-                <div style={{ height: 1, background: 'var(--u-line)',
-                              margin: 'var(--u-s2) 0' }} />
+                <div style={{ height: 1, background: 'var(--u-line)' }} />
                 <span className="u-label">Bu sembolün haberleri</span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--u-s2)' }}>
                   {sembolHaber.map((n, i) => (
@@ -274,6 +357,98 @@ export default function SymbolPage() {
             )}
           </section>
 
+          {/* ── 2 · SEVİYELER VE GÖSTERGELER ────────────────────────────── */}
+          <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--u-s3)',
+                            minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--u-s2)' }}>
+              <h2 className="u-band__q" style={{ fontSize: 'var(--u-t-lead)' }}>
+                Fiyat seviyeleri
+              </h2>
+              <div style={{ flexGrow: 1 }} />
+              {secilenSeviyeler.size > 0 && (
+                <button className="u-seg" onClick={() => setSecilenSeviyeler(new Set())}>
+                  Temizle ({secilenSeviyeler.size})
+                </button>
+              )}
+            </div>
+
+            {/* "Destek/direnç" DEĞİL. Her seviyenin tanımı var ve üstüne
+                gelince yazıyor. Tanımı olmayan seviye süstür. */}
+            <span className="u-sub" style={{ color: 'var(--u-text-4)' }}>
+              Bunlar “fiyat buraya gelince döner” iddiası değil; tanımı belli
+              fiyatlar. Tanımını görmek için üstüne gel, grafiğe çizmek için tıkla.
+            </span>
+
+            {seviyeler.length === 0 ? (
+              <span className="u-sub">Grafik verisi yüklenince hesaplanacak.</span>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {seviyeler.map((sv, i) => {
+                  const u = uzaklikYuzde(sv.fiyat, varlik?.close)
+                  return (
+                    <div key={`${sv.ad}-${i}`} title={sv.tanim}
+                         role={sv.tur === 'model' ? undefined : 'button'}
+                         tabIndex={sv.tur === 'model' ? undefined : 0}
+                         onClick={sv.tur === 'model' ? undefined : () => seviyeSec(sv.ad)}
+                         onKeyDown={sv.tur === 'model' ? undefined : e => {
+                           if (e.key === 'Enter' || e.key === ' ') {
+                             e.preventDefault(); seviyeSec(sv.ad)
+                           }
+                         }}
+                         style={{ display: 'grid',
+                                  gridTemplateColumns: 'minmax(0,1fr) 78px 62px',
+                                  gap: 'var(--u-s2)', alignItems: 'baseline',
+                                  padding: '4px 6px', marginLeft: -6,
+                                  cursor: sv.tur === 'model' ? 'default' : 'pointer',
+                                  borderRadius: 'var(--u-r-sm)',
+                                  background: secilenSeviyeler.has(sv.ad)
+                                    ? 'var(--u-panel-2)' : 'none',
+                                  boxShadow: secilenSeviyeler.has(sv.ad)
+                                    ? 'inset 2px 0 0 var(--u-accent)' : 'none',
+                                  borderBottom: '1px solid var(--u-line)' }}>
+                      <span style={{ fontSize: 'var(--u-t-small)',
+                                     color: sv.tur === 'model' ? 'var(--u-text)' : 'var(--u-text-2)',
+                                     fontWeight: sv.tur === 'model' ? 600 : 400,
+                                     whiteSpace: 'nowrap', overflow: 'hidden',
+                                     textOverflow: 'ellipsis' }}>{sv.ad}</span>
+                      <span className="u-num" style={{ fontSize: 'var(--u-t-small)',
+                                                       textAlign: 'right' }}>
+                        {sayi(sv.fiyat, ondalik)}
+                      </span>
+                      <span className={`u-num ${u == null ? '' : u > 0 ? 'u-up' : 'u-down'}`}
+                            style={{ fontSize: 'var(--u-t-micro)', textAlign: 'right' }}>
+                        {u == null ? '—' : `${u > 0 ? '+' : ''}${u.toFixed(1)}%`}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <div style={{ height: 1, background: 'var(--u-line)' }} />
+            <span className="u-label">Teknik göstergeler</span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))',
+                          gap: 'var(--u-s2) var(--u-s4)' }}>
+              {([
+                ['RSI (14)', varlik?.rsi, 1],
+                ['MACD Hist', varlik?.macdHistogram, 3],
+                ['EMA 20', varlik?.ema20, ondalik],
+                ['EMA 50', varlik?.ema50, ondalik],
+                ['EMA 200', varlik?.ema200, ondalik],
+                ['BB Üst', varlik?.bbUpper, ondalik],
+                ['BB Orta', varlik?.bbMiddle, ondalik],
+                ['BB Alt', varlik?.bbLower, ondalik],
+              ] as Array<[string, number | null | undefined, number]>).map(([ad, v, d]) => (
+                <div key={ad} style={{ display: 'flex', justifyContent: 'space-between',
+                                       alignItems: 'baseline', gap: 6 }}>
+                  <span className="u-sub"><TerimTip ad={ad} /></span>
+                  <span className="u-num u-exact">{sayi(v, d)}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* ── 3 · GÜVEN ──────────────────────────────────────────────── */}
           <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--u-s3)',
                             minWidth: 0 }}>
             <h2 className="u-band__q" style={{ fontSize: 'var(--u-t-lead)' }}>
@@ -308,6 +483,49 @@ export default function SymbolPage() {
               </div>
             )}
 
+            {/* SKORLAR — yalnız GERÇEKTEN ÖLÇÜLENLER.
+                Oracle'ın newsScore/macroScore/fundamentalScore alanları 50
+                sembolün 50'sinde de tam 0,500: yer tutucu, ölçüm değil.
+                Modelin kendi gerekçesi de söylüyor: "saf teknik sinyal —
+                haber/temel/makro karışımı yok". Yan yana koysaydık her
+                hissede aynı sayı görünür, kullanıcı "bu hissenin haber skoru
+                nötr" diye okurdu. Temel skor BAŞKA kaynaktan
+                (fundamental-service) geliyor ve gerçek — o gösteriliyor. */}
+            <div style={{ height: 1, background: 'var(--u-line)' }} />
+            <span className="u-label">Skorlar</span>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between',
+                            alignItems: 'baseline' }}>
+                <span className="u-sub">Teknik skor</span>
+                <span className="u-num" style={{ fontWeight: 600 }}>
+                  {analiz?.technicalScore != null ? analiz.technicalScore.toFixed(2) : '—'}
+                </span>
+              </div>
+              <BarWithRef deger={analiz?.technicalScore != null ? analiz.technicalScore * 100 : null}
+                          esik={teknikMedyan} esikEtiket="evren medyanı"
+                          gosterDeger={false} birim="" />
+            </div>
+
+            {temel && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between',
+                              alignItems: 'baseline' }}>
+                  <span className="u-sub"><TerimTip ad="Temel Skor">Temel skor</TerimTip></span>
+                  <span className="u-num" style={{ fontWeight: 600 }}>
+                    {sayi(temel.fundamentalScore, 2)}
+                  </span>
+                </div>
+                <BarWithRef deger={temel.fundamentalScore * 100} esik={50}
+                            esikEtiket="nötr" gosterDeger={false} birim="" />
+              </div>
+            )}
+
+            <span className="u-sub" style={{ color: 'var(--u-text-4)' }}>
+              Modelin haber ve makro skorları ÖLÇÜLMÜYOR (saf teknik model),
+              o yüzden burada yok. Haber tarafı aşağıdaki duyarlılık satırından.
+            </span>
+
             <div style={{ height: 1, background: 'var(--u-line)' }} />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--u-s3)' }}>
@@ -329,14 +547,15 @@ export default function SymbolPage() {
                   </span>
                 </div>
                 <DotStrip artida={genislik.artida} toplam={genislik.toplam}
-                          genislik={300} yukseklik={14} />
+                          genislik={272} yukseklik={14} />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between',
                             alignItems: 'baseline' }}>
                 <span className="u-sub">Haber duyarlılığı</span>
                 <span className="u-num" style={{ fontWeight: 600 }}>
-                  {ruh.puan ?? '—'} <span className="u-exact">{ruh.etiket.toLocaleLowerCase('tr-TR')}</span>
+                  {ruh.puan ?? '—'}{' '}
+                  <span className="u-exact">{ruh.etiket.toLocaleLowerCase('tr-TR')}</span>
                 </span>
               </div>
             </div>
@@ -362,8 +581,11 @@ export default function SymbolPage() {
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span className="u-sub"><TerimTip ad="Temel Skor">Skor</TerimTip></span>
-                    <span className="u-num u-exact">{sayi(temel.fundamentalScore, 2)}</span>
+                    <span className="u-sub"><TerimTip ad="Temettü">Temettü</TerimTip></span>
+                    <span className="u-num u-exact">
+                      {temel.dividendYield == null ? '—'
+                        : `%${(temel.dividendYield * 100).toFixed(2)}`}
+                    </span>
                   </div>
                 </div>
               </>

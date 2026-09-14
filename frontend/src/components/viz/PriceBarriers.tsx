@@ -40,12 +40,16 @@ const hacim = (v: number | null) => {
 interface Cevap { symbol: string; points: Bar[]; error?: string }
 
 export function PriceBarriers({
-  sembol, analiz, yukseklik = 300, ondalik = 2,
+  sembol, analiz, yukseklik = 300, ondalik = 2, ekSeviyeler = [], onBarlar,
 }: {
   sembol: string
   analiz: OracleAnalysis | null
   yukseklik?: number
   ondalik?: number
+  /** Grafiğe çizilecek ek yatay seviyeler (tanımlı fiyat seviyeleri). */
+  ekSeviyeler?: Array<{ ad: string; fiyat: number; renk?: string }>
+  /** Barlar yüklendiğinde çağrılır — sayfa aynı veriyi ikinci kez çekmesin. */
+  onBarlar?: (b: Bar[]) => void
 }) {
   const cfg = useConfig()
   const [dilim, setDilim] = useState<Dilim>('3M')
@@ -63,7 +67,7 @@ export function PriceBarriers({
       .then((j: Cevap) => {
         if (dur) return
         if (j.error || !j.points?.length) { setHata(j.error || 'veri yok'); setBarlar([]) }
-        else setBarlar(j.points)
+        else { setBarlar(j.points); onBarlar?.(j.points) }
       })
       .catch(e => { if (!dur) setHata(String(e)) })
       .finally(() => { if (!dur) setYukleniyor(false) })
@@ -84,8 +88,14 @@ export function PriceBarriers({
     if (hedef != null) o.push({ price: hedef, color: 'var(--u-up)', label: `Hedef ${px.format(hedef)}` })
     if (stop  != null) o.push({ price: stop,  color: 'var(--u-down)', label: `Stop ${px.format(stop)}` })
     if (giris != null) o.push({ price: giris, color: 'var(--u-accent)', label: `Analiz ${px.format(giris)}` })
+    // Tanımlı fiyat seviyeleri — bariyerlerden AYIRT EDİLSİN diye soluk ve
+    // kesikli. Bariyer modelin iddiası, bunlar yalnız tanımlı fiyatlar.
+    for (const e of ekSeviyeler) {
+      o.push({ price: e.fiyat, color: e.renk ?? 'var(--u-text-4)',
+               label: e.ad, dashed: true })
+    }
     return o
-  }, [hedef, stop, giris])
+  }, [hedef, stop, giris, ekSeviyeler])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--u-s2)', minWidth: 0 }}>
