@@ -152,8 +152,6 @@ export default function App() {
     { id: 'nav-model',       group: 'Navigasyon', icon: <Icon name="mlops" size={16} />, label: 'Model (durum + kontroller)', hint: '8', action: () => navigate('/model') },
     { id: 'nav-model-portfoy', group: 'Navigasyon', icon: <Icon name="bot" size={16} />, label: 'Model Portföyü',  hint: '9',
       keywords: ['model', 'portföy', 'paper', 'otonom', 'sanal'], action: () => navigate('/model-portfoy') },
-    { id: 'nav-evaluate',    group: 'Navigasyon', icon: <Icon name="search" size={16} />, label: 'Hisse Değerlendir',
-      keywords: ['değerlendirme', 'analiz', 'hisse', 'teknik', 'inceleme'], action: () => navigate('/degerlendirme') },
     { id: 'nav-dip-radar',   group: 'Navigasyon', icon: <Icon name="trending-down" size={16} />, label: 'Dip Fırsat Radarı',
       keywords: ['dip', 'fırsat', 'düşüş', 'alım', 'destek', 'düşen'], action: () => navigate('/dip-radar') },
     { id: 'nav-admin',       group: 'Navigasyon', icon: <Icon name="settings" size={16} />, label: 'Yönetim (eski sayfa)', action: () => navigate('/admin') },

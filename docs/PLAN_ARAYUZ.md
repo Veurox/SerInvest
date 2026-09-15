@@ -338,7 +338,40 @@ doğrulamak yetmiyor") ikinci kez tekrarı. Bayrağın tanımına tuzak yazıld�
 
 | # | Bulgu | Neden bekliyor |
 |---|---|---|
-| 7 | `/piyasa-genel`, `/terminal`, `/degerlendirme` menüde yok | Silme kararı kullanıcının; üçü de Bugün/Sembol'ün kapsadığı işi yapıyor |
 | 12 | 47 lint hatası, tek 880 KB paket | Çoğu eski kodda `any` ve `set-state-in-effect`; hata değil, biçem |
 | 14 | HMR sırasında lightweight-charts "Object is disposed" | Normal gezinmede tekrarlanmıyor, üretimde görünmez |
 | 15 | 375px'te büyük sayılar kırpılıyor | Masaüstü uygulaması; mobil hedef değilse düşer |
+
+### 7. madde kapandı: üç sayfa kaldırıldı (15.09.2026)
+
+Kullanıcı sildirdi. Üçü de menüden erişilemiyordu, eski tasarımda kalmıştı
+ve işlerini yeni sayfalar devralmıştı:
+
+| Kaldırılan | Ne yapıyordu | Devralan |
+|---|---|---|
+| `/piyasa-genel` | Barometre, en çok yükselen/düşen, sektör ısı haritası | Bugün |
+| `/terminal` | Karar merkezi + bariyerli grafik + aktif sinyaller | Sembol |
+| `/degerlendirme` | ML evreni dışındaki hisseleri inceleme | Sembol (90 varlığın hepsi) |
+
+Adresler **yönlendiriliyor**, 404 vermiyor: yer imi ya da eski bir bağlantı
+kırılmasın.
+
+**Kademeli temizlik.** Üç sayfa gidince 15 bileşen daha ortada kaldı —
+`components/dashboard/` ve `components/terminal/` klasörlerinin tamamı,
+`components/market/`, `BistHeatmap`. Bunları tek tek aramak yerine sabit
+noktaya kadar tekrarlayan bir tarama yazıldı: "yalnız kendi barrel
+index'inden referans alınan dosya ölüdür".
+
+Tarama iki şeyi de yakaladı:
+
+* `SentimentRadar` ilk turda canlı göründü, çünkü `lib/sentiment.ts` onu
+  bir YORUMDA anıyordu. Gerçek kullanımı yoktu.
+* `latestBySymbol` bir SUNUM bileşeninin (`DecisionCenter`) içinde
+  yaşıyordu ama Çoklu Grafik onu kullanıyordu. Silinmeden önce
+  `lib/oracle.ts`'e taşındı — kural zaten oraya aitti.
+
+Ayrıca `App.css` silindi: Vite iskeletinden kalma, ilk commit'ten beri hiç
+import edilmemiş.
+
+**Sonuç:** ~1150 satır gitti, üretim paketi 880 KB → 792 KB, lint 47 → 41.
+On sayfanın onu da yeni dilde ve on başlığın onu da bir soru.

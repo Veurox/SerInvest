@@ -98,13 +98,13 @@ export const WORKSPACES: Workspace[] = [
 /**
  * Bir rota hangi çalışma alanına ait? (bilinmiyorsa ilk alan)
  *
- * Menüden çıkarılan eski ekranlar da doğru alana eşleniyor: adres elle
- * yazıldığında üst sekme yanlış yerde parlamasın.
+ * Yalnız kök adres burada: kaldırılan eski ekranlar (piyasa-genel, terminal,
+ * degerlendirme) artık main.tsx'te YÖNLENDİRİLİYOR, yani bu haritaya hiç
+ * ulaşmıyorlar. Eşlemeyi tutmak, var olmayan sayfalar için sekme kuralı
+ * bakmak olurdu.
  */
 const ESKI_ROTA_ALANI: Record<string, string> = {
   '/': 'bugun',
-  '/terminal': 'bugun',
-  '/degerlendirme': 'sembol',
 }
 
 export function workspaceForPath(pathname: string): Workspace {

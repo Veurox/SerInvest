@@ -28,7 +28,7 @@ import type { SharedData } from '../App'
 import { ChartTile, type TF } from '../components/multichart/ChartTile'
 import { SymbolPicker } from '../components/multichart/SymbolPicker'
 import { TimeBrush, type Win } from '../components/multichart/TimeBrush'
-import { latestBySymbol } from '../components/terminal'
+import { latestBySymbol } from '../lib/oracle'
 
 const LAYOUTS = [1, 2, 4, 6, 8] as const
 const TFS: TF[] = ['1H', '1D', '1W', '1M', '3M', '1Y', '5Y']
