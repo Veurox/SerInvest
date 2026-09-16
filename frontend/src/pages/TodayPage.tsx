@@ -32,6 +32,7 @@ import type { SharedData } from '../App'
 import { API, ADMIN, adminFetch } from '../lib/api'
 import { useConfig } from '../lib/useConfig'
 import { fmt, yuzde, oranYuzde } from '../lib/format'
+import { tazelikDurumu } from '../lib/tazelik'
 import { ruhHaliHesapla, type AggRow } from '../lib/sentiment'
 import { Gauge, DotStrip, Donut, BarWithRef, PriceBarriers } from '../components/viz'
 import { TerimTip } from '../components/ui'
@@ -151,6 +152,9 @@ export default function TodayPage() {
     const { tp_atr_mult: tp, sl_atr_mult: sl } = cfg.model
     return tp + sl > 0 ? (sl / (tp + sl)) * 100 : null
   }, [cfg])
+
+  const tazelik = tazelikDurumu(varlik?.recordedAt, analiz?.analyzedAt)
+
 
   const alIsabet = st?.wf_buy_accuracy != null ? st.wf_buy_accuracy * 100 : null
   const sapmaVar = ['DRIFT', 'ALERT'].includes((dr?.status ?? '').toUpperCase())
@@ -299,8 +303,19 @@ export default function TodayPage() {
                                  color: 'var(--u-up)' }}>{analiz.recommendation}</span>
                 )}
                 {varlik?.close != null && (
-                  <span className="u-num" style={{ fontSize: 'var(--u-t-num)', fontWeight: 600 }}>
-                    {varlik.close.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                  <span className="u-num"
+                        style={{ fontSize: 'var(--u-t-num)', fontWeight: 600,
+                                 color: tazelik.mesaj ? 'var(--u-text-3)' : undefined }}>
+                    {fmt(varlik.close)}
+                  </span>
+                )}
+                {/* Sembol sayfasındaki ile aynı kural: hedef/stop fiyatın
+                    yanında duruyor, ikisi farklı ana aitse söylenmeli. */}
+                {tazelik.mesaj && (
+                  <span className="u-seg" title={tazelik.mesaj}
+                        style={{ color: 'var(--u-warn)', borderColor: 'var(--u-warn)',
+                                 cursor: 'help' }}>
+                    {tazelik.analizdenEski ? 'fiyat analizden eski' : `${tazelik.yasDk} dk önce`}
                   </span>
                 )}
                 <div style={{ flexGrow: 1 }} />

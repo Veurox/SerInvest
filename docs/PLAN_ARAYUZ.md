@@ -375,3 +375,47 @@ import edilmemiş.
 
 **Sonuç:** ~1150 satır gitti, üretim paketi 880 KB → 792 KB, lint 47 → 41.
 On sayfanın onu da yeni dilde ve on başlığın onu da bir soru.
+
+---
+
+## Fiyat ile analiz ayrışması (16.09.2026)
+
+Kullanıcı programı akşam 21:22'de açtı ve ekranda dünün fiyatlarını gördü.
+Ölçülen açılış sırası:
+
+```
+21:22:46  oracle başladı, analizi HEMEN başlattı
+21:23:16  analizler yazılmaya başladı        ← bugünün kapanışıyla (doğru)
+21:24:31  market-data fiyatları ancak yayınladı ← ekran ancak şimdi güncel
+```
+
+**1 dakika 45 saniye** boyunca Sembol sayfası şunu gösterdi:
+
+| | |
+|---|---|
+| Fiyat | 127,80 (dünkü — veritabanından) |
+| Hedef / Stop | 120,90 üzerinden hesaplanmış (bugünkü — oracle'dan) |
+
+Hedef, ekrandaki fiyatın *altında* görünebiliyordu.
+
+### Kök: aynı olgunun iki bağımsız kaynağı
+
+Oracle kendi yfinance çağrısını yapıyor, market-data kendi. Aralarında hiçbir
+tutarlılık kontrolü yok. İki dakika ayrıştılar ve bunu söyleyen hiçbir şey
+yoktu.
+
+### Neden "fark varsa uyar" değil
+
+Seans sürerken ekrandaki canlı fiyatla analizin baktığı kapanışın farklı
+olması **normaldir**. Ölçülmesi gereken fark değil, **sıra**: fiyat verisi
+analizden ESKİ mi? Öyleyse ekran geçmişi gösteriyordur.
+
+`lib/tazelik.ts` bunu ölçüyor, iki kademe:
+
+* **fiyat analizden eski** → başlıkta rozet + gövdede bant: "Ekranda 127,80
+  yazıyor; model 120,90 üzerinden hesapladı. Hedef ve stop ikincisine göre."
+* **15 dakikadan bayat** → rozet: "N dk önce" (döngü 5 dakikada bir; 15 dk
+  üç kaçırılmış tur demek)
+
+Her iki durumda **fiyatın kendisi soluklaşıyor**. Uyarıyı sayfanın altına
+yazmak, gözün zaten okuduğu sayıyı düzeltmiyor.

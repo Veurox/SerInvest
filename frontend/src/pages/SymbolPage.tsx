@@ -24,6 +24,7 @@ import { fmt, yuzde, oranYuzde } from '../lib/format'
 import { ruhHaliHesapla, type AggRow } from '../lib/sentiment'
 import { suruculeriTopla, listeCoz } from '../lib/drivers'
 import { seviyeleriTopla, uzaklikYuzde, type Seviye } from '../lib/levels'
+import { tazelikDurumu } from '../lib/tazelik'
 import type { Bar } from '../lib/bars'
 import { COMPANY_NAMES } from '../lib/companies'
 import { PriceBarriers, BarWithRef, ContribBars, DotStrip, OutcomeStrip,
@@ -172,6 +173,18 @@ export default function SymbolPage() {
     return () => { dur = true }
   }, [sembol])
 
+  /**
+   * Ekrandaki fiyat ile analizin baktığı fiyat aynı ana mı ait?
+   *
+   * İkisi AYRI servisten geliyor (market-data / oracle) ve açılışta iki
+   * dakika ayrışabiliyorlar. Ayrışmayı gizlemek yerine söylüyoruz — bu
+   * sayfada hedef ve stop fiyatın hemen yanında duruyor, hangi fiyattan
+   * hesaplandıkları belirsiz kalırsa sayılar birbiriyle çelişik okunuyor.
+   */
+  const tazelik = useMemo(
+    () => tazelikDurumu(varlik?.recordedAt, analiz?.analyzedAt),
+    [varlik?.recordedAt, analiz?.analyzedAt])
+
   const alim = !!analiz && analiz.recommendation.includes('ALIM')
   const yon = yorum?.stance?.direction ?? null
 
@@ -292,9 +305,22 @@ export default function SymbolPage() {
               <TerimTip ad="AI Kararı">{analiz.recommendation}</TerimTip>
             </span>
           )}
-          <span className="u-num" style={{ fontSize: 'var(--u-t-num)', fontWeight: 600 }}>
+          <span className="u-num"
+                style={{ fontSize: 'var(--u-t-num)', fontWeight: 600,
+                         // Fiyat şüpheliyse SAYININ KENDİSİ soluklaşıyor:
+                         // uyarıyı sayfanın altına yazmak, gözün zaten
+                         // okuduğu sayıyı düzeltmiyor.
+                         color: tazelik.mesaj ? 'var(--u-text-3)' : undefined }}>
             {sayi(varlik?.close, ondalik)}
           </span>
+          {tazelik.mesaj && (
+            <span className="u-seg" style={{ color: 'var(--u-warn)',
+                                             borderColor: 'var(--u-warn)',
+                                             cursor: 'help' }}
+                  title={tazelik.mesaj}>
+              {tazelik.analizdenEski ? 'fiyat analizden eski' : `${tazelik.yasDk} dk önce`}
+            </span>
+          )}
           {degisim != null && (
             <span className={`u-num ${degisim >= 0 ? 'u-up' : 'u-down'}`}
                   style={{ fontSize: 'var(--u-t-body)', fontWeight: 600 }}>
@@ -329,6 +355,26 @@ export default function SymbolPage() {
             </span>
           )}
         </div>
+
+        {/* Fiyat analizden eskiyse bunu SAYFA GÖVDESİNDE söylüyoruz.
+            Başlıktaki rozet göze çarpıyor ama hedef/stop'un HANGİ fiyattan
+            hesaplandığını söylemiyor — asıl kafa karıştıran buydu: hedef,
+            ekrandaki fiyatın altında görünebiliyordu. */}
+        {tazelik.analizdenEski && analiz?.priceAtAnalysis != null && (
+          <div style={{ display: 'flex', gap: 'var(--u-s2)', alignItems: 'baseline',
+                        flexWrap: 'wrap', padding: 'var(--u-s2) var(--u-s3)',
+                        borderRadius: 'var(--u-r-md)',
+                        background: 'var(--u-warn-bg)',
+                        fontSize: 'var(--u-t-small)', color: 'var(--u-text-2)' }}>
+            <b style={{ color: 'var(--u-warn)' }}>Fiyat verisi henüz güncellenmedi.</b>
+            <span>
+              Ekranda <b className="u-num">{sayi(varlik?.close, ondalik)}</b> yazıyor;
+              model <b className="u-num">{sayi(analiz.priceAtAnalysis, ondalik)}</b>{' '}
+              üzerinden hesapladı. Hedef ve stop ikincisine göre — aradaki fark
+              birkaç dakika içinde kapanır.
+            </span>
+          </div>
+        )}
 
         {/* Grafik: sayfanın ana görseli. Tanımlı seviyeler İSTEĞE BAĞLI
             çiziliyor — hepsi birden açıkken grafik çizgi ormanına dönüyor
