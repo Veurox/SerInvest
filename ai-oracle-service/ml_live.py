@@ -52,6 +52,7 @@ from ml.config import (
     XSEC_RANK,
 )
 import ml.atomic as atomic
+import bar_durumu
 import bicim
 from ml.calibration import calibrate, expected_R, kelly_size, load_calibrator
 from ml.config import (COVERAGE_TARGET, EV_FILTER, META_ENABLED, META_VETO_P,
@@ -340,7 +341,12 @@ def _explain(model, X: pd.DataFrame, feat: dict) -> tuple[list, list]:
 def fetch_snapshot(sym: str, yf_sym: str, ctx: pd.DataFrame):
     """
     Sembol için OHLCV indir + son HAM özellik satırı.
-    Döndürür: (df, raw_feat_dict, close) veya None.
+    Döndürür: (df, raw_feat_dict, close, bar_gunu) veya None.
+
+    `bar_gunu` SON BARIN TARİHİ (borsa takvimi, YYYY-MM-DD). Çağıran bununla
+    barın tamamlanmış ve yeni olup olmadığına karar verir — bkz. bar_durumu.
+    Bu tarih olmadan "son bar" ile "bugünün kapanışı" aynı sanılıyordu;
+    16.09.2026 denetiminde ölçülen hata buydu.
     """
     df = yf.download(yf_sym, period="1y", interval="1d",
                      auto_adjust=True, progress=False, threads=False)
@@ -353,7 +359,11 @@ def fetch_snapshot(sym: str, yf_sym: str, ctx: pd.DataFrame):
     close_s = df["Close"].squeeze().dropna()
     if len(close_s) == 0:
         return None
-    return df, feat, float(close_s.iloc[-1])
+    try:
+        bar_gunu = pd.Timestamp(close_s.index[-1]).strftime("%Y-%m-%d")
+    except Exception:
+        bar_gunu = None
+    return df, feat, float(close_s.iloc[-1]), bar_gunu
 
 
 def analyze_symbol(model, sym: str, yf_sym: str, snap: tuple,
@@ -362,7 +372,8 @@ def analyze_symbol(model, sym: str, yf_sym: str, snap: tuple,
                    cal=None, news_map: dict | None = None, meta_model=None,
                    risk_allowed: set[str] | None = None):
     """
-    Karar + mesaj üretimi. snap = fetch_snapshot çıktısı (df, ham_feat, close).
+    Karar + mesaj üretimi. snap = fetch_snapshot çıktısı
+    (df, ham_feat, close, bar_gunu).
     model_feat: MODELE giren özellikler (XSEC_RANK'te günün kesitsel rank'i);
     None ise ham özellikler kullanılır. Hedef/stop HER ZAMAN ham atr_pct ile
     hesaplanır (percentile ATR ile bariyer hesaplamak anlamsız olur).
@@ -371,7 +382,7 @@ def analyze_symbol(model, sym: str, yf_sym: str, snap: tuple,
     Faz 2: cal = isotonic kalibratör (yoksa kimlik). KARAR ham p ile verilir
     (champion davranışı değişmez); kalibre p → EV filtresi + Kelly boyut + güven.
     """
-    df, feat, close = snap
+    df, feat, close, bar_gunu = snap
 
     p, X = _predict_p_up(model, model_feat if model_feat is not None else feat)
 
@@ -527,6 +538,10 @@ def analyze_symbol(model, sym: str, yf_sym: str, snap: tuple,
         "p_cal": round(p_cal, 4), "ev": round(ev, 4),
         "rec": rec, "rec_dir": rec_dir, "close": close,
         "target": tp, "stop": sl, "atr_pct": round(clamp_atr_pct(atr_pct), 5),
+        # Bu kararın HANGİ BARDAN çıktığı. Kayıt zamanıyla (timestamp)
+        # karıştırılmamalı: makine akşam açılırsa ikisi aynı gün olur, ama
+        # tatil sonrası açılırsa bar geçmişe aittir ve doğrusu budur.
+        "bar_gunu": bar_gunu or "",
         # Filtre ÖNCESİ yön. I11 kapsamı bununla yargılar: filtre yalnız kendi
         # elediği için suçlanabilir. 26.08.2026'da kapsam %0'a düştü ama sebep
         # filtre DEĞİLDİ — ham p'nin tamamı eşiğin altındaydı, filtre hiç
@@ -682,9 +697,31 @@ def _run_ml_cycle_locked(model_holder: list):
             print(f"[risk filtresi] hata, filtre atlandı: {e}")
             risk_allowed = None
 
+    # ── BAR KAPISI (16.09.2026) ───────────────────────────────────────────
+    # Tahmin YALNIZ tamamlanmış ve yeni bardan üretilir. Karar bar_durumu'nda
+    # (saf, sınanmış); burada yalnız uygulanıyor.
+    #
+    # Ölçülen iki hata buydu:
+    #   • Seans sürerken koşan döngü yarım barı "kapanış" sanıyordu —
+    #     08.09'da THYAO 297,75 loglandı, gerçek kapanış 305,00 (%2,38).
+    #   • 07.09'da BIST'te bar yokken elindeki eski barla 50 tahmin üretti.
+    #
+    # Engellenen sembol için analiz YAPILMAZ: yayınlanmaz, loglanmaz. Ekranda
+    # bir önceki tamamlanmış günün analizi durmaya devam eder — yanlış bir
+    # sayı göstermektense eski ama DOĞRU sayıyı göstermek yeğdir.
+    son_barlar = son_tahmin_barlari()
+    engeller: dict[str, str | None] = {}
+    for sym, snap in snaps.items():
+        engeller[sym] = bar_durumu.bar_engeli(
+            bar_gunu=snap[3], bugun=today_str, piyasa_acik=paper_mkt_open,
+            son_tahmin_bari=son_barlar.get(sym))
+    print(f"[bar kapısı] {bar_durumu.ozet(engeller)}")
+
     count = buys = 0
     for _pi, (sym, snap) in enumerate(snaps.items()):
         progress.update(_ptok, stage=f"analiz: {sym}", done=_pn + _pi)
+        if engeller.get(sym):
+            continue
         yf_sym = universe[sym]
         try:
             result = analyze_symbol(model, sym, yf_sym, snap,
@@ -804,9 +841,39 @@ def _run_ml_cycle_locked(model_holder: list):
 #  TAHMIN LOG'U (10g değerlendirme için)
 # ═════════════════════════════════════════════════════════════════════════════
 
+# `bar_gunu` (16.09.2026): tahminin HANGİ BARDAN üretildiği. Bu kolon olmadan
+# "tahmin ne zaman yazıldı" ile "hangi günün kapanışına bakıldı" ayırt
+# edilemiyordu — seans içinde koşan döngülerin yarım bar kullandığı ancak
+# fiyatlar elle karşılaştırılınca fark edildi. Eski satırlarda boş kalır.
+def son_tahmin_barlari() -> dict[str, str]:
+    """
+    Sembol → günlükte kayıtlı EN SON bar tarihi.
+
+    `bar_gunu` kolonu boş olan eski satırlarda kayıt tarihine düşülür: o
+    satırlar hangi bardan üretildiklerini bilmiyor, ama en azından o günden
+    öncesine ait oldukları kesin. Böylece geçmiş veri yüzünden yeni kural
+    yanlış tetiklenmez.
+    """
+    son: dict[str, str] = {}
+    if not PREDICTION_LOG.exists():
+        return son
+    try:
+        with open(PREDICTION_LOG, "r", encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                sym = (r.get("symbol") or "").strip()
+                if not sym:
+                    continue
+                g = (r.get("bar_gunu") or "").strip() or (r.get("timestamp") or "")[:10]
+                if g and g > son.get(sym, ""):
+                    son[sym] = g
+    except Exception as e:
+        print(f"[ml cycle] son bar haritası okunamadı: {e}")
+    return son
+
+
 _LOG_FIELDS = ["timestamp", "symbol", "yf_sym", "p_up", "p_cal", "ev",
                "rec", "rec_dir", "rec_dir_nofilter", "close", "target", "stop",
-               "atr_pct", "eval"]
+               "atr_pct", "bar_gunu", "eval"]
 
 
 def _log_prediction(log: dict):
@@ -836,7 +903,7 @@ def _log_prediction_locked(log: dict):
         # birikme hâli sanılıyordu, oysa kalıcı hataydı.
         "rec_dir_nofilter": log.get("rec_dir_nofilter", ""),
         "close": log["close"], "target": log["target"], "stop": log["stop"],
-        "atr_pct": log["atr_pct"], "eval": "",
+        "atr_pct": log["atr_pct"], "bar_gunu": log.get("bar_gunu", ""), "eval": "",
     }
     rows, found = [], False
     seen: set[tuple[str, str]] = set()      # (sembol, gün) — mükerrerleri eritir

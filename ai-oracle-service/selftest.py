@@ -540,6 +540,49 @@ def i12_calibrator_matches_reality(now) -> dict:
                  f"Çözüm: Doğrulama Çalıştır (walk-forward) ile kalibratörü tazele.")
 
 
+def i14_predictions_from_closed_bars(now) -> dict:
+    """
+    Her tahmin TAMAMLANMIŞ bir bardan üretilmiş olmalı.
+
+    16.09.2026'da ölçüldü: seans sürerken koşan döngü, o günün YARIM barını
+    kapanış sanıyordu. 8 Eylül'de THYAO 297,75 diye loglandı, gerçek kapanış
+    305,00'ti (%2,38). Hedef/stop o fiyattan ATR katı hesaplandığı için
+    bariyerler kabaca bir ATR kayıyordu — ve o tahmin 10 gün sonra isabet
+    oranına yazılıyordu.
+
+    Ölçüt basit ve kaçamaksız: `bar_gunu` kolonu, kaydın YAZILDIĞI günden
+    büyük olamaz ve kayıt saatiyle çelişemez. Kolon 16.09'da eklendi; öncesi
+    ÖLÇÜLEMEZ, o yüzden suçlanmaz — bilmediğimizi biliyormuş gibi sunmayız.
+    """
+    t = "I14 · Tahminler tamamlanmış bardan"
+    rows = _read_csv(PREDICTION_LOG)
+    if not rows:
+        return _skip("I14", t, "tahmin logu yok")
+
+    olcülebilir = [r for r in rows if (r.get("bar_gunu") or "").strip()]
+    if not olcülebilir:
+        return _skip("I14", t,
+                     "bar_gunu kolonu henüz dolmadı (16.09.2026'da eklendi) — "
+                     "yeni tahminler biriktikçe ölçülecek")
+
+    bozuk = []
+    for r in olcülebilir:
+        bg = (r.get("bar_gunu") or "").strip()
+        kg = (r.get("timestamp") or "")[:10]
+        if bg and kg and bg > kg:
+            bozuk.append(f"{r.get('symbol')} {kg}→bar {bg}")
+
+    n = len(olcülebilir)
+    eski = len(rows) - n
+    ek = f" · {eski} eski satır ölçülemiyor (kolon yoktu)" if eski else ""
+    if bozuk:
+        return _fail("I14", t,
+                     f"{len(bozuk)} tahmin kayıt gününden SONRAKİ bir bardan "
+                     f"üretilmiş görünüyor: {', '.join(bozuk[:3])}{ek}")
+    return _ok("I14", t, f"{n} tahminin hepsi kendi gününde ya da öncesinde "
+                         f"kapanmış bardan{ek}")
+
+
 def i13_no_within_day_constant_feature(now) -> dict:
     """
     Kesitsel rank'e giren hiçbir özellik GÜN İÇİ SABİT olmamalı.
@@ -600,7 +643,8 @@ CHECKS = [i1_date_basis, i2_train_serve_skew, i3_tier_matches_confidence,
           i7_prediction_schema, i8_no_duplicates, i9_promotion_balance,
           i10_jobs_not_overdue, i11_coverage_target,
           i12_calibrator_matches_reality,
-          i13_no_within_day_constant_feature]
+          i13_no_within_day_constant_feature,
+          i14_predictions_from_closed_bars]
 
 
 
