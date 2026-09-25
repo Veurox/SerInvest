@@ -478,10 +478,28 @@ def i10_jobs_not_overdue(now) -> dict:
                 except Exception:
                     pass
     pr = _read_csv(PREDICTION_LOG)
-    last_analyze = max((r.get("timestamp") or "" for r in pr), default=None)
-
     late = []
-    for key, iso in (("analyze", last_analyze), ("evaluate", stats.get("last_eval")),
+
+    # ANALİZ saatle değil KAPANMIŞ İŞLEM GÜNÜYLE ölçülür (25.09.2026).
+    # Bar kapısı seans içinde tahmini doğru şekilde reddediyor; saatle
+    # ölçülünce makine yalnız gün içinde açıkken iş koşuyor ama "3 gün
+    # gecikmiş" görünüyordu. Soru şu: tahmini OLMAYAN kapanmış gün var mı?
+    import bar_durumu
+    from paper_trading import BIST_HOLIDAYS, MARKET_CLOSE_TIME
+    if not pr:
+        late.append("analyze: hiç çalışmamış")
+    else:
+        son_bar = max(((r.get("bar_gunu") or "").strip() or (r.get("timestamp") or "")[:10]
+                       for r in pr), default=None)
+        beklenen = bar_durumu.son_kapanmis_islem_gunu(
+            datetime.datetime.now(), BIST_HOLIDAYS, MARKET_CLOSE_TIME)
+        kacan = bar_durumu.kacirilan_islem_gunleri(son_bar, beklenen, BIST_HOLIDAYS)
+        if kacan:
+            gun = ", ".join(g[8:10] + "." + g[5:7] for g in kacan[:5])
+            late.append(f"analyze: {len(kacan)} kapanmış işlem gününün tahmini yok "
+                        f"({gun}) — makine o akşamlar kapalıydı")
+
+    for key, iso in (("evaluate", stats.get("last_eval")),
                      ("health", drift.get("computed_at")), ("promote", last_promote)):
         age = _age_h(iso, now)
         lim = JOB_OVERDUE_HOURS[key]
@@ -678,9 +696,17 @@ ACTIONS: dict[tuple[str, str], str] = {
     ("I4", "FAIL"): "Eşikler koda gömülmüş — arayüzdeki sayılar gerçek ayarı "
                     "yansıtmayabilir. Geliştiriciye bildirin.",
 
+    # 25.09.2026: bu metin eskiden yalnız "Doğrulama Çalıştır ile sınayın"
+    # diyordu. O düğme kalibratörü de yeniler ve I12'nin ölçümünü SIFIRLAR —
+    # yani bir öz denetim, diğerinin sayacını silen bir işlemi öneriyordu.
+    # Ayrıca kapsamın sıfıra düşmesinin en sık sebebi rejim kapısı: o durumda
+    # yapılacak bir şey yok, düğmeye basmak yalnız bedel öder.
     ("I5", "WARN"): "Model bugün alışılmadık sayıda sinyal üretti (ya da hiç üretmedi). "
-                    "TEK GÜNLÜK sapma normaldir, yapılacak bir şey yok. Birkaç gün "
-                    "sürerse 'Doğrulama Çalıştır' ile modeli sınayın.",
+                    "BIST-100 200 günlük ortalamasının altındaysa rejim kapısı yeni "
+                    "alımları bilerek askıya alır — o durumda yapılacak bir şey yok. "
+                    "Rejim kapısı kapalıyken birkaç gün sürerse 'Doğrulama Çalıştır' "
+                    "ile sınayabilirsiniz; ancak bu kalibratörü yeniler ve kalibrasyon "
+                    "ölçümünü (I12) sıfırlar — ilk dürüst okuma ~3 hafta ertelenir.",
 
     ("I6", "FAIL"): "Kalibratör bozuk; güven yüzdeleri anlamsız. 'Doğrulama Çalıştır' "
                     "düğmesiyle yeniden kurun.",
@@ -695,9 +721,13 @@ ACTIONS: dict[tuple[str, str], str] = {
     ("I9", "FAIL"): "Terfi karşılaştırması adil değil; 'Terfi kontrolü' sonucuna "
                     "güvenmeyin. Geliştiriciye bildirin.",
 
-    ("I10", "WARN"): "Bilgisayar kapalıyken kaçan işler var. Programı açık tutun; "
-                     "istersen ilgili düğmeye ('Şimdi analiz et' / 'Şimdi değerlendir') "
-                     "basarak hemen çalıştırabilirsiniz.",
+    # 25.09.2026: I10 artık "tahmini olmayan KAPANMIŞ işlem günü var mı" diye
+    # ölçüyor. Kaçan gün geri getirilemez (model yalnız en son bardan tahmin
+    # üretir) ve seans içinde "Şimdi analiz et" bar kapısına takılır — eski
+    # tavsiye ikisini de vaat ediyordu.
+    ("I10", "WARN"): "Bilgisayar kapalıyken kaçan işler var. Kaçan günlerin tahmini "
+                     "sonradan üretilemez. Günün analizi seans kapandıktan sonra "
+                     "(18:00 sonrası) yapılır; programı o saatte bir süre açık tutun.",
 
     ("I11", "WARN"): "Risk filtresi bugün beklenenden fazla hisse eledi. TEK GÜNLÜK "
                      "sapma normaldir, şimdilik yapılacak bir şey yok. 10 İŞ GÜNÜ "
@@ -710,7 +740,8 @@ ACTIONS: dict[tuple[str, str], str] = {
                      "kalibratörü tazeleyin.",
     ("I12", "SKIP"): "Yapılacak bir şey yok — yeni kalibratörün sonuçları birikiyor. "
                      "Bir tahmin ancak ~20 gün sonra yargılanabildiği için ilk dürüst "
-                     "okuma birkaç hafta sürer.",
+                     "okuma birkaç hafta sürer. Bu sürede 'Doğrulama Çalıştır'a "
+                     "basmak kalibratörü yeniler ve sayacı SIFIRDAN başlatır.",
 
     ("I13", "FAIL"): "Bir özellik modele bilgi taşımıyor ama gün kimliği sızdırıyor; "
                      "başarı ölçümleri OLDUĞUNDAN İYİ görünebilir. Geliştiriciye "

@@ -88,9 +88,15 @@ def log_features(raw_feats: dict) -> None:
     if FEATURE_LOG_FILE.exists():
         cutoff = (datetime.datetime.utcnow().date()
                   - datetime.timedelta(days=FEATURE_LOG_MAX_DAYS)).isoformat()
+        # Yalnız BU ÇAĞRIDA loglanan sembollerin bugünkü satırı değişir.
+        # Eskiden bugünün TÜM satırları silinip yeniden yazılıyordu; bar
+        # kapısından sonra bazı semboller loglanmayabildiği için (25.09.2026)
+        # o davranış, geçen turun doğru satırlarını da silerdi.
+        yeni = set(raw_feats)
         with open(FEATURE_LOG_FILE, "r", encoding="utf-8") as f:
             rows = [r for r in csv.DictReader(f)
-                    if r.get("date", "") >= cutoff and r.get("date") != today]
+                    if r.get("date", "") >= cutoff
+                    and not (r.get("date") == today and r.get("symbol") in yeni)]
 
     for sym, feat in raw_feats.items():
         row = {"date": today, "ts": stamp, "symbol": sym}

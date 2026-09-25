@@ -90,3 +90,54 @@ def test_ozet_sebebi_one_alir():
 
 def test_ozet_engel_yoksa_acik_soyler():
     assert "tamamlanmış" in bd.ozet({"A": None, "B": None})
+
+
+# ── Kaçırılan işlem günleri (I10) ───────────────────────────────────────────
+import datetime as dt
+
+KAPANIS = dt.time(18, 0)
+
+
+def test_seans_icinde_son_kapanmis_gun_dundur():
+    """25.09 Cuma 14:00 — bugün henüz kapanmadı, son kapanmış gün Perşembe."""
+    simdi = dt.datetime(2026, 9, 25, 14, 0)
+    assert bd.son_kapanmis_islem_gunu(simdi, set(), KAPANIS) == "2026-09-24"
+
+
+def test_kapanistan_sonra_bugun_sayilir():
+    simdi = dt.datetime(2026, 9, 25, 19, 0)
+    assert bd.son_kapanmis_islem_gunu(simdi, set(), KAPANIS) == "2026-09-25"
+
+
+def test_hafta_sonu_cumaya_doner():
+    simdi = dt.datetime(2026, 9, 27, 12, 0)          # Pazar
+    assert bd.son_kapanmis_islem_gunu(simdi, set(), KAPANIS) == "2026-09-25"
+
+
+def test_tatil_atlanir():
+    simdi = dt.datetime(2026, 9, 25, 14, 0)
+    assert bd.son_kapanmis_islem_gunu(simdi, {"2026-09-24"}, KAPANIS) == "2026-09-23"
+
+
+def test_makine_kapaliyken_kacan_gunler_sayilir():
+    """25.09'da ölçülen hâl: son tahmin 22.09, makine 23-24'te kapalıydı."""
+    assert bd.kacirilan_islem_gunleri("2026-09-22", "2026-09-24", set()) == \
+        ["2026-09-23", "2026-09-24"]
+
+
+def test_gun_icinde_acik_makine_gecikmis_sayilmaz():
+    """
+    I10'un yanlış alarmı: son tahmin dünün barından, şimdi seans içi.
+    Kaçırılan kapanmış gün YOK — iş doğru şekilde reddediyor.
+    """
+    simdi = dt.datetime(2026, 9, 25, 14, 0)
+    son = bd.son_kapanmis_islem_gunu(simdi, set(), KAPANIS)
+    assert bd.kacirilan_islem_gunleri("2026-09-24", son, set()) == []
+
+
+def test_hafta_sonu_kacirilmis_sayilmaz():
+    assert bd.kacirilan_islem_gunleri("2026-09-25", "2026-09-28", set()) == ["2026-09-28"]
+
+
+def test_tahmin_yoksa_bos():
+    assert bd.kacirilan_islem_gunleri(None, "2026-09-24", set()) == []

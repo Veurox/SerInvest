@@ -262,3 +262,25 @@ def test_farkli_evren_buyuklugu_farkli_deger_uretir():
         degerler.add(round(float(xsec_rank_frame(d, cols=["usdtry_ret5"])["usdtry_ret5"].iloc[0]), 6))
     # Dört farklı evren büyüklüğü DÖRT farklı değer verir → gün kimliği sızar
     assert len(degerler) == 4
+
+
+# ── Özellik günlüğü: yalnız loglanan sembolün bugünkü satırı değişir ───────
+def test_log_features_yalniz_verilen_sembolleri_degistirir(tmp_path, monkeypatch):
+    """
+    25.09.2026: bar kapısından sonra bir turda yalnız BAZI semboller
+    loglanabiliyor. Eski davranış bugünün TÜM satırlarını silip yeniden
+    yazıyordu — loglanmayan sembollerin geçen turdaki doğru satırı giderdi.
+    """
+    import csv
+    dosya = tmp_path / "feature_log.csv"
+    monkeypatch.setattr(monitoring, "FEATURE_LOG_FILE", dosya)
+    monkeypatch.setattr(monitoring, "ML_DIR", tmp_path)
+
+    ad = monitoring.FEATURE_NAMES[0]
+    monitoring.log_features({"AAA": {ad: 1.0}, "BBB": {ad: 2.0}})
+    monitoring.log_features({"AAA": {ad: 9.0}})      # BBB bu turda yok
+
+    rows = list(csv.DictReader(open(dosya, encoding="utf-8")))
+    deger = {r["symbol"]: float(r[ad]) for r in rows}
+    assert deger == {"AAA": 9.0, "BBB": 2.0}         # BBB korunmalı
+    assert len(rows) == 2                            # mükerrer yok

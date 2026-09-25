@@ -36,6 +36,7 @@ import { tazelikDurumu } from '../lib/tazelik'
 import { ruhHaliHesapla, type AggRow } from '../lib/sentiment'
 import { Gauge, DotStrip, Donut, BarWithRef, PriceBarriers } from '../components/viz'
 import { TerimTip } from '../components/ui'
+import { AlKarsilastirma, type GetiriKarsilastirma } from '../components/finance/AlKarsilastirma'
 
 // ── Arka uç şekilleri (mevcut Terminal bileşenlerinden birebir) ──────────────
 interface AdminStatus {
@@ -71,6 +72,9 @@ export default function TodayPage() {
 
   const [agg, setAgg] = useState<AggRow[] | null>(null)
   const [st, setSt] = useState<AdminStatus | null>(null)
+  /** AL dediği hisseler vs demedikleri (bkz. AlKarsilastirma). `getiri` adı
+      bu sayfada kâğıt portföyün getirisine ait, karışmasın. */
+  const [alGetiri, setAlGetiri] = useState<GetiriKarsilastirma | null>(null)
   const [dr, setDr] = useState<DriftResp | null>(null)
   const [paper, setPaper] = useState<PaperSummary | null>(null)
   const [yorum, setYorum] = useState<Commentary | null>(null)
@@ -82,6 +86,10 @@ export default function TodayPage() {
         .then(d => { if (!dur && d) setAgg(d) }).catch(() => {})
       adminFetch(`${ADMIN}/status`).then(r => r.ok ? r.json() : null)
         .then(d => { if (!dur && d) setSt(d) }).catch(() => {})
+      // Özet TÜM günlük üzerinden hesaplanıyor; satır gerekmiyor.
+      adminFetch(`${ADMIN}/prediction-log?limit=50`).then(r => r.ok ? r.json() : null)
+        .then(d => { if (!dur && d?.summary?.getiri) setAlGetiri(d.summary.getiri) })
+        .catch(() => {})
       adminFetch(`${ADMIN}/drift`).then(r => r.ok ? r.json() : null)
         .then(d => { if (!dur && d) setDr(d) }).catch(() => {})
       adminFetch(`${ADMIN}/paper-portfolio`).then(r => r.ok ? r.json() : null)
@@ -156,7 +164,6 @@ export default function TodayPage() {
   const tazelik = tazelikDurumu(varlik?.recordedAt, analiz?.analyzedAt)
 
 
-  const alIsabet = st?.wf_buy_accuracy != null ? st.wf_buy_accuracy * 100 : null
   const sapmaVar = ['DRIFT', 'ALERT'].includes((dr?.status ?? '').toUpperCase())
   const kalibre = dr?.calibration
   const kalibreOran = kalibre?.min_required
@@ -357,17 +364,11 @@ export default function TodayPage() {
 
         <div className="u-cells">
           <div className="u-cell" style={{ minHeight: 0 }}>
-            <span className="u-label">AL isabeti</span>
-            <span className="u-big u-num">
-              {yuzde(alIsabet, 1)}
-            </span>
-            <BarWithRef deger={alIsabet} esik={basabas}
-                        esikEtiket="başabaş (maliyet hariç)" gosterDeger={false} />
-            <span className="u-sub u-sub--clamp">
-              {st?.wf_n_predictions
-                ? `${st.wf_n_predictions.toLocaleString('tr-TR')} tahminlik örneklem`
-                : 'örneklem bilinmiyor'}
-            </span>
+            {/* "AL isabeti · başabaş" yerine: AL dediği hisseler, demediklerinden
+                iyi mi gitti? Eski karşılaştırma modeli olduğundan iyi
+                gösteriyordu — bkz. components/finance/AlKarsilastirma. */}
+            <span className="u-label">AL çağrısına uymak işe yaradı mı?</span>
+            <AlKarsilastirma veri={alGetiri} />
           </div>
 
           <div className="u-cell" style={{ minHeight: 0 }}>

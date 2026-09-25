@@ -162,7 +162,21 @@ export default function ModelPage() {
     wasRunning.current = !!prog?.running
   }, [prog?.running, load])
 
+  /**
+   * Geri alınamayan işlemler onaysız başlamasın (25.09.2026).
+   * O gün "Doğrulama çalıştır"a tek tıkla basıldı ve kalibrasyon ölçümünün
+   * sayacı sıfırlandı. Yanındaki "Veriyi yenile + eğit" ise modeli sıfırdan
+   * eğitiyor — o da tek tıklık bir işlemdi.
+   */
+  const ONAY: Record<string, string> = {
+    walkforward: 'Kalibratör yenilenecek ve kalibrasyon ölçümü (I12) SIFIRDAN '
+               + 'başlayacak — ilk dürüst okuma ~3 hafta ertelenir.\n\nDevam edilsin mi?',
+    'reset-model': 'Model sıfırdan yeniden eğitilecek. Mevcut model yerini yenisine '
+                 + 'bırakır ve kalibrasyon ölçümü de sıfırlanır.\n\nDevam edilsin mi?',
+  }
+
   const act = async (path: string, label: string) => {
+    if (ONAY[path] && !window.confirm(ONAY[path])) return
     setBusy(true)
     try {
       const r = await adminFetch(`${ADMIN}/${path}`, { method: 'POST' })
@@ -291,10 +305,15 @@ export default function ModelPage() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 8 }}>
           {[
-            { p: 'analyze-now',  t: 'Şimdi analiz et',     d: 'Sıradaki döngüyü beklemeden tüm sembolleri tara (~1 dk)' },
+            // Seans içinde bar kapısı tahmini reddeder (yarım bar) — açıklama
+            // bunu söylemezse düğme "çalışmıyor" sanılır.
+            { p: 'analyze-now',  t: 'Şimdi analiz et',     d: 'Sıradaki döngüyü beklemeden tara (~1 dk). Seans açıkken yeni tahmin üretmez — günün barı saat 18.00 kapanışıyla tamamlanır' },
             { p: 'evaluate-now', t: 'Şimdi değerlendir',   d: 'Olgunlaşmış tahminlerin sonucunu hesapla (~1-2 dk)' },
             { p: 'retrain',      t: 'Terfi kontrolü',      d: 'Rakip model şampiyonu geçiyor mu? Geçerse yerine geçer' },
-            { p: 'walkforward',  t: 'Doğrulama çalıştır',  d: 'Geçmiş veride dürüst sınav + kalibratörü tazeler (~2-5 dk)' },
+            // 25.09.2026: kalibratörü tazelemek I12'nin ölçüm sayacını sıfırlar.
+            // Düğme bunu SÖYLEMİYORDU; o gün elle basıldı ve ilk dürüst
+            // kalibrasyon okuması ekim başından ekim ortasına kaydı.
+            { p: 'walkforward',  t: 'Doğrulama çalıştır',  d: 'Geçmiş veride dürüst sınav + kalibratörü tazeler (~2-5 dk). Kalibrasyon ölçümünü sıfırlar — ilk dürüst okuma ~3 hafta ertelenir', warn: true },
             { p: 'reset-model',  t: 'Veriyi yenile + eğit', d: 'Veri setini sıfırdan kur ve modeli yeniden eğit (~4-6 dk)', warn: true },
           ].map(b => {
             const running = !!prog?.running

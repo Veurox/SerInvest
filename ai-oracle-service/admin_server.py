@@ -537,7 +537,41 @@ def _admin_make_app():
                  for k, v in sym_stats.items() if v["total"] >= 3],
                 key=lambda x: -x["accuracy"])
 
+            # ── AL dediği hisseler, demediklerinden iyi mi gitti? (25.09.2026)
+            # Ekran "AL isabeti %54 · başabaş %40" diyordu. İki kusuru vardı:
+            # isabet yalnız hedefe YA DA stopa değenlerden hesaplanıyor
+            # (hiçbirine değmeyen ~%24 dışarıda), başabaş ise 3:2 kazanç/kayıp
+            # oranını varsayıyor — oysa işlemlerin çoğu süre dolunca kapanıyor.
+            # Kullanıcının asıl sorusu şu: AL çağrısına uysam, uymadığım
+            # hisselerden daha iyi mi ederdim? Cevap bu iki grubun gerçekleşen
+            # getirisi. İkisi de AYNI üçlü bariyerle ölçülüyor, yani kıyaslanabilir.
+            def _getiriler(yon):
+                out = []
+                for r in evaluated_rows:
+                    if r["predicted"] != yon:
+                        continue
+                    try:
+                        out.append(float(r["return"]))
+                    except (TypeError, ValueError):
+                        pass
+                return out
+
+            def _ozet(xs):
+                if not xs:
+                    return {"n": 0, "ort": None, "medyan": None, "pozitif": None}
+                xs = sorted(xs)
+                m = len(xs) // 2
+                med = xs[m] if len(xs) % 2 else (xs[m - 1] + xs[m]) / 2
+                return {"n": len(xs),
+                        "ort": round(sum(xs) / len(xs), 5),
+                        "medyan": round(med, 5),
+                        "pozitif": round(sum(1 for x in xs if x > 0) / len(xs), 4)}
+
+            getiri = {"al": _ozet(_getiriler("BUY")),
+                      "diger": _ozet(_getiriler("NEUTRAL"))}
+
             summary = {
+                "getiri":           getiri,
                 "total":            len(rows),
                 "evaluated":        len(evaluated_rows),
                 "pending":          len(rows) - len(evaluated_rows),

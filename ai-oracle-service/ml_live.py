@@ -670,12 +670,6 @@ def _run_ml_cycle_locked(model_holder: list):
     # ── Faz 2: kesitsel rank (bugünün evreni) — eğitimle AYNI dönüşüm ─────────
     raw_feats = {sym: s[1] for sym, s in snaps.items()}
 
-    # Faz 4: günün HAM özellik fotoğrafını logla (PSI drift monitörü tabanı)
-    try:
-        monitoring.log_features(raw_feats)
-    except Exception as e:
-        print(f"[ml cycle] özellik logu yazılamadı: {e}")
-
     model_feats = xsec_rank_latest(raw_feats) if XSEC_RANK else raw_feats
     if XSEC_RANK:
         print(f"[ml cycle] kesitsel rank: {len(model_feats)} sembol bugünün evreninde sıralandı")
@@ -716,6 +710,21 @@ def _run_ml_cycle_locked(model_holder: list):
             bar_gunu=snap[3], bugun=today_str, piyasa_acik=paper_mkt_open,
             son_tahmin_bari=son_barlar.get(sym))
     print(f"[bar kapısı] {bar_durumu.ozet(engeller)}")
+
+    # Faz 4: günün HAM özellik fotoğrafını logla (PSI drift monitörü tabanı).
+    #
+    # KAPIDAN SONRA ve YALNIZ GEÇENLERLE (25.09.2026). Önce kapıdan önce
+    # yazılıyordu: seans içinde tahmin engelleniyordu ama yarım barın
+    # özellikleri günlüğe girmeye devam ediyordu. Makine kapanıştan önce
+    # kapatılınca o satır kalıcı oluyordu (18.09) ve veri kayması izleyicisi,
+    # modelin artık hiç görmediği yarım bar dağılımını eğitimle kıyaslıyordu.
+    # Kapının engellediği veri, izlemeye de girmemeli.
+    gecen = {s: f for s, f in raw_feats.items() if not engeller.get(s)}
+    if gecen:
+        try:
+            monitoring.log_features(gecen)
+        except Exception as e:
+            print(f"[ml cycle] özellik logu yazılamadı: {e}")
 
     count = buys = 0
     for _pi, (sym, snap) in enumerate(snaps.items()):

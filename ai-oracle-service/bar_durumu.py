@@ -32,6 +32,8 @@ o yüzden sınanabilir.
 """
 from __future__ import annotations
 
+import datetime as _dt
+
 
 # Döndürülen sebepler — çağıran tarafta karşılaştırılıyor, sabit tutulmalı.
 YOK = "bar yok"
@@ -91,3 +93,47 @@ def ozet(engeller: dict[str, str | None]) -> str:
         return "tüm semboller tamamlanmış bardan analiz edildi"
     return " · ".join(f"{n} sembol: {sebep}"
                       for sebep, n in sorted(sayim.items(), key=lambda kv: -kv[1]))
+
+
+# ── Kaçırılan işlem günleri (I10 için) ──────────────────────────────────────
+#
+# NEDEN (25.09.2026)
+# I10 "analiz gecikmiş mi"yi SON TAHMİNİN YAZILDIĞI SAATLE ölçüyordu. Bar
+# kapısından sonra bu yanlış alarm üretir: makine yalnız gün içinde açıksa
+# iş her 30 dakikada koşar ve doğru şekilde REDDEDER, ama "son tahmin 3 gün
+# önce" görünür. Doğru soru saat değil: KAPANMIŞ bir işlem günü var mı ki
+# tahmini yok?
+
+
+def son_kapanmis_islem_gunu(simdi: _dt.datetime, tatiller, kapanis: _dt.time) -> str:
+    """
+    Barı TAMAMLANMIŞ en son işlem günü.
+
+    Bugün işlem günüyse ve seans kapandıysa bugün; değilse geriye doğru ilk
+    işlem günü. Hafta sonu ve `tatiller` atlanır.
+    """
+    g = simdi.date()
+    if not (g.weekday() < 5 and g.isoformat() not in tatiller and simdi.time() > kapanis):
+        g -= _dt.timedelta(days=1)
+    while g.weekday() >= 5 or g.isoformat() in tatiller:
+        g -= _dt.timedelta(days=1)
+    return g.isoformat()
+
+
+def kacirilan_islem_gunleri(son_tahmin_bari: str | None, son_kapanmis: str,
+                            tatiller, azami: int = 30) -> list[str]:
+    """
+    `son_tahmin_bari`ndan sonra gelen ve `son_kapanmis` dahil, tahmini
+    OLMAYAN işlem günleri. Tahmin hiç yoksa boş liste (ölçülecek bir şey yok;
+    o hâli çağıran "hiç çalışmamış" diye ayrıca söyler).
+    """
+    if not son_tahmin_bari or son_tahmin_bari >= son_kapanmis:
+        return []
+    g = _dt.date.fromisoformat(son_tahmin_bari) + _dt.timedelta(days=1)
+    son = _dt.date.fromisoformat(son_kapanmis)
+    cikti: list[str] = []
+    while g <= son and len(cikti) < azami:
+        if g.weekday() < 5 and g.isoformat() not in tatiller:
+            cikti.append(g.isoformat())
+        g += _dt.timedelta(days=1)
+    return cikti

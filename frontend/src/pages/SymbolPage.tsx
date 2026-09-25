@@ -13,7 +13,8 @@
 // bakınca belli. Eski Terminal'de kendi başlığı olan bir kutuydu.
 //
 // NE BURAYA GELMEDİ: MLOps panelinin tamamı (Model sayfasında). Burada
-// yalnız BU KARARA dokunan ölçüler var — AL isabeti ve başabaş eşiği.
+// yalnız BU KARARA dokunan ölçüler var — AL çağrısına uymanın işe yarayıp
+// yaramadığı ve bu hissedeki sicil.
 // =============================================================================
 import { useEffect, useMemo, useState } from 'react'
 import { useOutletContext, useSearchParams } from 'react-router-dom'
@@ -32,11 +33,8 @@ import { PriceBarriers, BarWithRef, ContribBars, DotStrip, OutcomeStrip,
 import { sicilCikar, sicilYorumu, SONUC_AD,
          type SicilSatiri, type Sonuc } from '../lib/sicil'
 import { TerimTip } from '../components/ui'
+import { AlKarsilastirma, type GetiriKarsilastirma } from '../components/finance/AlKarsilastirma'
 
-interface AdminStatus {
-  wf_buy_accuracy?: number | null
-  wf_n_predictions?: number | null
-}
 interface Commentary {
   stance?: { direction: 'YUKARI' | 'YATAY' | 'AŞAĞI'; confidence: string }
   error?: string
@@ -59,12 +57,13 @@ export default function SymbolPage() {
   const [sp, setSp] = useSearchParams()
 
   const [agg, setAgg] = useState<AggRow[] | null>(null)
-  const [st, setSt] = useState<AdminStatus | null>(null)
   /** Bu hissenin tahmin günlüğü — modelin buradaki sicili. */
   const [sicilHam, setSicilHam] = useState<SicilSatiri[] | null>(null)
   /** Modelin BÜTÜN hisselerdeki gerçekleşmiş AL isabeti — karşılaştırma tabanı.
       Sembol değişince yeniden çekilmiyor; evrensel bir sayı. */
   const [genelIsabet, setGenelIsabet] = useState<number | null>(null)
+  /** AL dediği hisseler vs demedikleri — gerçekleşen getiri (bkz. AlKarsilastirma). */
+  const [getiri, setGetiri] = useState<GetiriKarsilastirma | null>(null)
   const [yorum, setYorum] = useState<Commentary | null>(null)
   const [ara, setAra] = useState('')
   /** Grafikten gelen barlar — seviyeler bunlardan hesaplanıyor.
@@ -89,8 +88,6 @@ export default function SymbolPage() {
     const al = () => {
       fetch(`${API}/signals/aggregate?hours=48`).then(r => r.ok ? r.json() : null)
         .then(d => { if (!dur && d) setAgg(d) }).catch(() => {})
-      adminFetch(`${ADMIN}/status`).then(r => r.ok ? r.json() : null)
-        .then(d => { if (!dur && d) setSt(d) }).catch(() => {})
 
       // Genel isabet: özet TÜM günlük üzerinden hesaplanıyor, dönen satırlar
       // gerekmiyor — o yüzden limit en düşükte.
@@ -100,6 +97,7 @@ export default function SymbolPage() {
           if (!dur && d?.summary?.buy_accuracy != null) {
             setGenelIsabet(d.summary.buy_accuracy * 100)
           }
+          if (!dur && d?.summary?.getiri) setGetiri(d.summary.getiri)
         }).catch(() => {})
       adminFetch(`${ADMIN}/commentary`).then(r => r.ok ? r.json() : null)
         .then(d => { if (!dur && d && !d.error) setYorum(d) }).catch(() => {})
@@ -152,7 +150,6 @@ export default function SymbolPage() {
     return tp + sl > 0 ? (sl / (tp + sl)) * 100 : null
   }, [cfg])
 
-  const alIsabet = st?.wf_buy_accuracy != null ? st.wf_buy_accuracy * 100 : null
 
   const sicil = useMemo(() => sicilCikar(sicilHam ?? []), [sicilHam])
   // sicilYorumu ORAN (0–1) bekliyor; genelIsabet yüzde tutuluyor çünkü
@@ -637,16 +634,12 @@ export default function SymbolPage() {
               </>
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between',
-                            alignItems: 'baseline' }}>
-                <span className="u-sub">Modelin AL isabeti</span>
-                <span className="u-num" style={{ fontWeight: 600 }}>
-                  {yuzde(alIsabet, 1)}
-                </span>
-              </div>
-              <BarWithRef deger={alIsabet} esik={basabas}
-                          esikEtiket="başabaş (maliyet hariç)" gosterDeger={false} />
+            {/* "AL isabeti · başabaş" yerine: AL dediği hisseler, demediklerinden
+                iyi mi gitti? Eski karşılaştırma modeli olduğundan iyi
+                gösteriyordu — bkz. components/finance/AlKarsilastirma. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span className="u-label">AL çağrısına uymak işe yaradı mı?</span>
+              <AlKarsilastirma veri={getiri} />
             </div>
 
             {analiz && (
