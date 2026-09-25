@@ -137,3 +137,40 @@ def kacirilan_islem_gunleri(son_tahmin_bari: str | None, son_kapanmis: str,
             cikti.append(g.isoformat())
         g += _dt.timedelta(days=1)
     return cikti
+
+
+# ── İlk dürüst kalibrasyon okuması ne zaman? (25.09.2026) ───────────────────
+#
+# Arayüz yalnız "0/150 · birkaç hafta" diyordu. Tarih sorulunca elle
+# hesaplamak gerekti — ve ilk elle hesap YANLIŞ çıktı: 10 İŞ günü sayılmıştı,
+# oysa projenin olgunlaşma kuralı (ml_live.maturity) 20 TAKVİM günü.
+# Tarih o yüzden burada, projenin kendi kuralını parametre olarak alarak
+# hesaplanıyor; arayüz yalnız gösteriyor.
+
+def ilk_okuma_tarihi(toplanan_gunler, bugun: _dt.date, bugun_tahmin_var: bool,
+                     gereken_gun: int, olgunlasma_gun: int, tatiller) -> str:
+    """
+    Kalibrasyon ölçümünün ilk dürüst okumasının TAHMİNİ tarihi.
+
+    Varsayım: bundan sonra her işlem günü akşamı tahmin üretilir (makine
+    18:00 sonrası açık). Açılmayan her akşam tarihi bir işlem günü ileri atar.
+
+    toplanan_gunler   yeni kalibratörle tahmin üretilmiş günler (YYYY-MM-DD)
+    bugun_tahmin_var  bugünün tahmini zaten yazıldı mı
+    gereken_gun       kaç farklı günün sonucu gerekiyor (I12: 10)
+    olgunlasma_gun    bir tahminin yargılanması için TAKVİM günü (ml_live: 20)
+    """
+    gunler = sorted(set(toplanan_gunler))
+    if len(gunler) >= gereken_gun:
+        son = _dt.date.fromisoformat(gunler[gereken_gun - 1])
+    else:
+        # Bugün işlem günüyse ve tahmini henüz yazılmadıysa bu akşam sayılır.
+        g = bugun if not bugun_tahmin_var else bugun + _dt.timedelta(days=1)
+        kalan = gereken_gun - len(gunler)
+        son = g
+        while kalan > 0:
+            if g.weekday() < 5 and g.isoformat() not in tatiller:
+                son = g
+                kalan -= 1
+            g += _dt.timedelta(days=1)
+    return (son + _dt.timedelta(days=olgunlasma_gun)).isoformat()

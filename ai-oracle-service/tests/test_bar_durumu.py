@@ -141,3 +141,33 @@ def test_hafta_sonu_kacirilmis_sayilmaz():
 
 def test_tahmin_yoksa_bos():
     assert bd.kacirilan_islem_gunleri(None, "2026-09-24", set()) == []
+
+
+# ── İlk dürüst kalibrasyon okuması ──────────────────────────────────────────
+def test_ilk_okuma_25_eylul_senaryosu():
+    """
+    Kalibratör 25.09'da tazelendi, henüz yeni tahmin yok, bu akşam yazılacak.
+    10. tahmin günü 08.10; 20 takvim günü sonra → 28.10.
+    İlk elle hesap 22.10 demişti (iş günü sayılmıştı) — bu test onu kilitliyor.
+    """
+    assert bd.ilk_okuma_tarihi([], dt.date(2026, 9, 25), False, 10, 20, set()) == "2026-10-28"
+
+
+def test_bugunun_tahmini_yazildiysa_yarindan_sayilir():
+    assert bd.ilk_okuma_tarihi([], dt.date(2026, 9, 25), True, 10, 20, set()) == "2026-10-29"
+
+
+def test_toplanan_gunler_sayilir():
+    """3 gün toplanmışsa kalan 7 gün ileriden sayılır."""
+    top = ["2026-09-25", "2026-09-28", "2026-09-29"]
+    assert bd.ilk_okuma_tarihi(top, dt.date(2026, 9, 30), False, 10, 20, set()) == "2026-10-28"
+
+
+def test_yeterli_gun_varsa_onuncunun_olgunlasmasi():
+    top = [f"2026-10-{d:02d}" for d in (1, 2, 5, 6, 7, 8, 9, 12, 13, 14, 15)]
+    assert bd.ilk_okuma_tarihi(top, dt.date(2026, 10, 20), True, 10, 20, set()) == "2026-11-03"
+
+
+def test_tatil_ileri_atar():
+    t = {"2026-09-28"}
+    assert bd.ilk_okuma_tarihi([], dt.date(2026, 9, 25), False, 10, 20, t) == "2026-10-29"

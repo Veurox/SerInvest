@@ -48,7 +48,11 @@ interface AdminStatus {
 interface DriftResp {
   status?: string
   psi?: number | null
-  calibration?: { n_evaluated?: number | null; min_required?: number | null }
+  calibration?: {
+    n_evaluated?: number | null; min_required?: number | null
+    /** İlk dürüst okumanın TAHMİNİ tarihi (YYYY-MM-DD) — arka uç hesaplar. */
+    ilk_okuma_tahmini?: string | null
+  }
 }
 interface PaperSummary {
   positions?: Array<{ symbol: string; unrealized_pct?: number | null }>
@@ -65,6 +69,10 @@ interface Commentary {
 const YON_RENK: Record<string, string> = {
   YUKARI: 'var(--u-up)', 'AŞAĞI': 'var(--u-down)', YATAY: 'var(--u-flat)',
 }
+
+/** "2026-10-28" → "28 Ekim" */
+const tarihYaz = (iso: string) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })
 
 export default function TodayPage() {
   const { assets, oracle } = useOutletContext<SharedData>()
@@ -379,9 +387,16 @@ export default function TodayPage() {
                 : '—'}
             </span>
             <BarWithRef deger={kalibreOran} gosterDeger={false} />
+            {/* Tarih arka uçta, projenin kendi olgunlaşma kuralıyla hesaplanıyor
+                (bar_durumu.ilk_okuma_tarihi). Eskiden "birkaç hafta" yazıyordu;
+                elle hesaplanınca ilk tahmin yanlış çıktı (iş günü sayılmıştı,
+                kural takvim günü). */}
             <span className="u-sub u-sub--clamp">
-              Bir tahmin ancak ~20 gün sonra yargılanabiliyor; ilk dürüst okuma
-              birkaç hafta sürer.
+              {kalibre?.ilk_okuma_tahmini
+                ? <>İlk dürüst okuma tahminen{' '}
+                    <b style={{ color: 'var(--u-text)' }}>{tarihYaz(kalibre.ilk_okuma_tahmini)}</b>
+                    {' '}— akşamları 18:00 sonrası açık kalırsa. Açılmayan her akşam bir gün öteler.</>
+                : 'Bir tahmin ancak ~20 gün sonra yargılanabiliyor; ilk dürüst okuma birkaç hafta sürer.'}
             </span>
           </div>
 

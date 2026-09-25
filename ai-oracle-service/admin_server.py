@@ -130,6 +130,33 @@ def _admin_make_app():
         else:
             drift = _load_json(DRIFT_REPORT_FILE) or {"status": "NO_DATA", "message": "henüz hesaplanmadı (günlük 19:20 veya ?refresh=1)"}
             calib = _load_json(CALIB_REPORT_FILE) or {"status": "NO_DATA"}
+
+        # İlk dürüst kalibrasyon okumasının TAHMİNİ tarihi — rapor her okunuşta
+        # yeniden hesaplanır ki "bugün" ve toplanan günler güncel olsun.
+        # Kural projenin kendisinden: olgunlaşma = EVAL_MIN_AGE_DAYS takvim günü
+        # (ml_live.maturity ile AYNI), gereken gün = raporun min_days'i.
+        try:
+            calib = dict(calib)
+            fitted = (calib.get("calibrator_fitted_at") or "")[:19]
+            if calib.get("status") in ("COLLECTING", "NO_DATA") and fitted:
+                import csv, datetime
+                import bar_durumu
+                from ml.config import EVAL_MIN_AGE_DAYS, PREDICTION_LOG
+                from paper_trading import BIST_HOLIDAYS
+                gunler, bugun = set(), datetime.date.today().isoformat()
+                if PREDICTION_LOG.exists():
+                    with open(PREDICTION_LOG, "r", encoding="utf-8") as f:
+                        for r in csv.DictReader(f):
+                            ts = r.get("timestamp") or ""
+                            if ts[:19] >= fitted and (r.get("p_cal") or "").strip():
+                                gunler.add(ts[:10])
+                calib["ilk_okuma_tahmini"] = bar_durumu.ilk_okuma_tarihi(
+                    gunler, datetime.date.today(), bugun in gunler,
+                    int(calib.get("min_days") or 10), EVAL_MIN_AGE_DAYS, BIST_HOLIDAYS)
+                calib["ilk_okuma_toplanan_gun"] = len(gunler)
+        except Exception as e:
+            print(f"[admin] ilk okuma tarihi hesaplanamadı: {e}")
+
         return jsonify({
             "status": drift.get("status"),
             "message": drift.get("message"),
