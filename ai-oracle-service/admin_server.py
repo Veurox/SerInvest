@@ -91,6 +91,21 @@ def _admin_make_app():
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
     # ── GET /admin/status ─────────────────────────────────────────────────────
+    # Rejim kapısı durumu — arayüz "AL neden gelmiyor" sorusunu cevaplasın.
+    # market_regime() yfinance'ten 2 yıllık XU100 indiriyor; her istekte
+    # çağırmak hem yavaş hem kaynağa yük. 15 dakikalık önbellek: kapı zaten
+    # günlük kapanışa bakıyor, gün içinde değişmesi anlamlı bir şey söylemez.
+    _REJIM_ONBELLEK = {"t": 0.0, "v": None}
+
+    def _rejim():
+        if time.time() - _REJIM_ONBELLEK["t"] > 900 or _REJIM_ONBELLEK["v"] is None:
+            try:
+                _REJIM_ONBELLEK["v"] = ml_live.market_regime()
+            except Exception as e:
+                _REJIM_ONBELLEK["v"] = {"regime": "UNKNOWN", "detail": str(e)}
+            _REJIM_ONBELLEK["t"] = time.time()
+        return _REJIM_ONBELLEK["v"]
+
     @app.get("/admin/status")
     def admin_status():
         model = _ADMIN_MODEL_HOLDER[0]
@@ -113,6 +128,7 @@ def _admin_make_app():
             "wf_n_predictions": wf.get("n_oos"),
             "wf_completed_at":  wf.get("computed_at"),
             "champion":         meta,
+            "regime":           _rejim(),
         })
 
     # ── GET /admin/drift ──────────────────────────────────────────────────────

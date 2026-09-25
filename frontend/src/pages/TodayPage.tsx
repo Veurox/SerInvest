@@ -44,6 +44,8 @@ interface AdminStatus {
   wf_buy_accuracy?: number | null
   wf_n_predictions?: number | null
   model_age_hours?: number | null
+  /** Rejim kapısı: XU100 EMA200'ün altındaysa yeni AL askıda. */
+  regime?: { regime?: string; xu100?: number | null; ema?: number | null } | null
 }
 interface DriftResp {
   status?: string
@@ -272,10 +274,33 @@ export default function TodayPage() {
         </div>
 
         {cagrilar.length === 0 ? (
-          <span className="u-sub">
-            Model bugün hiçbir sembolde alım demiyor. Bu bir kusur değil —
-            filtreler geçilmediğinde çağrı üretilmez.
-          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--u-s2)' }}>
+            {/* Rejim kapısı açıksa asıl sebep O — söylenmezse "model çalışmıyor"
+                sanılıyor. 22.09'da 27 hisse modelin eşiğini geçmişti ama
+                hiçbiri AL olarak verilmedi; hepsini bu kapı tuttu.
+                Mesafe yaklaşık: ortalama da endeksle birlikte yavaşça kayar. */}
+            {st?.regime?.regime === 'RISK_OFF' && st.regime.xu100 && st.regime.ema ? (
+              <>
+                <span style={{ fontSize: 'var(--u-t-lead)', fontWeight: 600 }}>
+                  AL tavsiyeleri BIST-100{' '}
+                  <span className="u-num">{fmt(st.regime.ema, 0)}</span> seviyesini geçince başlar —
+                  şu an <span className="u-num u-down">
+                    {yuzde((st.regime.ema / st.regime.xu100 - 1) * 100, 1)}</span> aşağıda.
+                </span>
+                <span className="u-sub">
+                  BIST-100 şu an <span className="u-num">{fmt(st.regime.xu100, 0)}</span>, 200
+                  günlük ortalamasının altında. Düşen piyasada alım yapmamak için yeni AL
+                  tavsiyeleri bu sırada bilerek askıya alınıyor. Model hisseleri analiz
+                  etmeye devam ediyor; kapı açılınca tavsiyeler kendiliğinden gelir.
+                </span>
+              </>
+            ) : (
+              <span className="u-sub">
+                Model bugün hiçbir sembolde alım demiyor. Bu bir kusur değil —
+                filtreler geçilmediğinde çağrı üretilmez.
+              </span>
+            )}
+          </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '286px minmax(0, 1fr)',
                         gap: 'var(--u-s5)', alignItems: 'start' }}>
