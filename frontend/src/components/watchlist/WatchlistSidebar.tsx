@@ -85,7 +85,12 @@ export function WatchlistSidebar({
   }, [active, bySym])
 
   const toggleGroup = (t: string) =>
-    setCollapsed(prev => { const n = new Set(prev); n.has(t) ? n.delete(t) : n.add(t); return n })
+    setCollapsed(prev => {
+      const n = new Set(prev)
+      if (n.has(t)) n.delete(t)
+      else n.add(t)
+      return n
+    })
 
   // Sembol ekleme adayları
   const addCandidates = useMemo(() => {
