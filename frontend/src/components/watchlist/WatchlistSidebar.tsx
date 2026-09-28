@@ -9,6 +9,7 @@ import { COMPANY_NAMES } from '../../lib/companies'
 import { CompanyLogo } from '../common/CompanyLogo'
 import { Icon } from '../ui'
 import { fmt, yuzde } from '../../lib/format'
+import { enYeniKayit, fiyatlarBayat, sureYaz } from '../../lib/tazelik'
 import type { PriceData } from '../../lib/types'
 
 const fmtVol = (v: number | null): string => {
@@ -39,6 +40,10 @@ export function WatchlistSidebar({
   embedded?: boolean
 }) {
   const { lists, createList, renameList, deleteList, toggleSymbol, reorderSymbols } = useWatchlists()
+
+  const enYeni = enYeniKayit(assets)
+  const bayat = fiyatlarBayat(assets)
+  const bayatDk = enYeni == null ? null : Math.round((Date.now() - enYeni) / 60000)
 
   const [activeId, setActiveId] = useState<string>(() => localStorage.getItem('si_wl_active') || '')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -183,6 +188,16 @@ export function WatchlistSidebar({
           </>
         )}
       </div>
+
+      {/* Fiyatlar bayatsa SÖYLE (28.09.2026). Açılışta taze fiyatın gelmesi
+          ~2 dk sürüyor; o arada liste makinenin kapandığı günün fiyatlarını
+          gösteriyordu ve bunu belirten hiçbir şey yoktu — kullanıcı "fiyatlar
+          güncellenmiyor" diye okudu. Ekran bu sırada 20 sn'de bir soruyor. */}
+      {bayat && (
+        <div className="wl-bayat" role="status">
+          Fiyatlar güncelleniyor — gösterilen son veri {sureYaz(bayatDk)}
+        </div>
+      )}
 
       {/* Sembol ekleme kutusu */}
       {addOpen && (

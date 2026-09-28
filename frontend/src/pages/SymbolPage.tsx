@@ -25,7 +25,7 @@ import { fmt, yuzde, oranYuzde } from '../lib/format'
 import { ruhHaliHesapla, type AggRow } from '../lib/sentiment'
 import { suruculeriTopla, listeCoz } from '../lib/drivers'
 import { seviyeleriTopla, uzaklikYuzde, type Seviye } from '../lib/levels'
-import { tazelikDurumu } from '../lib/tazelik'
+import { tazelikDurumu, sureYaz } from '../lib/tazelik'
 import type { Bar } from '../lib/bars'
 import { COMPANY_NAMES } from '../lib/companies'
 import { PriceBarriers, BarWithRef, ContribBars, DotStrip, OutcomeStrip,
@@ -315,7 +315,7 @@ export default function SymbolPage() {
                                              borderColor: 'var(--u-warn)',
                                              cursor: 'help' }}
                   title={tazelik.mesaj}>
-              {tazelik.analizdenEski ? 'fiyat analizden eski' : `${tazelik.yasDk} dk önce`}
+              {tazelik.analizdenEski ? 'fiyat analizden eski' : sureYaz(tazelik.yasDk)}
             </span>
           )}
           {degisim != null && (

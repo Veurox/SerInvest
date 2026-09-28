@@ -32,7 +32,7 @@ import type { SharedData } from '../App'
 import { API, ADMIN, adminFetch } from '../lib/api'
 import { useConfig } from '../lib/useConfig'
 import { fmt, yuzde, oranYuzde } from '../lib/format'
-import { tazelikDurumu } from '../lib/tazelik'
+import { tazelikDurumu, sureYaz } from '../lib/tazelik'
 import { ruhHaliHesapla, type AggRow } from '../lib/sentiment'
 import { Gauge, DotStrip, Donut, BarWithRef, PriceBarriers } from '../components/viz'
 import { TerimTip } from '../components/ui'
@@ -355,7 +355,7 @@ export default function TodayPage() {
                   <span className="u-seg" title={tazelik.mesaj}
                         style={{ color: 'var(--u-warn)', borderColor: 'var(--u-warn)',
                                  cursor: 'help' }}>
-                    {tazelik.analizdenEski ? 'fiyat analizden eski' : `${tazelik.yasDk} dk önce`}
+                    {tazelik.analizdenEski ? 'fiyat analizden eski' : sureYaz(tazelik.yasDk)}
                   </span>
                 )}
                 <div style={{ flexGrow: 1 }} />

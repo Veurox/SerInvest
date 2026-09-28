@@ -11,6 +11,7 @@ import { MacroTicker, DriftBadge } from './components/finance'
 import { WatchlistSidebar } from './components/watchlist/WatchlistSidebar'
 import { SymbolDrawer } from './components/watchlist/SymbolDrawer'
 import { API, getAdminKey, adminFetch } from './lib/api'
+import { fiyatlarBayat } from './lib/tazelik'
 import type {
   SystemStatus, PriceData, NewsSignal, OracleAnalysis, FundamentalData,
 } from './lib/types'
@@ -175,6 +176,19 @@ export default function App() {
   ]
 
   // ── Ortak veri fetch ────────────────────────────────────────────────
+  /**
+   * Fiyat listesi bayat mı? (28.09.2026)
+   * Açılışta ekran fiyatı HEMEN istiyor ama taze fiyatın gelmesi ~2 dk
+   * sürüyor; sonraki yenileme borsa kapalıyken 5 dk sonraydı. Sonuç: açılışta
+   * ~7 dk eski fiyat. Liste bayatken 20 sn'de bir soruluyor; taze fiyat
+   * gelince normal aralığa dönülüyor. Servis tamamen durursa 20 sn'de bir
+   * sormaya devam eder — yerel ağda yük değil, ve izleme listesi başlığı
+   * durumu zaten gösteriyor.
+   */
+  const fiyatBayatRef = useRef(false)
+  const yenilemeAraligi = (acik: boolean) =>
+    fiyatBayatRef.current ? 20_000 : acik ? 30_000 : 300_000
+
   const fetchAll = useCallback(async (): Promise<boolean> => {
     try {
       const [assetsRes, oracleRes, newsRes, statusRes, fundRes] = await Promise.allSettled([
@@ -187,7 +201,9 @@ export default function App() {
 
       let anyOk = false
       if (assetsRes.status === 'fulfilled' && assetsRes.value.ok) {
-        setAssets(await assetsRes.value.json())
+        const varliklar = await assetsRes.value.json()
+        fiyatBayatRef.current = fiyatlarBayat(varliklar)
+        setAssets(varliklar)
         setLastUpdate(new Date().toLocaleTimeString('tr-TR'))
         anyOk = true
       }
@@ -235,7 +251,7 @@ export default function App() {
       const open = isMarketOpen()
       setMarketOpen(open)
       await fetchAll()
-      if (!cancelled) timer = setTimeout(tick, open ? 30_000 : 300_000)
+      if (!cancelled) timer = setTimeout(tick, yenilemeAraligi(open))
     }
 
     const start = async () => {
@@ -250,7 +266,7 @@ export default function App() {
         setLoading(false)
         const open = isMarketOpen()
         setMarketOpen(open)
-        timer = setTimeout(tick, open ? 30_000 : 300_000)
+        timer = setTimeout(tick, yenilemeAraligi(open))
       }
     }
     start()

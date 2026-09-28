@@ -88,10 +88,55 @@ export function tazelikDurumu(
     return {
       yasDk,
       analizdenEski: false,
-      mesaj: `Fiyat verisi ${yasDk} dakikalık — piyasa verisi servisi `
+      mesaj: `Fiyat verisi ${sureYaz(yasDk).replace(' önce', '')} eski — piyasa verisi servisi `
            + 'geride kalmış olabilir.',
     }
   }
 
   return { yasDk, analizdenEski: false, mesaj: null }
+}
+
+// ── Fiyat LİSTESİ bayat mı? (28.09.2026) ────────────────────────────────────
+//
+// Program açılınca ekran fiyatı HEMEN istiyor; o an veritabanında hâlâ
+// makinenin kapandığı günün fiyatları var (taze fiyatın gelmesi ~2 dk).
+// Sonraki yenileme borsa kapalıyken 5 DAKİKA sonraydı. Ölçüldü: taze fiyat
+// 19:13:47'de geldi, ekran 19:17'ye kadar eskisini gösterdi — izleme
+// listesinde de sembol listesinde de. Açılışta toplam ~7 dk eski fiyat.
+//
+// Çözüm iki parça: (1) liste bayatken ekran sık sorar, tazelenince normal
+// aralığa döner (App.tsx); (2) bayatken bunu SÖYLER (izleme listesi başlığı).
+
+/** En yeni fiyat kaydının zamanı (ms, UTC); hiç okunamazsa null. */
+export function enYeniKayit(varliklar: { recordedAt?: string | null }[]): number | null {
+  let enYeni: number | null = null
+  for (const v of varliklar) {
+    const t = zaman(v.recordedAt)
+    if (t != null && (enYeni == null || t > enYeni)) enYeni = t
+  }
+  return enYeni
+}
+
+/**
+ * Listedeki EN YENİ fiyat bile bayatsa liste bayattır.
+ * Tek tek sembolün eski olması normal (işlemi durmuş hisse); hepsinin eski
+ * olması ise verinin henüz gelmediği ya da servisin durduğu anlamına gelir.
+ */
+export function fiyatlarBayat(
+  varliklar: { recordedAt?: string | null }[], simdi: number = Date.now(),
+): boolean {
+  const t = enYeniKayit(varliklar)
+  return t != null && dk(simdi, t) >= BAYAT_DK
+}
+
+/**
+ * Dakikayı okunur süreye çevirir: "12 dk önce", "3 sa önce", "3 gün önce".
+ * Eskiden rozet "4320 dk önce" yazacaktı — makine hafta sonu kapalı
+ * kaldığında tam olarak bu oluyor.
+ */
+export function sureYaz(dakika: number | null): string {
+  if (dakika == null) return '—'
+  if (dakika < 60) return `${dakika} dk önce`
+  if (dakika < 60 * 24) return `${Math.round(dakika / 60)} sa önce`
+  return `${Math.round(dakika / (60 * 24))} gün önce`
 }

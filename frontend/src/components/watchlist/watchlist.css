@@ -206,3 +206,15 @@
 @media (max-width: 920px) {
   .wl-sidebar { position: fixed; left: 0; top: 57px; z-index: 95; box-shadow: var(--shadow-lg); }
 }
+
+/* Fiyatlar bayatken başlığın altında duran durum satırı (28.09.2026).
+   Uyarı rengi ama bağırmayan bir ton: bu bir arıza değil, verinin yolda
+   olduğunu söylüyor. */
+.wl-bayat {
+  padding: 6px 12px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-bottom: 1px solid var(--border-subtle);
+}
