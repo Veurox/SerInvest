@@ -484,16 +484,13 @@ def i10_jobs_not_overdue(now) -> dict:
     # Bar kapısı seans içinde tahmini doğru şekilde reddediyor; saatle
     # ölçülünce makine yalnız gün içinde açıkken iş koşuyor ama "3 gün
     # gecikmiş" görünüyordu. Soru şu: tahmini OLMAYAN kapanmış gün var mı?
-    import bar_durumu
-    from paper_trading import BIST_HOLIDAYS, MARKET_CLOSE_TIME
+    import takvim
     if not pr:
         late.append("analyze: hiç çalışmamış")
     else:
         son_bar = max(((r.get("bar_gunu") or "").strip() or (r.get("timestamp") or "")[:10]
                        for r in pr), default=None)
-        beklenen = bar_durumu.son_kapanmis_islem_gunu(
-            datetime.datetime.now(), BIST_HOLIDAYS, MARKET_CLOSE_TIME)
-        kacan = bar_durumu.kacirilan_islem_gunleri(son_bar, beklenen, BIST_HOLIDAYS)
+        kacan = takvim.kacan_gunler(son_bar)
         if kacan:
             gun = ", ".join(g[8:10] + "." + g[5:7] for g in kacan[:5])
             late.append(f"analyze: {len(kacan)} kapanmış işlem gününün tahmini yok "

@@ -158,7 +158,7 @@ def _admin_make_app():
                 import csv, datetime
                 import bar_durumu
                 from ml.config import EVAL_MIN_AGE_DAYS, PREDICTION_LOG
-                from paper_trading import BIST_HOLIDAYS
+                import takvim
                 gunler, bugun = set(), datetime.date.today().isoformat()
                 if PREDICTION_LOG.exists():
                     with open(PREDICTION_LOG, "r", encoding="utf-8") as f:
@@ -168,7 +168,7 @@ def _admin_make_app():
                                 gunler.add(ts[:10])
                 calib["ilk_okuma_tahmini"] = bar_durumu.ilk_okuma_tarihi(
                     gunler, datetime.date.today(), bugun in gunler,
-                    int(calib.get("min_days") or 10), EVAL_MIN_AGE_DAYS, BIST_HOLIDAYS)
+                    int(calib.get("min_days") or 10), EVAL_MIN_AGE_DAYS, takvim.TATILLER)
                 calib["ilk_okuma_toplanan_gun"] = len(gunler)
         except Exception as e:
             print(f"[admin] ilk okuma tarihi hesaplanamadı: {e}")
@@ -807,9 +807,12 @@ def _admin_make_app():
         specs = [
             # Gecikme eşikleri ml/config.JOB_OVERDUE_HOURS'tan — selftest I10 ile
             # AYNI kaynak. Elle yazılan eşik = 08/2026 "77/30" hatasının sınıfı.
-            ("analyze",  "Piyasa taraması", "her 30 dakika",
-             last_analyze, JOB_OVERDUE_HOURS["analyze"], True,
-             "Tüm sembolleri tarar, tahmin üretir"),
+            # Tahmin günde BİR kez, kapanmış bardan üretilir (bar kapısı). Kaçan
+            # günün tahmini sonradan üretilemez → telafi YOK. Gecikme saatle değil
+            # I10 ile aynı ölçütle (kaçan kapanmış işlem günü) — aşağıda.
+            ("analyze",  "Günlük analiz", "her işlem günü 18:35 (arifede 13:35)",
+             last_analyze, JOB_OVERDUE_HOURS["analyze"], False,
+             "Kapanmış bardan tahmin üretir. Program o akşam kapalıysa o günün tahmini kaybolur."),
             ("evaluate", "Günlük değerlendirme", "her gün 19:00",
              stats.get("last_eval"), JOB_OVERDUE_HOURS["evaluate"], True,
              "Olgunlaşan tahminlerin sonucunu hesaplar (10 işlem günü sonra)"),
@@ -824,11 +827,26 @@ def _admin_make_app():
              "Walk-forward sınavı ve kalibratör tazeleme (Doğrulama çalıştır)"),
         ]
 
+        import takvim
+        son_bar = None
+        try:
+            son_bar = max(ml_live.son_tahmin_barlari().values(), default=None)
+        except Exception:
+            pass
+
         jobs = []
         for jid, name, sched, last, overdue_h, catchup, desc in specs:
             age = _age_h(last)
+            detail = None
             if age is None:
                 status = "never"
+            elif jid == "analyze":
+                kacan = takvim.kacan_gunler(son_bar)
+                status = "overdue" if kacan else "ok"
+                if kacan:
+                    detail = ("Tahmini olmayan gün: "
+                              + ", ".join(g[8:10] + "." + g[5:7] for g in kacan[:5])
+                              + " — program o akşam kapalıydı")
             elif overdue_h is None:
                 status = "manual"
             elif age > overdue_h:
@@ -839,14 +857,17 @@ def _admin_make_app():
                 "id": jid, "name": name, "schedule": sched, "description": desc,
                 "last_run": last, "age_hours": round(age, 2) if age is not None else None,
                 "overdue_after_hours": overdue_h, "status": status, "catchup": catchup,
+                "detail": detail,
             })
 
         return jsonify({
             "now": now.isoformat(),
             "jobs": jobs,
-            "note": ("Bilgisayar kapalıyken kaçan işler, program açıldığında "
-                     "otomatik telafi edilir (piyasa taraması, değerlendirme, "
-                     "sağlık kontrolü ve haftalık eğitim)."),
+            "note": ("Değerlendirme, sağlık kontrolü ve haftalık eğitim kaçarsa "
+                     "program açıldığında telafi edilir. Günlük analiz edilemez: "
+                     "kapanmış günün tahmini sonradan üretilmez — program her "
+                     "işlem günü 18:30 ile ertesi sabah 10:00 arasında bir kez "
+                     "açık olmalı."),
         })
 
     # ── GET /admin/model-story ────────────────────────────────────────────────

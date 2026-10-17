@@ -13,6 +13,8 @@ interface Job {
   overdue_after_hours: number | null
   status: 'ok' | 'overdue' | 'never' | 'manual'
   catchup: boolean
+  /** Durumun nedeni — örn. tahmini olmayan günler (18.10.2026) */
+  detail?: string | null
 }
 interface JobsResp { now: string; jobs: Job[]; note?: string; error?: string }
 
@@ -85,6 +87,11 @@ export function JobStatus() {
                 Program: {j.schedule}
                 {j.catchup && <span style={{ color: 'var(--profit)' }}> · kaçarsa telafi edilir</span>}
               </div>
+              {j.detail && (
+                <div style={{ fontSize: 10.5, color: s.fg, marginTop: 3, lineHeight: 1.45 }}>
+                  {j.detail}
+                </div>
+              )}
             </div>
           )
         })}

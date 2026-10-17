@@ -105,15 +105,20 @@ def ozet(engeller: dict[str, str | None]) -> str:
 # tahmini yok?
 
 
-def son_kapanmis_islem_gunu(simdi: _dt.datetime, tatiller, kapanis: _dt.time) -> str:
+def son_kapanmis_islem_gunu(simdi: _dt.datetime, tatiller, kapanis: _dt.time,
+                            yarim_gunler: dict | None = None) -> str:
     """
     Barı TAMAMLANMIŞ en son işlem günü.
 
     Bugün işlem günüyse ve seans kapandıysa bugün; değilse geriye doğru ilk
     işlem günü. Hafta sonu ve `tatiller` atlanır.
+
+    yarim_gunler: {gün: o günün kapanış saati} — arife gibi erken kapanan
+    işlem günleri (18.10.2026). Bunlar tatil DEĞİL; yalnız saatleri farklı.
     """
     g = simdi.date()
-    if not (g.weekday() < 5 and g.isoformat() not in tatiller and simdi.time() > kapanis):
+    gun_kapanis = (yarim_gunler or {}).get(g.isoformat(), kapanis)
+    if not (g.weekday() < 5 and g.isoformat() not in tatiller and simdi.time() > gun_kapanis):
         g -= _dt.timedelta(days=1)
     while g.weekday() >= 5 or g.isoformat() in tatiller:
         g -= _dt.timedelta(days=1)

@@ -124,8 +124,13 @@ def main():
     # 2. Periyodik analiz döngüsü — her CYCLE_MIN dakikada bir
     schedule.every(CYCLE_MIN).minutes.do(ml_live.run_ml_cycle, model_holder=model_holder)
 
-    # 3. Günlük kapanış analizi — BIST kapanışına (18:10) ek tarama
-    schedule.every().day.at("18:10").do(ml_live.run_ml_cycle, model_holder=model_holder)
+    # 3. Günlük kapanış analizi — bar tamamlanır tamamlanmaz (18.10.2026).
+    #    Eskiden 18:10'daydı; bar kapısı barı 18:30'a kadar yarım saydığı için
+    #    o tur her gün reddediliyordu ve günün analizi 30 dk'lık döngüyü
+    #    bekliyordu. 13:35 arife yarım günleri için (takvim.YARIM_GUN_KAPANIS);
+    #    diğer günler o saatte kapı turu zaten reddeder.
+    schedule.every().day.at("18:35").do(ml_live.run_ml_cycle, model_holder=model_holder)
+    schedule.every().day.at("13:35").do(ml_live.run_ml_cycle, model_holder=model_holder)
 
     # 4. Günlük değerlendirme — kapanış sonrası 19:00 (10g triple-barrier)
     schedule.every().day.at("19:00").do(ml_live.evaluate_ml)
@@ -144,7 +149,7 @@ def main():
 
     send_syslog(
         f"Sistem ml v3 moduna geçti (saf teknik, 10g ufuk). "
-        f"Analiz: her {CYCLE_MIN} dk | Kapanış: 18:10 | "
+        f"Analiz: her {CYCLE_MIN} dk | Kapanış: 18:35 (arife 13:35) | "
         f"Değerlendirme: 19:00 | Korumalı promosyon: Pazar 20:00", "INFO"
     )
     try:

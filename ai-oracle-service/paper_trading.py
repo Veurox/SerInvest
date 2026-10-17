@@ -11,7 +11,7 @@ Kurallar (kullanıcı onayı 05/2026):
   • İşlem kuralı : Akşam, kapanmış bardan rec=ALIM & position_pct>0 → bekleyen emir;
                    ertesi seansta o anki fiyattan LONG açılır (17.10.2026)
   • Sermaye      : 100.000 ₺ başlangıç sanal nakit
-  • Çıkış        : TP (hedef) / SL (stop) / zaman bariyeri (HORIZON*1,4 takvim günü)
+  • Çıkış        : TP (hedef) / SL (stop) / zaman bariyeri (HORIZON işlem günü — etiketle aynı)
   • Maliyet      : Her alım+satımda TRANSACTION_COST_PCT komisyon+spread
 
 Long-only: BIST'te bireysel açığa satış pratik değil; model SAT sinyali üretmez.
@@ -31,8 +31,8 @@ import math
 import os
 import threading
 
-import bar_durumu
 import ml.atomic as atomic
+import takvim
 from ml.config import (
     HORIZON,            # 10 işlem günü — canlı champion ile AYNI ufuk
     MODELS_DIR,
@@ -131,59 +131,30 @@ SECTOR_MAP: dict[str, str] = {
 def get_sector(sym: str) -> str:
     """Sembolün sektörü; haritada yoksa sembolün kendisi (tavansız)."""
     return SECTOR_MAP.get(sym.upper(), sym.upper())
-# Zaman bariyeri: HORIZON işlem günü ≈ HORIZON*1.4 takvim günü (hafta sonu payı)
-TIME_BARRIER_DAYS = max(1, round(HORIZON * 1.4))
+# Zaman bariyeri: etiketle AYNI ufuk — HORIZON İŞLEM günü (18.10.2026).
+# Eskiden HORIZON*1,4 = 14 TAKVİM günüydü; bayram haftasında bu 7–8 işlem
+# gününe düşüyor, pozisyon etiketin ufkundan önce kapanıyordu.
+TIME_BARRIER_TRADING_DAYS = HORIZON
+TIME_BARRIER_DAYS = TIME_BARRIER_TRADING_DAYS   # geriye uyum (özet alanı)
 
-# BIST seans saatleri (TR yerel — container saati TR'ye ayarlı, schedule 18:10 kullanıyor).
-# Sürekli işlem ~10:00–18:00, kapanış seansı ~18:10. 18:30'a kadar tolerans.
-MARKET_OPEN_TIME  = datetime.time(10, 0)
-MARKET_CLOSE_TIME = datetime.time(18, 30)
-
-# ── BIST Resmi Tatil Takvimi (borsanın kapalı olduğu günler) ─────────────────
-# YILLIK GÜNCELLENMELİ. Dini bayramlar (Ramazan/Kurban) her yıl ~11 gün kayar.
-# NOT: Bu liste eksik/yanlış olsa bile "veri tazeliği" gardı (analysis.py) yedek
-# koruma sağlar — kapalı günde o güne ait bar oluşmadığı için yeni pozisyon zaten
-# açılmaz. Liste; is_market_open'ı dürüstleştirmek, TIME/SIGNAL çıkışlarını ve equity
-# snapshot'ını tatilde durdurmak ve UI rozetinde tatil adını göstermek için.
-# (Arife günleri yarım seanstır — muhafazakâr olarak kapalı sayıyoruz.)
-BIST_HOLIDAYS: dict[str, str] = {
-    "2026-01-01": "Yılbaşı",
-    "2026-03-19": "Ramazan Bayramı (Arife)",
-    "2026-03-20": "Ramazan Bayramı",
-    "2026-03-21": "Ramazan Bayramı",
-    "2026-03-22": "Ramazan Bayramı",
-    "2026-04-23": "Ulusal Egemenlik ve Çocuk Bayramı",
-    "2026-05-01": "İşçi Bayramı",
-    "2026-05-19": "Atatürk'ü Anma, Gençlik ve Spor Bayramı",
-    "2026-05-26": "Kurban Bayramı (Arife)",
-    "2026-05-27": "Kurban Bayramı",
-    "2026-05-28": "Kurban Bayramı",
-    "2026-05-29": "Kurban Bayramı",
-    "2026-07-15": "Demokrasi ve Millî Birlik Günü",
-    "2026-08-30": "Zafer Bayramı",
-    "2026-10-28": "Cumhuriyet Bayramı (Arife)",
-    "2026-10-29": "Cumhuriyet Bayramı",
-}
+# Seans saatleri ve tatiller artık TEK KAYNAKTA: takvim.py. Buradaki adlar
+# geriye uyum için takma ad — başka modüller ve testler bunları kullanıyor.
+MARKET_OPEN_TIME  = takvim.ACILIS
+MARKET_CLOSE_TIME = takvim.KAPANIS
+BIST_HOLIDAYS: dict[str, str] = takvim.TATILLER
 
 _LOCK = threading.RLock()
 
 
 def market_closed_reason(now: datetime.datetime | None = None) -> str | None:
-    """Piyasa kapalıysa nedenini döndürür ('Hafta sonu' / 'Tatil: X' / 'Seans dışı'); açıksa None."""
-    now = now or datetime.datetime.now()
-    iso = now.date().isoformat()
-    if iso in BIST_HOLIDAYS:
-        return f"Tatil: {BIST_HOLIDAYS[iso]}"
-    if now.weekday() >= 5:           # Cmt/Paz
-        return "Hafta sonu"
-    if not (MARKET_OPEN_TIME <= now.time() <= MARKET_CLOSE_TIME):
-        return "Seans dışı"
-    return None
+    """Piyasa kapalıysa nedeni ('Hafta sonu' / 'Tatil: X' / 'Seans dışı' /
+    'Yarım gün: …'); açıksa None. Karar takvim.py'de."""
+    return takvim.kapali_sebebi(now)
 
 
 def is_market_open(now: datetime.datetime | None = None) -> bool:
-    """BIST açık mı? Hafta içi + seans saatleri + resmi tatil kontrolü."""
-    return market_closed_reason(now) is None
+    """BIST açık mı? Hafta içi + seans saatleri (yarım gün dahil) + tatil."""
+    return takvim.acik_mi(now)
 
 
 def _scan_barrier_exit(pos: dict, bars: list) -> tuple | None:
@@ -487,8 +458,7 @@ def _total_equity(state: dict) -> float:
 
 def son_kapanmis_gun(now: datetime.datetime | None = None) -> str:
     """Barı tamamlanmış en son işlem günü — bar kapısıyla AYNI tanım."""
-    return bar_durumu.son_kapanmis_islem_gunu(
-        now or datetime.datetime.now(), BIST_HOLIDAYS, MARKET_CLOSE_TIME)
+    return takvim.son_kapanmis_islem_gunu(now)
 
 
 def manage_position(state: dict, sym: str, price, bars: list | None,
@@ -502,7 +472,8 @@ def manage_position(state: dict, sym: str, price, bars: list | None,
         barı da taranır ama "tarandı" sayılmaz. Eskiden ilk turda bugün tarandı
         diye işaretleniyordu; günün geri kalanı ve kapanış barı bir daha hiç
         taranmıyordu.
-      • TIME — "şu an" icra edilir: yalnız seans açıkken ve fiyat bugüne aitken.
+      • TIME — girişten sonra HORIZON işlem günü dolunca, "şu an" icra edilir:
+        yalnız seans açıkken ve fiyat bugüne aitken.
 
     son_kapanmis: barı tamamlanmış en son işlem günü (YYYY-MM-DD).
     """
@@ -524,7 +495,8 @@ def manage_position(state: dict, sym: str, price, bars: list | None,
         if tamam:
             pos["last_check"] = max(max(tamam), (pos.get("last_check") or "")[:10])
 
-    if market_open and fresh and _hold_days(pos["entry_date"]) >= TIME_BARRIER_DAYS:
+    if (market_open and fresh and takvim.islem_gunu_sayisi(
+            pos["entry_date"][:10], datetime.date.today()) >= TIME_BARRIER_TRADING_DAYS):
         _close_position(state, sym, float(price), "TIME")
         return "TIME"
     return None
