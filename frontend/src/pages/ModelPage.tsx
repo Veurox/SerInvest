@@ -307,7 +307,7 @@ export default function ModelPage() {
           {[
             // Seans içinde bar kapısı tahmini reddeder (yarım bar) — açıklama
             // bunu söylemezse düğme "çalışmıyor" sanılır.
-            { p: 'analyze-now',  t: 'Şimdi analiz et',     d: 'Sıradaki döngüyü beklemeden tara (~1 dk). Seans açıkken yeni tahmin üretmez — günün barı saat 18.00 kapanışıyla tamamlanır' },
+            { p: 'analyze-now',  t: 'Şimdi analiz et',     d: 'Sıradaki döngüyü beklemeden tara (~1 dk). Seans açıkken yeni tahmin üretmez — günün barı 18.30 itibarıyla tamamlanmış sayılır' },
             { p: 'evaluate-now', t: 'Şimdi değerlendir',   d: 'Olgunlaşmış tahminlerin sonucunu hesapla (~1-2 dk)' },
             { p: 'retrain',      t: 'Terfi kontrolü',      d: 'Rakip model şampiyonu geçiyor mu? Geçerse yerine geçer' },
             // 25.09.2026: kalibratörü tazelemek I12'nin ölçüm sayacını sıfırlar.

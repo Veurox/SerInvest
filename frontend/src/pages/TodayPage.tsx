@@ -419,14 +419,18 @@ export default function TodayPage() {
             {/* Kısaltma YOK: iki satıra sığdırmak için ilk yazım jargonlaşmıştı
                 ("ilk dürüst okuma … öteler") ve anlaşılmadı. Tarihe ek de
                 yok ("28 Ekim'de" / "3 Kasım'da" ayın adına göre değişir),
-                o yüzden "civarında". */}
+                o yüzden "civarında".
+                SAAT ARALIĞI (18.10.2026): eskiden "18:00'den sonra" yazıyordu.
+                Bar kapısı seansı 18:30'a kadar açık sayar; ertesi seans
+                başlayınca da son bar yarım olur ve dünün barı kaçar. Arada
+                program bir kez açılırsa açılış turu analizi hemen yapar. */}
             <span className="u-sub">
               {kalibre?.ilk_okuma_tahmini
                 ? <>Modelin güven yüzdeleri gerçekle ilk kez{' '}
                     <b style={{ color: 'var(--u-text)' }}>{tarihYaz(kalibre.ilk_okuma_tahmini)}</b>
-                    {' '}civarında karşılaştırılabilecek. Bunun için program her akşam
-                    18:00'den sonra açık olmalı — açılmayan her akşam bu tarihi bir
-                    gün geciktirir.</>
+                    {' '}civarında karşılaştırılabilecek. Bunun için program her işlem
+                    günü, akşam 18:30 ile ertesi sabah 10:00 arasında birkaç dakika açık
+                    kalmalı. Atlanan her gün bu tarihi bir gün geciktirir.</>
                 : 'Bir tahmin ancak ~20 gün sonra yargılanabiliyor; ilk dürüst okuma birkaç hafta sürer.'}
             </span>
           </div>

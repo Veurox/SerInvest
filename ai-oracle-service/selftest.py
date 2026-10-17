@@ -727,7 +727,8 @@ ACTIONS: dict[tuple[str, str], str] = {
     # tavsiye ikisini de vaat ediyordu.
     ("I10", "WARN"): "Bilgisayar kapalıyken kaçan işler var. Kaçan günlerin tahmini "
                      "sonradan üretilemez. Günün analizi seans kapandıktan sonra "
-                     "(18:00 sonrası) yapılır; programı o saatte bir süre açık tutun.",
+                     "yapılır: programı her işlem günü akşam 18:30 ile ertesi sabah "
+                     "10:00 arasında birkaç dakika açık tutun.",
 
     ("I11", "WARN"): "Risk filtresi bugün beklenenden fazla hisse eledi. TEK GÜNLÜK "
                      "sapma normaldir, şimdilik yapılacak bir şey yok. 10 İŞ GÜNÜ "
