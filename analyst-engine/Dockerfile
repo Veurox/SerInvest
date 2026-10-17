@@ -9,7 +9,7 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/app/.playwright
 COPY requirements.txt .
 
 # Install CPU-only torch (much smaller than full torch ~700MB vs ~2.5GB)
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
+RUN pip install --no-cache-dir torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt
 
 # Playwright Chromium + sistem bağımlılıkları

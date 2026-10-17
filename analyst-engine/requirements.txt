@@ -1,7 +1,12 @@
-pika>=1.3.0
-feedparser>=6.0.0
-transformers>=4.35.0
-langdetect>=1.0.9
-requests>=2.31.0
-playwright>=1.40.0
-beautifulsoup4>=4.12.0
+# Sürümler SABİT (18.10.2026). '>=' ile her yeniden kurulum en yeniyi çekiyordu:
+# kalibratör scikit-learn 1.9.0 ile kaydedilmişti, 1.9.1 ile açılıyordu
+# (InconsistentVersionWarning). Büyük bir sürüm atlaması modeli açılamaz
+# hâle getirebilirdi. Güncelleme bilinçli yapılır: sürümü değiştir, testleri
+# koş, modeli yeniden kaydet.
+pika==1.4.4
+feedparser==6.0.14
+transformers==5.16.1
+langdetect==1.0.9
+requests==2.34.2
+playwright==1.62.0
+beautifulsoup4==4.15.0
