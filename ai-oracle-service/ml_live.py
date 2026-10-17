@@ -366,6 +366,22 @@ def fetch_snapshot(sym: str, yf_sym: str, ctx: pd.DataFrame):
     return df, feat, float(close_s.iloc[-1]), bar_gunu
 
 
+def _paper_bars(df: pd.DataFrame, n: int = 40) -> list[dict]:
+    """Son n günün OHLC barları — kâğıt portföyün stop/hedef taraması için."""
+    recent = df.tail(n)
+
+    def _col(name):
+        c = recent[name]
+        return c.iloc[:, 0] if hasattr(c, "columns") else c.squeeze()
+
+    _h, _l, _c = _col("High"), _col("Low"), _col("Close")
+    return [
+        {"date": d.strftime("%Y-%m-%d"), "high": float(hv), "low": float(lv), "close": float(cv)}
+        for d, hv, lv, cv in zip(recent.index, _h, _l, _c)
+        if pd.notna(hv) and pd.notna(lv) and pd.notna(cv)
+    ]
+
+
 def analyze_symbol(model, sym: str, yf_sym: str, snap: tuple,
                    model_feat: dict | None = None,
                    live_acc: float = 0.0, regime: dict | None = None,
@@ -644,8 +660,10 @@ def _run_ml_cycle_locked(model_holder: list):
     # YEREL tarih bilinçli: yfinance bar tarihleri borsa (TR) takvimindedir.
     # Kayıt tarihleri (predictions/feature_log) ise UTC — ikisini karıştırma.
     today_str      = datetime.date.today().isoformat()
-    paper_candidates: list[dict] = []   # AL adayları — döngü sonunda EV sırasıyla açılır
+    son_kapanmis   = paper_trading.son_kapanmis_gun()
+    paper_candidates: list[dict] = []   # AL adayları — bekleyen emir olur, seansta açılır
     shadow_candidates: list[dict] = []  # gölge defterin adayları (filtresiz)
+    paper_analizlenen: set[str] = set() # bu turda analiz edilen evren sembolleri
 
     # İlerleme: iki sembol döngüsü tek çubukta sayılır (toplam 2N gerçek birim).
     # start_if_idle KİBARDIR: kullanıcı o an Doğrulama gibi bir iş başlatmışsa
@@ -726,6 +744,22 @@ def _run_ml_cycle_locked(model_holder: list):
         except Exception as e:
             print(f"[ml cycle] özellik logu yazılamadı: {e}")
 
+    # ── KÂĞIT PORTFÖY: AÇIK POZİSYONLAR (bar kapısından BAĞIMSIZ — 17.10.2026) ──
+    # Kapı yalnız TAHMİNİ yönetir. Portföy her turda bakılmak zorunda: seans
+    # içinde süre çıkışı, her an stop/hedef. Eskiden kapı engellediği sembolü
+    # portföyüyle birlikte atlıyordu — bkz. paper_trading "NEDEN İKİ AYRI ADIM".
+    for sym, snap in snaps.items():
+        for st in (paper_state, shadow_state):
+            if sym not in st["positions"]:
+                continue
+            try:
+                paper_trading.manage_position(
+                    st, sym, snap[2], _paper_bars(snap[0]),
+                    market_open=paper_mkt_open, fresh=snap[3] == today_str,
+                    son_kapanmis=son_kapanmis)
+            except Exception as e:
+                print(f"  [Paper] {sym} çıkış kontrolü: {e}")
+
     count = buys = 0
     for _pi, (sym, snap) in enumerate(snaps.items()):
         progress.update(_ptok, stage=f"analiz: {sym}", done=_pn + _pi)
@@ -747,34 +781,21 @@ def _run_ml_cycle_locked(model_holder: list):
                 buys += 1
 
             # Paper trading — yalnız kullanıcı evrenindeki hisseler.
-            # Faz 2: çıkışlar (TP/SL/TIME/SIGNAL) anında işlenir; ALIM'lar aday
-            # havuzunda toplanır ve döngü sonunda EV sırasıyla + portföy
+            # AL sinyali burada YALNIZ aday olur: döngü sonunda bekleyen emir
+            # olarak saklanır, seansta gerçek fiyattan EV sırasıyla + portföy
             # kısıtlarıyla açılır (greedy top-k — en iyi fırsata öncelik).
+            # Sinyal yalnız son kapanmış günün barından geçerlidir.
             if sym in paper_universe:
                 try:
-                    df, close, _rd, p_c, pos, tp, sl, ev, rd_nofilter = paper_ctx
-                    recent = df.tail(40)
-                    def _col(name):
-                        c = recent[name]
-                        return c.iloc[:, 0] if hasattr(c, "columns") else c.squeeze()
-                    _h, _l, _c = _col("High"), _col("Low"), _col("Close")
-                    bars = [
-                        {"date": d.strftime("%Y-%m-%d"), "high": float(hv), "low": float(lv), "close": float(cv)}
-                        for d, hv, lv, cv in zip(recent.index, _h, _l, _c)
-                        if pd.notna(hv) and pd.notna(lv) and pd.notna(cv)
-                    ]
-                    fresh = bool(bars) and bars[-1]["date"] == today_str
-                    paper_trading.on_signal(
-                        paper_state, sym, close, rec_dir, p_c, pos, tp, sl,
-                        bars=bars, market_open=paper_mkt_open, fresh=fresh,
-                        allow_open=False,
-                    )
-                    if (rec_dir == "BUY" and pos > 0 and fresh
+                    _df, close, _rd, p_c, pos, tp, sl, ev, rd_nofilter = paper_ctx
+                    paper_analizlenen.add(sym)
+                    gecerli = snap[3] == son_kapanmis
+                    if (rec_dir == "BUY" and pos > 0 and gecerli
                             and sym not in paper_state["positions"]):
                         paper_candidates.append({
-                            "symbol": sym, "price": close, "conf": p_c,
+                            "symbol": sym, "signal_price": close, "conf": p_c,
                             "position_pct": pos, "target": tp, "stop": sl,
-                            "score": ev,
+                            "score": ev, "bar_gunu": snap[3],
                         })
 
                     # ── Gölge defter (Faz A1): FİLTRESİZ + EŞİT AĞIRLIK ────────
@@ -788,18 +809,13 @@ def _run_ml_cycle_locked(model_holder: list):
                     # ama "en kötü ay" duyarlıdır ve ham hâliyle ana defterin lehine
                     # yapısal olarak yanlıdır. Bu yüzden 2027-02-12 ölçütü maruziyete
                     # göre normalize edilir — bkz. docs/PLAN_2026-08.md §A0.
-                    paper_trading.on_signal(
-                        shadow_state, sym, close, rd_nofilter, p_c,
-                        SHADOW_POSITION_PCT, tp, sl,
-                        bars=bars, market_open=paper_mkt_open, fresh=fresh,
-                        allow_open=False,
-                    )
-                    if (rd_nofilter == "BUY" and fresh
+                    if (rd_nofilter == "BUY" and gecerli
                             and sym not in shadow_state["positions"]):
                         shadow_candidates.append({
-                            "symbol": sym, "price": close, "conf": p_c,
+                            "symbol": sym, "signal_price": close, "conf": p_c,
                             "position_pct": SHADOW_POSITION_PCT,
                             "target": tp, "stop": sl, "score": ev,
+                            "bar_gunu": snap[3],
                         })
                 except Exception as e:
                     print(f"  [Paper] {sym}: {e}")
@@ -811,18 +827,21 @@ def _run_ml_cycle_locked(model_holder: list):
             print(f"  {sym} hata: {e}")
             time.sleep(0.6)
 
-    # Faz 2: AL adaylarını EV sırasıyla + portföy kısıtlarıyla aç (greedy top-k)
+    # Bekleyen emirler: bu turun adaylarını sakla, seans açıksa uygula.
+    # Fiyat "taze" = bugünün seansına ait (yarım bar da olur — o anki fiyat).
     try:
-        if paper_candidates and paper_mkt_open:
-            opened = paper_trading.open_from_candidates(paper_state, paper_candidates)
+        quotes = {s: (sn[2], sn[3] == today_str) for s, sn in snaps.items()}
+        for st, aday, etiket in ((paper_state, paper_candidates, "Paper"),
+                                 (shadow_state, shadow_candidates, "Gölge")):
+            paper_trading.queue_candidates(st, paper_analizlenen, aday)
+            bekleyen = len(st.get("pending") or {})
+            opened = paper_trading.execute_pending(st, quotes, paper_mkt_open, son_kapanmis)
             if opened:
-                print(f"  [Paper] {opened}/{len(paper_candidates)} aday pozisyona çevrildi (EV sıralı, kısıtlı)")
-        if shadow_candidates and paper_mkt_open:
-            s_opened = paper_trading.open_from_candidates(shadow_state, shadow_candidates)
-            if s_opened:
-                print(f"  [Gölge] {s_opened}/{len(shadow_candidates)} aday pozisyona çevrildi (filtresiz taban)")
+                print(f"  [{etiket}] {opened}/{bekleyen} bekleyen emir pozisyona çevrildi (EV sıralı, kısıtlı)")
+            elif st.get("pending"):
+                print(f"  [{etiket}] {len(st['pending'])} bekleyen emir — ilk seansta uygulanacak")
     except Exception as e:
-        print(f"  [Paper] aday açma hatası: {e}")
+        print(f"  [Paper] bekleyen emir hatası: {e}")
 
     # Paper: equity fotoğrafı (yalnız açıkken) + state kaydet
     try:

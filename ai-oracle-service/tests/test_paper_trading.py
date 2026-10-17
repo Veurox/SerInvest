@@ -368,3 +368,136 @@ def test_decision_not_declared_before_date(monkeypatch):
     d = pt.filter_decision()
     assert d["decision_date"] == "2027-02-12"
     assert d["decided"] is (datetime.date.today().isoformat() >= "2027-02-12")
+
+
+# ── Bar kapısıyla uyum (17.10.2026) ──────────────────────────────────────────
+#
+# Bar kapısı engellediği sembolü portföyüyle birlikte atlıyordu: TUPRS ve
+# AEFES 14 günlük süre sınırını 29 gün aştı, 16.09'dan sonra tek işlem
+# kapanmadı ve hiçbir alım açılamazdı. Çıkışlar artık kapıdan bağımsız
+# (manage_position); alımlar akşam sinyalinden bekleyen emir olarak ertesi
+# seansta uygulanıyor (queue_candidates / execute_pending).
+
+@pytest.fixture
+def defter(tmp_path, monkeypatch):
+    """Diske dokunmayan boş ana defter (kapanışlar save_state çağırıyor)."""
+    monkeypatch.setattr(pt, "MODELS_DIR", tmp_path)
+    monkeypatch.setattr(pt, "PORTFOLIO_FILE", tmp_path / "paper_portfolio.json")
+    monkeypatch.setattr(pt, "TRADES_FILE", tmp_path / "paper_trades.csv")
+    st = pt._new_state()
+    st["book"] = "main"
+    return st
+
+
+def _pozisyon(st, sym="TUPRS", gun_once=20, giris=100.0, hedef=110.0, stop=95.0):
+    giris_t = datetime.datetime.utcnow() - datetime.timedelta(days=gun_once)
+    st["positions"][sym] = {
+        "symbol": sym, "shares": 10, "entry_price": giris,
+        "entry_date": giris_t.isoformat(), "target": hedef, "stop": stop,
+        "last_price": giris, "entry_cost": 0.0, "entry_conf": 0.6,
+        "last_check": giris_t.isoformat(),
+    }
+    st["cash"] -= 10 * giris
+    return giris_t.date().isoformat()
+
+
+def test_suresi_dolan_pozisyon_seansta_kapanir(defter):
+    _pozisyon(defter, gun_once=20)
+    sebep = pt.manage_position(defter, "TUPRS", 101.0, [], market_open=True,
+                               fresh=True, son_kapanmis="2026-10-16")
+    assert sebep == "TIME"
+    assert "TUPRS" not in defter["positions"]
+
+
+def test_sure_cikisi_seans_disinda_ve_bayat_fiyatla_beklemez_kapatmaz(defter):
+    _pozisyon(defter, gun_once=20)
+    assert pt.manage_position(defter, "TUPRS", 101.0, [], market_open=False,
+                              fresh=True, son_kapanmis="2026-10-16") is None
+    assert pt.manage_position(defter, "TUPRS", 101.0, [], market_open=True,
+                              fresh=False, son_kapanmis="2026-10-16") is None
+    assert "TUPRS" in defter["positions"]
+
+
+def test_stop_piyasa_kapaliyken_de_gecmis_bardan_yakalanir(defter):
+    giris = _pozisyon(defter, gun_once=5)
+    d = (datetime.date.fromisoformat(giris) + datetime.timedelta(days=1)).isoformat()
+    sebep = pt.manage_position(defter, "TUPRS", 96.0, [_bar(d, 101, 94)],
+                               market_open=False, fresh=False, son_kapanmis=d)
+    assert sebep == "SL"
+
+
+def test_yarim_bar_taranir_ama_tarandi_sayilmaz(defter):
+    """Eski hata: gün içindeki ilk tur bugünü 'tarandı' işaretliyor, günün
+    geri kalanındaki stop vuruşu bir daha hiç görülmüyordu."""
+    giris = _pozisyon(defter, gun_once=5)
+    dun = (datetime.date.fromisoformat(giris) + datetime.timedelta(days=1)).isoformat()
+    bugun = (datetime.date.fromisoformat(giris) + datetime.timedelta(days=2)).isoformat()
+
+    # 11:00 — bugünün yarım barı stopa değmedi
+    assert pt.manage_position(defter, "TUPRS", 99.0,
+                              [_bar(dun, 102, 98), _bar(bugun, 100, 97)],
+                              market_open=True, fresh=True, son_kapanmis=dun) is None
+    assert defter["positions"]["TUPRS"]["last_check"][:10] == dun
+
+    # 15:00 — aynı günün barı artık stopun altına inmiş
+    assert pt.manage_position(defter, "TUPRS", 94.5,
+                              [_bar(dun, 102, 98), _bar(bugun, 100, 94)],
+                              market_open=True, fresh=True, son_kapanmis=dun) == "SL"
+
+
+def test_analiz_edilen_sembolun_eski_emri_silinir_digeri_kalir(defter):
+    pt.queue_candidates(defter, {"AKBNK", "GARAN"},
+                        [{"symbol": "AKBNK", "bar_gunu": "2026-10-15"},
+                         {"symbol": "GARAN", "bar_gunu": "2026-10-15"}])
+    # ertesi akşam: AKBNK artık AL değil, GARAN bu turda analiz edilmedi
+    pt.queue_candidates(defter, {"AKBNK", "THYAO"},
+                        [{"symbol": "THYAO", "bar_gunu": "2026-10-16"}])
+    assert set(defter["pending"]) == {"GARAN", "THYAO"}
+
+
+def _emir(sym="THYAO", bar="2026-10-16", stop=280.0, hedef=330.0):
+    return {"symbol": sym, "bar_gunu": bar, "signal_price": 300.0, "conf": 0.6,
+            "position_pct": 0.1, "target": hedef, "stop": stop, "score": 0.05}
+
+
+def test_emir_ertesi_seansta_o_anki_fiyattan_acilir(defter):
+    pt.queue_candidates(defter, {"THYAO"}, [_emir()])
+    acilan = pt.execute_pending(defter, {"THYAO": (305.0, True)},
+                                market_open=True, son_kapanmis="2026-10-16")
+    assert acilan == 1
+    assert defter["positions"]["THYAO"]["entry_price"] == 305.0   # sinyal fiyatı 300 değil
+    assert defter["pending"] == {}
+
+
+def test_emir_seans_kapaliyken_ve_fiyat_bayatken_bekler(defter):
+    pt.queue_candidates(defter, {"THYAO"}, [_emir()])
+    assert pt.execute_pending(defter, {"THYAO": (300.0, True)},
+                              market_open=False, son_kapanmis="2026-10-16") == 0
+    assert pt.execute_pending(defter, {"THYAO": (300.0, False)},
+                              market_open=True, son_kapanmis="2026-10-16") == 0
+    assert "THYAO" in defter["pending"]
+
+
+def test_seansi_kacan_emir_duser(defter):
+    """Makine ertesi gün hiç açılmadıysa eski sinyalle günler sonra alım yapılmaz."""
+    pt.queue_candidates(defter, {"THYAO"}, [_emir(bar="2026-10-15")])
+    assert pt.execute_pending(defter, {"THYAO": (300.0, True)},
+                              market_open=True, son_kapanmis="2026-10-16") == 0
+    assert defter["pending"] == {} and defter["positions"] == {}
+
+
+def test_bariyerin_disinda_acilan_fiyatla_alinmaz(defter):
+    pt.queue_candidates(defter, {"THYAO", "GARAN"},
+                        [_emir("THYAO"), _emir("GARAN")])
+    acilan = pt.execute_pending(defter, {"THYAO": (279.0, True), "GARAN": (331.0, True)},
+                                market_open=True, son_kapanmis="2026-10-16")
+    assert acilan == 0 and defter["positions"] == {} and defter["pending"] == {}
+
+
+def test_son_kapanmis_gun_hafta_sonu_cumaya_doner():
+    cmt = datetime.datetime(2026, 10, 17, 12, 0)
+    pzt_seans = datetime.datetime(2026, 10, 19, 11, 0)
+    pzt_aksam = datetime.datetime(2026, 10, 19, 19, 0)
+    assert pt.son_kapanmis_gun(cmt) == "2026-10-16"
+    assert pt.son_kapanmis_gun(pzt_seans) == "2026-10-16"   # cuma emri pazartesi geçerli
+    assert pt.son_kapanmis_gun(pzt_aksam) == "2026-10-19"

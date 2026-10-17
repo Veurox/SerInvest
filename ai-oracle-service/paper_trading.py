@@ -8,13 +8,13 @@ modelin canlı performansını gerçek piyasada test etmek (paper trading).
 
 Kurallar (kullanıcı onayı 05/2026):
   • Evren        : UI'dan seçilen hisse listesi (paper_universe.json)
-  • İşlem kuralı : Modelin pozisyon önerisine göre — rec=ALIM & position_pct>0 → LONG aç
+  • İşlem kuralı : Akşam, kapanmış bardan rec=ALIM & position_pct>0 → bekleyen emir;
+                   ertesi seansta o anki fiyattan LONG açılır (17.10.2026)
   • Sermaye      : 100.000 ₺ başlangıç sanal nakit
-  • Çıkış        : TP (hedef) / SL (stop) / zaman bariyeri (HORIZON gün) / model SELL'e döndü
+  • Çıkış        : TP (hedef) / SL (stop) / zaman bariyeri (HORIZON*1,4 takvim günü)
   • Maliyet      : Her alım+satımda TRANSACTION_COST_PCT komisyon+spread
 
-Long-only: BIST'te bireysel açığa satış pratik değil. SELL sinyali = pozisyon
-açma / varsa kapat. Böylece model hem "al" hem "sat" kararı verir.
+Long-only: BIST'te bireysel açığa satış pratik değil; model SAT sinyali üretmez.
 
 Durum dosyaları (MODELS_DIR):
   paper_portfolio.json — nakit, açık pozisyonlar, equity geçmişi
@@ -31,6 +31,7 @@ import math
 import os
 import threading
 
+import bar_durumu
 import ml.atomic as atomic
 from ml.config import (
     HORIZON,            # 10 işlem günü — canlı champion ile AYNI ufuk
@@ -235,6 +236,7 @@ def _new_state() -> dict:
         "last_cycle":      None,
         "benchmark_start": None,   # ilk snapshot'taki XU100 seviyesi
         "n_trades":        0,
+        "pending":         {},     # symbol -> bekleyen alım emri (ertesi seans)
     }
 
 
@@ -464,64 +466,123 @@ def _total_equity(state: dict) -> float:
 
 
 # ── Döngü entegrasyonu ───────────────────────────────────────────────────────
-def on_signal(state: dict, sym: str, price, rec_dir: str, conf: float,
-              position_pct, target, stop,
-              bars: list | None = None, market_open: bool = True,
-              fresh: bool = True, allow_open: bool = True) -> None:
+#
+# NEDEN İKİ AYRI ADIM (17.10.2026)
+# 16.09'da tahmin "yalnız tamamlanmış bardan" kuralına bağlandı (bar kapısı).
+# Döngü, kapının engellediği sembolü TAMAMEN atlıyordu — portföy işlemleri
+# dahil. Seans içinde her sembol engelli (bugünün barı yarım), seans dışında
+# ise süre çıkışı ve alım zaten yapılmıyor. Ölçülen sonuç:
+#   • TUPRS ve AEFES 14 günlük süre sınırını 29 gün aşarak açık kaldı,
+#   • 16.09'dan sonra tek işlem kapanmadı,
+#   • rejim dönse bile hiçbir pozisyon AÇILAMAYACAKTI — ana defter de, 2027-02-12
+#     kararını besleyen gölge defter de.
+# Rejim kapısı o sırada zaten alımı durdurduğu için kimse fark etmedi.
+#
+# Artık iki adım ayrı:
+#   • manage_position — açık pozisyonun çıkışları HER turda, kapıdan bağımsız.
+#   • Alım sinyali akşam kapanmış bardan üretilir, BEKLEYEN EMİR olarak saklanır
+#     (queue_candidates) ve ertesi seansta gerçek fiyattan uygulanır
+#     (execute_pending). Bu eskisinden dürüsttür: kapanış fiyatını görüp aynı
+#     fiyattan almak mümkün değil.
+
+def son_kapanmis_gun(now: datetime.datetime | None = None) -> str:
+    """Barı tamamlanmış en son işlem günü — bar kapısıyla AYNI tanım."""
+    return bar_durumu.son_kapanmis_islem_gunu(
+        now or datetime.datetime.now(), BIST_HOLIDAYS, MARKET_CLOSE_TIME)
+
+
+def manage_position(state: dict, sym: str, price, bars: list | None,
+                    market_open: bool, fresh: bool, son_kapanmis: str) -> str | None:
     """
-    Analiz döngüsünde her sembol için çağrılır (yalnızca evrendeki semboller).
-    Mevcut pozisyonu çıkış için kontrol eder, gerekirse yeni pozisyon açar.
-    state YERİNDE değiştirilir; kaydetme çağıran tarafa aittir.
+    Açık pozisyonun çıkışlarını işler; kapandıysa sebebini ('TP'/'SL'/'TIME') döner.
+    state YERİNDE değiştirilir.
 
-    Gerçekçilik korumaları (05/2026):
-      • bars        : Sembolün son seans OHLC barları → TP/SL gün-içi tarama (boşluk-farkında).
-      • market_open : Yeni pozisyon AÇMA ve TIME/SIGNAL çıkışları yalnızca BIST açıkken icra edilir.
-      • fresh       : Kullanılan bar güncel seansa ait değilse (bayat veri) işlem açılmaz.
-    TP/SL bariyer çıkışları piyasa kapalı olsa bile GEÇMİŞ seans barlarından
-    tespit edilip gerçek bariyer fiyatından kapatılır (kaçırılmış stop'lar yakalanır).
+      • TP/SL — barlar taranır, piyasa kapalıyken de: kaçırılmış stop'lar
+        yakalanır, çıkış gerçek bariyer fiyatından yazılır. Kapanmamış bugünün
+        barı da taranır ama "tarandı" sayılmaz. Eskiden ilk turda bugün tarandı
+        diye işaretleniyordu; günün geri kalanı ve kapanış barı bir daha hiç
+        taranmıyordu.
+      • TIME — "şu an" icra edilir: yalnız seans açıkken ve fiyat bugüne aitken.
 
-    allow_open=False (Faz 2): yalnızca çıkışlar işlenir; ALIM'lar çağıran tarafça
-    aday havuzunda toplanıp open_from_candidates ile EV sıralı + kısıtlı açılır.
+    son_kapanmis: barı tamamlanmış en son işlem günü (YYYY-MM-DD).
     """
     sym = sym.upper()
-    if price is None or price <= 0:
-        return
-
     pos = state["positions"].get(sym)
+    if pos is None or price is None or price <= 0:
+        return None
+    pos["last_price"] = round(float(price), 4)
 
-    # ── Açık pozisyon ──
-    if pos is not None:
-        pos["last_price"] = round(float(price), 4)
+    if bars:
+        hit = _scan_barrier_exit(pos, bars)
+        if hit:
+            exit_price, reason, gun = hit
+            # Kapanmamış günün barındaki vuruşa kapanış saati yazılmaz — şimdi.
+            _close_position(state, sym, float(exit_price), reason,
+                            exit_dt=gun if gun <= son_kapanmis else None)
+            return reason
+        tamam = [b["date"] for b in bars if b["date"] <= son_kapanmis]
+        if tamam:
+            pos["last_check"] = max(max(tamam), (pos.get("last_check") or "")[:10])
 
-        # 1) Boşluk-farkında TP/SL: geçmiş seans barlarını tara (her zaman geçerli).
-        if bars:
-            hit = _scan_barrier_exit(pos, bars)
-            if hit:
-                exit_price, reason, exit_date = hit
-                _close_position(state, sym, float(exit_price), reason, exit_dt=exit_date)
-                return
-            pos["last_check"] = datetime.datetime.utcnow().isoformat()
+    if market_open and fresh and _hold_days(pos["entry_date"]) >= TIME_BARRIER_DAYS:
+        _close_position(state, sym, float(price), "TIME")
+        return "TIME"
+    return None
 
-        # 2) TIME / SIGNAL çıkışları: "şu an" icra → yalnızca piyasa açıkken.
-        if market_open:
-            if _hold_days(pos["entry_date"]) >= TIME_BARRIER_DAYS:
-                _close_position(state, sym, float(price), "TIME")
-                return
-            if rec_dir == "SELL":
-                _close_position(state, sym, float(price), "SIGNAL")
-                return
-        return
 
-    # ── Pozisyon yok: yalnızca piyasa AÇIK + veri TAZE iken ALIM aç ──
-    if not allow_open:
-        return
-    if not (market_open and fresh):
-        return
-    if rec_dir == "BUY" and position_pct and position_pct > 0:
-        if len(state["positions"]) >= MAX_OPEN_POSITIONS:
-            return
-        _open_position(state, sym, float(price), float(position_pct),
-                       target, stop, conf)
+def queue_candidates(state: dict, analyzed: set, candidates: list[dict]) -> None:
+    """
+    Akşam analizinin AL adaylarını bekleyen emir olarak saklar.
+
+    Bu turda analiz edilen her sembolün eski emri silinir: yeni analiz AL
+    demiyorsa dünkü AL da geçersizdir. Analiz edilmeyen sembolün emri olduğu
+    gibi kalır (kapı onu bu turda engellemiş olabilir).
+    candidates: [{symbol, conf, position_pct, target, stop, score, bar_gunu, signal_price}]
+    """
+    pending = state.setdefault("pending", {})
+    for sym in analyzed:
+        pending.pop(str(sym).upper(), None)
+    for c in candidates:
+        sym = str(c["symbol"]).upper()
+        pending[sym] = dict(c, symbol=sym)
+
+
+def execute_pending(state: dict, quotes: dict, market_open: bool,
+                    son_kapanmis: str) -> int:
+    """
+    Bekleyen emirleri seansta, o anki gerçek fiyattan uygular; açılan sayısını döner.
+
+    quotes: sembol → (fiyat, taze) — taze: fiyat bugünün seansına ait.
+      • Emir yalnız SON KAPANMIŞ GÜNÜN sinyaliyse geçerlidir. Ertesi seans da
+        kapandıysa (makine o gün açılmadıysa) emir düşer — eski sinyalle günler
+        sonra alım yapılmaz.
+      • Fiyat henüz taze değilse emir bir sonraki tura kalır.
+      • Fiyat stop'un altında ya da hedefin üstünde açıldıysa (boşluk) alınmaz:
+        bariyeri çoktan aşılmış bir işlem, modelin önerdiği işlem değildir.
+    Her emir bir kez denenir; portföy kısıtına takılan emir de düşer.
+    """
+    pending = state.setdefault("pending", {})
+    for sym, c in list(pending.items()):
+        if c.get("bar_gunu") != son_kapanmis:
+            print(f"  [Paper] {sym} emri düştü — {c.get('bar_gunu')} sinyalinin seansı geçti")
+            del pending[sym]
+    if not market_open or not pending:
+        return 0
+
+    hazir = []
+    for sym, c in list(pending.items()):
+        fiyat, taze = quotes.get(sym, (None, False))
+        if not taze or not fiyat or fiyat <= 0:
+            continue
+        del pending[sym]
+        if sym in state["positions"]:
+            continue
+        stop, hedef = c.get("stop"), c.get("target")
+        if (stop and fiyat <= stop) or (hedef and fiyat >= hedef):
+            print(f"  [Paper] {sym} alınmadı — fiyat {fiyat:.2f} bariyerin dışında açıldı")
+            continue
+        hazir.append(dict(c, price=float(fiyat)))
+    return open_from_candidates(state, hazir) if hazir else 0
 
 
 def open_from_candidates(state: dict, candidates: list[dict]) -> int:
@@ -657,6 +718,14 @@ def get_summary(trades_limit: int = 100, book: str = "main") -> dict:
         })
     open_positions.sort(key=lambda x: -x["unrealized_pnl"])
 
+    # Bekleyen alım emirleri — akşam sinyali, ertesi seansta uygulanacak
+    pending_orders = sorted(
+        ({"symbol": c.get("symbol"), "bar_gunu": c.get("bar_gunu"),
+          "signal_price": c.get("signal_price"), "target": c.get("target"),
+          "stop": c.get("stop"), "conf": c.get("conf"), "score": c.get("score")}
+         for c in (state.get("pending") or {}).values()),
+        key=lambda x: -(x.get("score") or 0.0))
+
     return {
         "initial_capital": initial,
         "cash":            round(state["cash"], 2),
@@ -677,6 +746,7 @@ def get_summary(trades_limit: int = 100, book: str = "main") -> dict:
         "closed_trades":   list(reversed(closed))[:trades_limit],
         "last_cycle":      state.get("last_cycle"),
         "created_at":      state.get("created_at"),
+        "pending_orders":  pending_orders,
         "max_open":        MAX_OPEN_POSITIONS,
         "time_barrier_days": TIME_BARRIER_DAYS,
         "market_open":     is_market_open(),            # BIST şu an açık mı (seans + tatil gardı)
