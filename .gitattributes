@@ -1,0 +1,26 @@
+# Tek satır sonu kuralı (18.10.2026)
+#
+# Depo karışıktı: 26 dosya CRLF, gerisi LF. Windows'ta bir düzenleyici ya da
+# betik dosyayı yeniden yazınca bütün satır sonları değişiyor, git farkı tüm
+# dosyayı "değişti" gösteriyor ve asıl değişiklik gürültüde kayboluyordu.
+# Depoda her metin dosyası LF; konteynerler de Linux.
+* text=auto eol=lf
+
+# Windows betikleri Windows'ta CRLF ister (cmd etiket/goto hataları).
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# İkili dosyalar — dokunulmaz.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.gif binary
+*.gz binary
+*.zip binary
+*.joblib binary
+*.pkl binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
