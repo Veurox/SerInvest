@@ -524,6 +524,7 @@ def _admin_make_app():
         _ACT = {"UP": "BUY", "DOWN": "SELL", "NEUTRAL": "NEUTRAL"}
         try:
             rows = []
+            gunluk_getiri: list[tuple[str, str, float]] = []   # (gün, yön, getiri)
             with open(PREDICTION_LOG, "r", encoding="utf-8") as f:
                 for r in csv_mod.DictReader(f):
                     if symbol_filter and r.get("symbol", "").upper() != symbol_filter:
@@ -543,6 +544,9 @@ def _admin_make_app():
                     except Exception:
                         ret_f = None
                     exit_px = round(entry * (1 + ret_f), 2) if (ret_f is not None and entry) else None
+                    if evaluated and ret_f is not None and predicted in ("BUY", "NEUTRAL"):
+                        gun = (r.get("bar_gunu") or "").strip() or r.get("timestamp", "")[:10]
+                        gunluk_getiri.append((gun, predicted, ret_f))
                     rows.append({
                         "timestamp":  r.get("timestamp", "")[:10],
                         "symbol":     r.get("symbol", ""),
@@ -610,8 +614,40 @@ def _admin_make_app():
                         "medyan": round(med, 5),
                         "pozitif": round(sum(1 for x in xs if x > 0) / len(xs), 4)}
 
+            # ── AYNI GÜN İÇİNDE kıyas (18.10.2026) ──────────────────────────
+            # Yukarıdaki iki havuz FARKLI DÖNEMLERİ kıyaslıyordu: AL çağrılarının
+            # neredeyse hepsi Temmuz–Ağustos'tan (iyi piyasa), "demediği" grubu
+            # ise rejim kapısının her şeyi NÖTR'e çektiği Eylül düşüşüyle şişti.
+            # Ekran "AL dediği hisseler 2,1 puan önde" diyordu; aynı gün içinde
+            # kıyaslanınca 2,7 puan GERİDEYDİ (16 günün 15'inde). Simpson
+            # paradoksu: piyasanın yönü, modelin seçiminden büyük.
+            # Soru "aynı gün AL dediğini alsam, demediğini alsam hangisi iyi
+            # giderdi?" — cevabı yalnız iki grubun da olduğu günlerden çıkar.
+            gunluk: dict[str, dict[str, list]] = {}
+            for g, yon, ret_f in gunluk_getiri:
+                gunluk.setdefault(g, {"BUY": [], "NEUTRAL": []}).setdefault(yon, []).append(ret_f)
+            AYNI_GUN_MIN_GRUP = 3     # günde her gruptan en az bu kadar tahmin
+            gun_al, gun_diger = [], []
+            for g in sorted(gunluk):
+                a, o = gunluk[g].get("BUY", []), gunluk[g].get("NEUTRAL", [])
+                if len(a) >= AYNI_GUN_MIN_GRUP and len(o) >= AYNI_GUN_MIN_GRUP:
+                    gun_al.append(sum(a) / len(a))
+                    gun_diger.append(sum(o) / len(o))
+            ayni_gun = None
+            if gun_al:
+                farklar = [x - y for x, y in zip(gun_al, gun_diger)]
+                ayni_gun = {
+                    "gun":        len(farklar),
+                    "al_ort":     round(sum(gun_al) / len(gun_al), 5),
+                    "diger_ort":  round(sum(gun_diger) / len(gun_diger), 5),
+                    "fark":       round(sum(farklar) / len(farklar), 5),
+                    "al_onde_gun": sum(1 for x in farklar if x > 0),
+                    "min_grup":   AYNI_GUN_MIN_GRUP,
+                }
+
             getiri = {"al": _ozet(_getiriler("BUY")),
-                      "diger": _ozet(_getiriler("NEUTRAL"))}
+                      "diger": _ozet(_getiriler("NEUTRAL")),
+                      "ayni_gun": ayni_gun}
 
             summary = {
                 "getiri":           getiri,

@@ -13,12 +13,15 @@
 //
 // Kullanıcının asıl sorusu şu: AL çağrısına uysam, uymadığım hisselerden daha
 // iyi mi ederdim? Bunun cevabı iki grubun GERÇEKLEŞEN getirisi — ikisi de
-// aynı üçlü bariyerle ölçüldüğü için kıyaslanabilir. Ölçüldüğünde AL dediği
-// hisselerin demediklerinin gerisinde kaldığı çıktı; ekran artık bunu söylüyor.
+// aynı üçlü bariyerle ölçüldüğü için kıyaslanabilir.
 //
-// MEDYAN DA GÖSTERİLİYOR, çünkü ortalama birkaç büyük kazançla şişebiliyor:
-// AL grubunda ortalama pozitif, medyan negatif — tipik bir AL çağrısı hafif
-// zararla bitiyor, birkaç büyük kazanç ortalamayı yukarı çekiyor.
+// NEDEN AYNI GÜN İÇİNDE (18.10.2026)
+// İlk hâli iki grubu tüm zamanlar boyunca havuzluyordu. Rejim kapısı Eylül
+// düşüşünde her şeyi NÖTR'e çekince "demediği" grubu kötü günlerle doldu,
+// AL grubu ise Temmuz–Ağustos'ta kaldı. Ekran yeşil "2,1 puan önde" dedi;
+// aynı gün içinde kıyaslanınca AL 2,7 puan GERİDEYDİ (16 günün 15'inde).
+// Kıyaslanan model değil, iki ayrı dönemin piyasasıydı. Artık yalnız iki
+// grubun birlikte olduğu günler sayılıyor (hesap arka uçta).
 // =============================================================================
 import { yuzde, fmt } from '../../lib/format'
 
@@ -29,20 +32,36 @@ export interface GrupGetiri {
   pozitif: number | null
 }
 
+/** Yalnız AL ve AL-dışı tahminin aynı gün birlikte olduğu günler. */
+export interface AyniGunKiyas {
+  gun: number
+  /** Günlük AL ortalamalarının ortalaması (oran) */
+  al_ort: number
+  diger_ort: number
+  /** al_ort − diger_ort (oran) */
+  fark: number
+  al_onde_gun: number
+  min_grup: number
+}
+
 export interface GetiriKarsilastirma {
+  /** Havuzlanmış — farklı dönemleri karıştırır, hüküm için KULLANILMAZ. */
   al: GrupGetiri
   diger: GrupGetiri
+  ayni_gun?: AyniGunKiyas | null
 }
 
 /** Bu kadar puandan küçük fark "aynı" sayılır — gözlemler üst üste biniyor. */
 const FARK_ESIK_PUAN = 0.25
+/** Hüküm için gereken asgari gün; azsa yalnız sayılar gösterilir. */
+const MIN_GUN = 10
 
-function Satir({ ad, g, olcek, vurgu }: {
-  ad: string; g: GrupGetiri; olcek: number; vurgu: boolean
+function Satir({ ad, oran, olcek, vurgu }: {
+  ad: string; oran: number; olcek: number; vurgu: boolean
 }) {
-  const v = g.ort != null ? g.ort * 100 : null
-  const genislik = v == null || olcek <= 0 ? 0 : Math.min(100, (Math.abs(v) / olcek) * 100)
-  const renk = v == null ? 'var(--viz-track)' : v >= 0 ? 'var(--u-up)' : 'var(--u-down)'
+  const v = oran * 100
+  const genislik = olcek <= 0 ? 0 : Math.min(100, (Math.abs(v) / olcek) * 100)
+  const renk = v >= 0 ? 'var(--u-up)' : 'var(--u-down)'
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '92px minmax(0,1fr) auto',
                   gap: 'var(--u-s2)', alignItems: 'center' }}>
@@ -62,33 +81,38 @@ function Satir({ ad, g, olcek, vurgu }: {
 }
 
 export function AlKarsilastirma({ veri }: { veri: GetiriKarsilastirma | null }) {
-  if (!veri || !veri.al.n || !veri.diger.n || veri.al.ort == null || veri.diger.ort == null) {
-    return <span className="u-sub">Karşılaştırma için değerlendirilmiş tahmin yok.</span>
+  const k = veri?.ayni_gun
+  if (!k || !k.gun) {
+    return <span className="u-sub">
+      Karşılaştırma için AL ve AL dışı tahminin aynı gün birlikte değerlendirildiği gün yok.
+    </span>
   }
 
-  const al = veri.al.ort * 100
-  const diger = veri.diger.ort * 100
-  const fark = al - diger
+  const al = k.al_ort * 100
+  const diger = k.diger_ort * 100
+  const fark = k.fark * 100
   const olcek = Math.max(Math.abs(al), Math.abs(diger), 0.5)
 
-  const hukum = Math.abs(fark) < FARK_ESIK_PUAN
-    ? <>AL dediği hisselerle demedikleri arasında <b>anlamlı bir fark yok</b>.</>
-    : fark > 0
-      ? <>AL dediği hisseler, demediklerinden <b style={{ color: 'var(--u-up)' }}>
-          {fmt(fark, 2)} puan önde</b>.</>
-      : <>AL dediği hisseler, demediklerinin <b style={{ color: 'var(--u-down)' }}>
-          {fmt(-fark, 2)} puan gerisinde</b> kaldı — çağrıya uymak şimdiye kadar
-          fayda sağlamadı.</>
+  const hukum = k.gun < MIN_GUN
+    ? <>Hüküm için en az {MIN_GUN} gün gerekiyor; şimdilik {fmt(k.gun, 0)} gün var.</>
+    : Math.abs(fark) < FARK_ESIK_PUAN
+      ? <>Aynı günlerde AL dediği hisselerle demedikleri arasında <b>anlamlı bir fark yok</b>.</>
+      : fark > 0
+        ? <>Aynı günlerde AL dediği hisseler, demediklerinden <b style={{ color: 'var(--u-up)' }}>
+            {fmt(fark, 2)} puan önde</b>.</>
+        : <>Aynı günlerde AL dediği hisseler, demediklerinin <b style={{ color: 'var(--u-down)' }}>
+            {fmt(-fark, 2)} puan gerisinde</b> kaldı — çağrıya uymak şimdiye kadar
+            fayda sağlamadı.</>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <Satir ad="AL dediği" g={veri.al} olcek={olcek} vurgu />
-      <Satir ad="Demediği" g={veri.diger} olcek={olcek} vurgu={false} />
+      <Satir ad="AL dediği" oran={k.al_ort} olcek={olcek} vurgu />
+      <Satir ad="Demediği" oran={k.diger_ort} olcek={olcek} vurgu={false} />
       <span className="u-sub" style={{ marginTop: 2 }}>{hukum}</span>
       <span className="u-exact" style={{ fontSize: 'var(--u-t-micro)' }}>
-        10 günlük ortalama getiri · medyan {yuzde((veri.al.medyan ?? 0) * 100, 2, true)} /{' '}
-        {yuzde((veri.diger.medyan ?? 0) * 100, 2, true)} · maliyet hariç ·{' '}
-        n={fmt(veri.al.n, 0)} / {fmt(veri.diger.n, 0)} · gözlemler üst üste biniyor
+        10 günlük ortalama getiri · yalnız iki grubun birlikte olduğu günler ·
+        AL grubunun önde olduğu gün: {fmt(k.al_onde_gun, 0)} / {fmt(k.gun, 0)} ·
+        maliyet hariç · gözlemler üst üste biniyor
       </span>
     </div>
   )
