@@ -10,6 +10,7 @@ import datetime
 import pytest
 
 from ml.config import EVAL_MIN_AGE_DAYS
+import ml_live
 from ml_live import maturity
 
 TS = datetime.datetime(2026, 7, 8, 22, 8, 26)   # geç akşam yazılmış tahmin
@@ -182,3 +183,29 @@ def test_log_row_builder_covers_every_schema_field():
     assert not eksik, f"şemada olup satırda ÜRETİLMEYEN alan(lar): {eksik}"
     # Ve değer gerçekten taşınmalı — boş yazılmamalı
     assert satir["rec_dir_nofilter"] == "BUY"
+
+
+# ── Değerlendirme giriş günü ve canlı geçmiş (18.10.2026 denetimi) ───────────
+
+def test_giris_gunu_bar_gunu_esas():
+    """Sabah 09:00 (06:00 UTC) analizi DÜNKÜ bardan üretilir; değerlendirme de
+    o bardan başlamalı — kayıt damgasından değil."""
+    ts = datetime.datetime(2026, 10, 20, 6, 0)
+    assert ml_live.giris_gunu({"bar_gunu": "2026-10-19"}, ts) == datetime.date(2026, 10, 19)
+
+
+def test_giris_gunu_eski_satir_damgaya_duser():
+    ts = datetime.datetime(2026, 9, 10, 15, 30)
+    assert ml_live.giris_gunu({"bar_gunu": ""}, ts) == datetime.date(2026, 9, 10)
+    assert ml_live.giris_gunu({}, ts) == datetime.date(2026, 9, 10)
+
+
+def test_canli_ozellik_gecmisi_egitimle_ayni():
+    """1y (252 bar) indirmede EMA200'ün başlangıç ağırlığı ~%8 kalıyordu;
+    16.10'da 50 hissenin 4'ünde above_ema200 ters çıktı. Canlı geçmiş
+    eğitimle aynı olmalı ve başlangıç ağırlığı ihmal edilebilir kalmalı."""
+    from ml.config import HISTORY_PERIOD
+    assert ml_live.LIVE_HISTORY_PERIOD == HISTORY_PERIOD
+    yil = int(HISTORY_PERIOD.rstrip("y"))
+    bar = 245 * yil                       # BIST ~245 işlem günü/yıl, alt sınır
+    assert (1 - 2 / 201) ** bar < 0.001

@@ -338,6 +338,10 @@ def _explain(model, X: pd.DataFrame, feat: dict) -> tuple[list, list]:
     return drivers, risks
 
 
+# Canlı özellikler eğitimle aynı geçmiş uzunluğundan hesaplanır — bkz. fetch_snapshot.
+LIVE_HISTORY_PERIOD = HISTORY_PERIOD
+
+
 def fetch_snapshot(sym: str, yf_sym: str, ctx: pd.DataFrame):
     """
     Sembol için OHLCV indir + son HAM özellik satırı.
@@ -348,7 +352,13 @@ def fetch_snapshot(sym: str, yf_sym: str, ctx: pd.DataFrame):
     Bu tarih olmadan "son bar" ile "bugünün kapanışı" aynı sanılıyordu;
     16.09.2026 denetiminde ölçülen hata buydu.
     """
-    df = yf.download(yf_sym, period="1y", interval="1d",
+    # Geçmiş uzunluğu EĞİTİMLE AYNI (18.10.2026). Eskiden 1y (~252 bar)
+    # indiriliyordu: EMA200'ün başlangıç fiyatına verdiği ağırlık 252 barda
+    # hâlâ ~%8. Ölçüldü (16.10): 50 hissenin 4'ünde above_ema200 ters,
+    # olasılık farkı en çok 0,19. Eğitim 3y ile hesaplanıyor; kalibratör de
+    # o özelliklerle kuruldu — canlıyı 3y'ye çekmek canlıyı kalibratöre
+    # yaklaştırır, hiçbir sayacı sıfırlamaz.
+    df = yf.download(yf_sym, period=LIVE_HISTORY_PERIOD, interval="1d",
                      auto_adjust=True, progress=False, threads=False)
     if df is None or len(df) < 60:
         return None
@@ -619,7 +629,7 @@ def _run_ml_cycle_locked(model_holder: list):
     send_syslog(f"[ml v3] Analiz döngüsü başladı (saf teknik, 10g) — {ts}", "INFO")
 
     try:
-        ctx = fetch_context(period="1y")
+        ctx = fetch_context(period=LIVE_HISTORY_PERIOD)
     except Exception as e:
         print(f"[ml cycle] bağlam indirilemedi: {e}")
         ctx = pd.DataFrame()
@@ -980,6 +990,24 @@ def maturity(ts: datetime.datetime, now: datetime.datetime | None = None) -> dic
     }
 
 
+def giris_gunu(row: dict, ts: datetime.datetime) -> datetime.date:
+    """
+    Değerlendirmenin giriş barı: tahminin ÜRETİLDİĞİ bar (18.10.2026).
+
+    Eskiden kayıt zaman damgasının (UTC) tarihi kullanılıyordu. Sabah 10:00'dan
+    önce yapılan analiz DÜNKÜ bardan üretilir ama damgası bugündür — tahmin bir
+    gün kaymış yargılanırdı. bar_gunu (16.09'dan beri yazılıyor) varsa o esas;
+    eski satırlarda damgaya düşülür.
+    """
+    bg = (row.get("bar_gunu") or "").strip()
+    if bg:
+        try:
+            return datetime.date.fromisoformat(bg)
+        except ValueError:
+            pass
+    return ts.date()
+
+
 def evaluate_ml():
     """
     Bekleyen tahminleri 10g triple-barrier ile değerlendirir (model tanımıyla AYNI).
@@ -1064,7 +1092,7 @@ def evaluate_ml():
             except (TypeError, AttributeError):
                 pass
             gunler = np.asarray(idx.normalize())
-            pred_gun = np.datetime64(ts.date())
+            pred_gun = np.datetime64(giris_gunu(row, ts))
             oncekiler = np.where(gunler <= pred_gun)[0]
             if len(oncekiler) == 0:
                 continue
