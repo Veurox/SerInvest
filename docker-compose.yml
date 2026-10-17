@@ -212,8 +212,12 @@ services:
       Cors__AllowedOrigins: "${ALLOWED_ORIGINS:-http://localhost:3000}"
       MarketData__ChartUrl: "http://market-data-service:5002"
       Tefas__Url: "http://tefas-service:5003"
+    # YALNIZ BU BİLGİSAYAR (18.10.2026). Eskiden 0.0.0.0'a bağlıydı: arayüz
+    # yönetici anahtarını tarayıcıya gömdüğü için ev ağındaki herhangi bir
+    # cihaz 3000'den anahtarı okuyup 8080'den modeli sıfırlayabiliyordu.
+    # İzinli kaynaklar (ALLOWED_ORIGINS) zaten yalnız localhost.
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       - ./oracle-data:/app/oracle_models:ro   # aynı bind-mount, read-only
     networks:
@@ -242,7 +246,37 @@ services:
       - ./frontend/src:/app/src
       - ./frontend/index.html:/app/index.html
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"   # yalnız bu bilgisayar — bkz. core-api notu
+    networks:
+      - market-network
+    restart: unless-stopped
+
+  # ── Otomatik yedek (18.10.2026) ─────────────────────────────────────────────
+  # Son yedek 19 Temmuz'dandı; tahmin günlüğü (geri getirilemez canlı kayıt)
+  # tek kopyadaydı. Her gün bir kez: oracle-data + tefas-data + Postgres,
+  # doğrulanarak backups/otomatik/<gün>/ altına. Makine 03:00'te kapalı
+  # olabileceği için saat beklemez — o günün yedeği yoksa alır.
+  # Aynı diskte durur: yanlışlıkla silme ve bozulmaya karşı korur, disk
+  # arızasına karşı DEĞİL — backups/ klasörünü bulut eşitlemesine almak gerekir.
+  yedek:
+    image: postgres:15-alpine
+    container_name: serinvest-yedek
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-admin}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-password}
+      PGDATABASE: ${POSTGRES_DB:-marketsentinel}
+      YEDEK_GUN: ${YEDEK_GUN:-14}
+      TZ: Europe/Istanbul
+    volumes:
+      - ./oracle-data:/kaynak/oracle-data:ro
+      - ./tefas-data:/kaynak/tefas-data:ro
+      - ./backups:/yedek
+      - ./scripts/yedek.sh:/yedek.sh:ro
+    entrypoint: ["sh", "/yedek.sh"]
     networks:
       - market-network
     restart: unless-stopped
