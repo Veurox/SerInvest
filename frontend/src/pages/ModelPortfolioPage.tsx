@@ -23,11 +23,17 @@ interface ClosedTrade {
   entry_price: number; exit_price: number; net_pnl: number; pnl_pct: number
   exit_reason: string; hold_days: number
 }
+/** Akşam sinyalinden gelen, ertesi seansta uygulanacak alım (18.10.2026). */
+interface PendingOrder {
+  symbol: string; bar_gunu: string; signal_price: number | null
+  target: number | null; stop: number | null; conf: number | null; score: number | null
+}
 interface EquityPoint { t: string; equity: number; cash: number; invested: number; benchmark: number | null }
 interface PaperState {
   initial_capital: number; cash: number; equity: number; invested: number
   total_return: number; total_net_pnl: number
   open_count: number; open_positions: OpenPos[]
+  pending_orders?: PendingOrder[]
   n_closed_trades: number; win_rate: number | null
   avg_win: number; avg_loss: number; profit_factor: number | null
   benchmark_return: number | null
@@ -44,6 +50,10 @@ const EXIT_LABEL: Record<string, { txt: string; color: string }> = {
   TIME:   { txt: 'Süre',   color: 'var(--text-muted)' },
   SIGNAL: { txt: 'Sinyal', color: 'var(--warning)' },
 }
+
+/** "2026-10-16" → "16 Ekim" */
+const tarihYaz = (iso: string) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })
 
 const pnlColor = (n: number) => (n > 0 ? 'var(--profit)' : n < 0 ? 'var(--loss)' : 'var(--text-muted)')
 
@@ -146,6 +156,7 @@ export default function ModelPortfolioPage() {
   const retPct  = state.total_return * 100
   const benchPct = state.benchmark_return != null ? state.benchmark_return * 100 : null
   const alpha = benchPct != null ? retPct - benchPct : null
+  const bekleyen = state.pending_orders ?? []
 
   return (
     <div className="ui2" style={{ minHeight: '100%', padding: 'var(--u-s4) var(--u-s5) var(--u-s5)' }}>
@@ -157,8 +168,8 @@ export default function ModelPortfolioPage() {
         right={
           <>
             <span title={state.market_open
-              ? 'BIST açık — model yeni pozisyon açabilir'
-              : `BIST kapalı (${state.market_status}) — yeni pozisyon açılmaz; sadece kaçırılan TP/SL bariyerleri taranır`}
+              ? 'BIST açık — bekleyen emirler o anki fiyattan uygulanır, süre dolan pozisyonlar kapanır'
+              : `BIST kapalı (${state.market_status}) — yeni pozisyon açılmaz; sadece kaçırılan hedef/stop vuruşları taranır`}
               style={{
                 padding: '.25rem .7rem', borderRadius: '999px', fontSize: 'var(--text-xs)', fontWeight: 700,
                 background: state.market_open ? 'var(--profit-bg)' : 'var(--bg-surface-2)',
@@ -201,7 +212,7 @@ export default function ModelPortfolioPage() {
       {/* Açık pozisyonlar */}
       <Section title={`Açık Pozisyonlar (${state.open_count}/${state.max_open})`}>
         {state.open_positions.length === 0 ? (
-          <Empty text="Şu an açık pozisyon yok. Model uygun ALIM sinyali bulduğunda otomatik pozisyon açacak." />
+          <Empty text="Şu an açık pozisyon yok. Model akşam bir AL sinyali bulursa ertesi seansta pozisyon açar." />
         ) : (
           <Table head={['Hisse', 'Alış Tarihi', 'Adet', 'Giriş', 'Güncel', 'Hedef/Stop', 'Değer', 'K/Z', 'Süre']}>
             {state.open_positions.map(p => (
@@ -229,6 +240,33 @@ export default function ModelPortfolioPage() {
           </Table>
         )}
       </Section>
+
+      {/* Bekleyen emirler (18.10.2026). Tahmin yalnız kapanmış bardan üretildiği
+          için AL sinyali akşam gelir, alım ertesi seansta olur. Bu arayı
+          göstermezsek "model AL dedi ama portföy almadı" bir hata gibi görünür. */}
+      {bekleyen.length > 0 && (
+        <Section title={`Bekleyen Emirler (${bekleyen.length})`}>
+          <p style={{ fontSize: '.78rem', color: 'var(--text-muted)', margin: '0 0 .6rem' }}>
+            Akşam kapanışından gelen AL sinyalleri. İlk seansta o anki fiyattan alınır; o seans
+            kaçarsa emir düşer. Fiyat stopun altında ya da hedefin üstünde açılırsa alınmaz.
+          </p>
+          <Table head={['Hisse', 'Sinyal günü', 'Sinyal fiyatı', 'Hedef/Stop', 'Güven']}>
+            {bekleyen.map(o => (
+              <tr key={o.symbol}>
+                <td><SymCell sym={o.symbol} /></td>
+                <td style={{ ...tdNum, fontSize: '.74rem', color: 'var(--text-secondary)' }}>
+                  {o.bar_gunu ? tarihYaz(o.bar_gunu) : '—'}
+                </td>
+                <td style={tdNum}>{fmt(o.signal_price)}</td>
+                <td style={{ ...tdNum, fontSize: '.7rem', color: 'var(--text-muted)' }}>
+                  {o.target ? fmt(o.target) : '—'} / {o.stop ? fmt(o.stop) : '—'}
+                </td>
+                <td style={tdNum}>{oranYuzde(o.conf, 0)}</td>
+              </tr>
+            ))}
+          </Table>
+        </Section>
+      )}
 
       {/* Kapanan işlemler */}
       <Section title={`Kapanan İşlemler (${state.n_closed_trades})`}>
@@ -267,7 +305,8 @@ export default function ModelPortfolioPage() {
       <Section title="İşlem Evreni — Modelin alım/satım yapacağı hisseler">
         <p style={{ fontSize: '.78rem', color: 'var(--text-muted)', margin: '0 0 .75rem' }}>
           Aşağıdan hisse seçin. Model yalnızca seçtiğiniz hisselerde, kendi pozisyon önerisine göre
-          (güçlü ALIM + pozisyon büyüklüğü &gt; 0) otomatik işlem açar; hedef/stop/süre dolunca kapatır.
+          (ALIM + pozisyon büyüklüğü &gt; 0) işlem açar: sinyal akşam gelir, alım ertesi seansta
+          yapılır. Hedef, stop ya da süre dolunca kapatır.
         </p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem', marginBottom: '.9rem' }}>
           {symbols.map(sym => {
