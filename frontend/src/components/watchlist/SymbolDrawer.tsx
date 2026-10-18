@@ -7,7 +7,7 @@ import { useEffect } from 'react'
 import { ChartPanel, TechnicalSummary } from '../finance'
 import { CompanyLogo } from '../common/CompanyLogo'
 import { TerimTip } from '../ui/TerimTip'
-import { fmt, recColor } from '../../lib/format'
+import { fmt, recColor, yuzde } from '../../lib/format'
 import { COMPANY_NAMES } from '../../lib/companies'
 import type { PriceData, OracleAnalysis } from '../../lib/types'
 
@@ -52,7 +52,6 @@ export function SymbolDrawer({
   const chgColor = changePct == null ? 'var(--text-muted)' : changePct >= 0 ? 'var(--profit)' : 'var(--loss)'
   const company = COMPANY_NAMES[symbol]
 
-  const sigColor = asset?.signal === 'BUY' ? 'var(--profit)' : asset?.signal === 'SELL' ? 'var(--loss)' : 'var(--text-muted)'
   const rsiColor = asset?.rsi == null ? 'var(--text-muted)' : asset.rsi > 70 ? 'var(--loss)' : asset.rsi < 30 ? 'var(--profit)' : 'var(--text-primary)'
 
   return (
@@ -83,14 +82,17 @@ export function SymbolDrawer({
           <span className="sym-drawer-px">{fmt(asset?.close ?? null, dec)}</span>
           {changePct != null && (
             <span style={{ fontSize: 'var(--text-md)', fontWeight: 'var(--fw-bold)', color: chgColor, fontVariantNumeric: 'tabular-nums' }}>
-              {changePct >= 0 ? '▲ +' : '▼ '}{fmt(change, dec)} ({changePct >= 0 ? '+' : ''}{changePct.toFixed(2)}%)
+              {changePct >= 0 ? '▲ +' : '▼ '}{fmt(change, dec)} ({yuzde(changePct, 2, true)})
             </span>
           )}
         </div>
 
-        {/* AI tavsiyesi (varsa) */}
+        {/* AI tavsiyesi (varsa). Hedef/stop/R:R yalnız ALIM'da gösterilir —
+            Sembol sayfasıyla aynı kural: NÖTR bir analizin hedefi bir çağrı
+            değildir, göstermek "al" deniyormuş izlenimi verir (18.10.2026). */}
         {oracle && (() => {
           const c = recColor(oracle.recommendation)
+          const alim = oracle.recommendation.includes('ALIM')
           return (
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginTop: 'var(--space-3)',
               padding: 'var(--space-2) var(--space-3)', background: c.bg, border: `1px solid ${c.border}`,
@@ -100,11 +102,11 @@ export function SymbolDrawer({
                 <TerimTip ad="AI Kararı">{oracle.recommendation}</TerimTip>
               </span>
               <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
-                <TerimTip ad="Güven">güven</TerimTip> %{(oracle.confidence * 100).toFixed(0)}
+                <TerimTip ad="Güven">güven</TerimTip> {yuzde(oracle.confidence * 100, 0)}
               </span>
-              {oracle.shortTermTarget != null && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}><TerimTip ad="Hedef" /> {fmt(oracle.shortTermTarget, dec)}</span>}
-              {oracle.shortTermStop != null && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}><TerimTip ad="Stop" /> {fmt(oracle.shortTermStop, dec)}</span>}
-              {oracle.riskRewardRatio != null && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}><TerimTip ad="R:R" /> {oracle.riskRewardRatio.toFixed(2)}</span>}
+              {alim && oracle.shortTermTarget != null && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}><TerimTip ad="Hedef" /> {fmt(oracle.shortTermTarget, dec)}</span>}
+              {alim && oracle.shortTermStop != null && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}><TerimTip ad="Stop" /> {fmt(oracle.shortTermStop, dec)}</span>}
+              {alim && oracle.riskRewardRatio != null && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}><TerimTip ad="R:R" /> {fmt(oracle.riskRewardRatio, 2)}</span>}
             </div>
           )
         })()}
@@ -125,9 +127,8 @@ export function SymbolDrawer({
           <Val k="Gün Yüksek" v={fmt(asset?.high ?? null, dec)} />
           <Val k="Gün Düşük" v={fmt(asset?.low ?? null, dec)} />
           <Val k="Hacim" v={fmtVol(asset?.volume ?? null)} />
-          <Val k="Sinyal" v={asset?.signal ?? '—'} color={sigColor} />
-          <Val k="RSI (14)" v={asset?.rsi != null ? asset.rsi.toFixed(1) : '—'} color={rsiColor} />
-          <Val k="MACD Hist" v={asset?.macdHistogram != null ? asset.macdHistogram.toFixed(3) : '—'}
+          <Val k="RSI (14)" v={asset?.rsi != null ? fmt(asset.rsi, 1) : '—'} color={rsiColor} />
+          <Val k="MACD Hist" v={asset?.macdHistogram != null ? fmt(asset.macdHistogram, 3) : '—'}
             color={asset?.macdHistogram == null ? undefined : asset.macdHistogram >= 0 ? 'var(--profit)' : 'var(--loss)'} />
           <Val k="EMA 20" v={fmt(asset?.ema20 ?? null, dec)} />
           <Val k="EMA 50" v={fmt(asset?.ema50 ?? null, dec)} />

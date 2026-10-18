@@ -1,159 +1,129 @@
 // =============================================================================
-// SerInvest — Teknik Özet (Investing.com tarzı AL/NÖTR/SAT gauge)
-// Mevcut PriceData göstergelerinden (RSI, MACD, EMA, BB) sinyal üretir.
+// SerInvest — Göstergelerin anlık durumu (tavsiye DEĞİL)
+//
+// NEDEN YENİDEN YAZILDI (18.10.2026)
+// Bu bileşen "Investing.com tarzı" bir AL/NÖTR/SAT göstergesiydi: dokuz basit
+// kuralı sayıp "ALIM" ya da "SATIŞ" hükmü veriyordu. İki sorunu vardı:
+//   • Doğrulanmamış İKİNCİ bir tavsiyeydi. Hemen üstünde modelin kararı
+//     duruyor; rejim kapısı yüzünden model "Tut" derken bu kutu "ALIM"
+//     diyebiliyordu. Ekranda tek bir tavsiye kaynağı olmalı.
+//   • Kurallar birbiriyle çelişiyordu: RSI düşükse "AL" (dipten dönüş
+//     varsayımı) ama fiyat ortalamanın altındaysa "SAT" (trend varsayımı).
+//     Sayıp çoğunluğa bakmak iki zıt felsefeyi toplamaktı.
+// Artık yalnız DURUMU anlatır: trend göstergeleri yukarı/aşağı, salınım
+// göstergeleri hangi bölgede. Hüküm yok.
 // =============================================================================
 import type { PriceData } from '../../lib/types'
 import { TerimTip } from '../ui/TerimTip'
 
-interface Signal { label: string; verdict: 'AL' | 'NÖTR' | 'SAT' }
+type Yon = 'yukarı' | 'aşağı' | 'yatay'
 
-function computeSignals(a: PriceData): Signal[] {
-  const signals: Signal[] = []
-  const { close: c, open: o, rsi, macdHistogram, bbUpper, bbLower, bbMiddle,
-          ema9, ema20, ema50, ema200 } = a
+interface Trend { label: string; yon: Yon }
+interface Salinim { label: string; durum: string }
 
-  // RSI
-  if (rsi != null) {
-    signals.push({ label: 'RSI(14)', verdict: rsi < 35 ? 'AL' : rsi > 65 ? 'SAT' : 'NÖTR' })
+function trendler(a: PriceData): Trend[] {
+  const { close: c, open: o, macdHistogram, ema9, ema20, ema50, ema200 } = a
+  const t: Trend[] = []
+  const kiyas = (label: string, x: number | null, y: number | null) => {
+    if (x == null || y == null) return
+    t.push({ label, yon: x > y ? 'yukarı' : x < y ? 'aşağı' : 'yatay' })
   }
-  // MACD histogram
+  kiyas('EMA 9', c, ema9)
+  kiyas('EMA 20', c, ema20)
+  kiyas('EMA 50', c, ema50)
+  kiyas('EMA 200', c, ema200)
+  kiyas('EMA 20/50', ema20, ema50)
   if (macdHistogram != null) {
-    signals.push({ label: 'MACD', verdict: macdHistogram > 0.002 ? 'AL' : macdHistogram < -0.002 ? 'SAT' : 'NÖTR' })
+    t.push({ label: 'MACD', yon: macdHistogram > 0 ? 'yukarı' : macdHistogram < 0 ? 'aşağı' : 'yatay' })
   }
-  // BB konumu
-  if (bbUpper != null && bbLower != null && bbMiddle != null && c != null) {
-    const bbRange = bbUpper - bbLower
-    if (bbRange > 0) {
-      const pos = (c - bbLower) / bbRange
-      signals.push({ label: 'Bollinger', verdict: pos < 0.2 ? 'AL' : pos > 0.8 ? 'SAT' : 'NÖTR' })
-    }
-  }
-  // Fiyat vs EMA9
-  if (ema9 != null && c != null) {
-    signals.push({ label: 'EMA 9', verdict: c > ema9 ? 'AL' : c < ema9 ? 'SAT' : 'NÖTR' })
-  }
-  // Fiyat vs EMA20
-  if (ema20 != null && c != null) {
-    signals.push({ label: 'EMA 20', verdict: c > ema20 ? 'AL' : c < ema20 ? 'SAT' : 'NÖTR' })
-  }
-  // Fiyat vs EMA50
-  if (ema50 != null && c != null) {
-    signals.push({ label: 'EMA 50', verdict: c > ema50 ? 'AL' : c < ema50 ? 'SAT' : 'NÖTR' })
-  }
-  // Fiyat vs EMA200
-  if (ema200 != null && c != null) {
-    signals.push({ label: 'EMA 200', verdict: c > ema200 ? 'AL' : c < ema200 ? 'SAT' : 'NÖTR' })
-  }
-  // EMA20/EMA50 kesişim
-  if (ema20 != null && ema50 != null) {
-    signals.push({ label: 'EMA 20/50', verdict: ema20 > ema50 ? 'AL' : ema20 < ema50 ? 'SAT' : 'NÖTR' })
-  }
-  // Günlük değişim yönü
-  if (c != null && o != null) {
+  if (c != null && o != null && o > 0) {
     const chg = (c - o) / o
-    signals.push({ label: 'Gün Yönü', verdict: chg > 0.003 ? 'AL' : chg < -0.003 ? 'SAT' : 'NÖTR' })
+    t.push({ label: 'Gün Yönü', yon: chg > 0.003 ? 'yukarı' : chg < -0.003 ? 'aşağı' : 'yatay' })
   }
-
-  return signals
+  return t
 }
 
-function verdictLabel(buy: number, sell: number, total: number): { text: string; color: string; bg: string } {
-  const buyPct = total > 0 ? buy / total : 0
-  const selPct = total > 0 ? sell / total : 0
-  if (buyPct >= 0.55) return { text: 'ALIM', color: 'var(--profit)', bg: 'var(--profit-bg)' }
-  if (selPct >= 0.55) return { text: 'SATIŞ', color: 'var(--loss)', bg: 'var(--loss-bg)' }
-  if (buyPct > selPct) return { text: 'NÖTR (Hafif Al)', color: 'var(--warning)', bg: 'rgba(251,191,36,.1)' }
-  if (selPct > buyPct) return { text: 'NÖTR (Hafif Sat)', color: 'var(--warning)', bg: 'rgba(251,191,36,.1)' }
-  return { text: 'NÖTR', color: 'var(--text-muted)', bg: 'var(--bg-surface-2)' }
+function salinimlar(a: PriceData): Salinim[] {
+  const { close: c, rsi, bbUpper, bbLower } = a
+  const s: Salinim[] = []
+  if (rsi != null) {
+    s.push({ label: 'RSI(14)',
+             durum: rsi < 30 ? 'aşırı satım bölgesi' : rsi > 70 ? 'aşırı alım bölgesi' : 'orta bölge' })
+  }
+  if (bbUpper != null && bbLower != null && c != null && bbUpper > bbLower) {
+    const pos = (c - bbLower) / (bbUpper - bbLower)
+    s.push({ label: 'Bollinger',
+             durum: pos < 0.2 ? 'alt banda yakın' : pos > 0.8 ? 'üst banda yakın' : 'bant ortasında' })
+  }
+  return s
 }
+
+const renk = (y: Yon) =>
+  y === 'yukarı' ? 'var(--profit)' : y === 'aşağı' ? 'var(--loss)' : 'var(--text-muted)'
 
 export function TechnicalSummary({ asset }: { asset: PriceData | undefined }) {
   if (!asset) return null
 
-  const signals = computeSignals(asset)
-  if (signals.length === 0) return null
+  const t = trendler(asset)
+  const s = salinimlar(asset)
+  if (t.length === 0 && s.length === 0) return null
 
-  const buy  = signals.filter(s => s.verdict === 'AL').length
-  const sell = signals.filter(s => s.verdict === 'SAT').length
-  const neut = signals.filter(s => s.verdict === 'NÖTR').length
-  const total = signals.length
-  const verd = verdictLabel(buy, sell, total)
-
-  const buyPct  = Math.round((buy  / total) * 100)
-  const selPct  = Math.round((sell / total) * 100)
-
-  const col = (v: 'AL' | 'NÖTR' | 'SAT') =>
-    v === 'AL' ? 'var(--profit)' : v === 'SAT' ? 'var(--loss)' : 'var(--text-muted)'
+  const yukari = t.filter(x => x.yon === 'yukarı').length
+  const asagi = t.filter(x => x.yon === 'aşağı').length
+  const toplam = t.length
+  const ozet = toplam === 0 ? null
+    : yukari / toplam >= 0.7 ? 'trend göstergelerinin çoğu yukarı'
+    : asagi / toplam >= 0.7 ? 'trend göstergelerinin çoğu aşağı'
+    : 'trend göstergeleri karışık'
 
   return (
     <div style={{
-      background: 'var(--bg-surface)',
-      border: '1px solid var(--border-default)',
-      borderRadius: 'var(--radius-md)',
-      padding: 'var(--space-4)',
-      marginTop: 'var(--space-4)',
+      background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
+      borderRadius: 'var(--radius-md)', padding: 'var(--space-4)', marginTop: 'var(--space-4)',
     }}>
-      {/* Başlık */}
       <div style={{
-        fontSize: 'var(--text-xs)', color: 'var(--text-muted)',
-        textTransform: 'uppercase', letterSpacing: '0.06em',
-        fontWeight: 'var(--fw-bold)', marginBottom: 'var(--space-3)',
+        fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase',
+        letterSpacing: '0.06em', fontWeight: 'var(--fw-bold)', marginBottom: 'var(--space-2)',
       }}>
-        <TerimTip ad="Sinyal">Teknik Özet</TerimTip>
+        Göstergelerin anlık durumu
       </div>
 
-      {/* Ana verdict + gauge */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)',
-                    marginBottom: 'var(--space-3)' }}>
-        {/* Gauge bar */}
-        <div style={{ flex: 1 }}>
-          <div style={{
-            height: 6, borderRadius: 3, background: 'var(--bg-surface-3)',
-            position: 'relative', overflow: 'hidden',
-          }}>
-            <div style={{
-              position: 'absolute', left: 0, top: 0, bottom: 0,
-              width: `${buyPct}%`, background: 'var(--profit)', borderRadius: 3,
-              transition: 'width .3s',
-            }} />
-            <div style={{
-              position: 'absolute', right: 0, top: 0, bottom: 0,
-              width: `${selPct}%`, background: 'var(--loss)', borderRadius: 3,
-              transition: 'width .3s',
-            }} />
+      {toplam > 0 && (
+        <div style={{ marginBottom: 'var(--space-3)' }}>
+          <div style={{ height: 6, borderRadius: 3, background: 'var(--bg-surface-3)',
+                        position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0,
+                          width: `${(yukari / toplam) * 100}%`, background: 'var(--profit)', borderRadius: 3 }} />
+            <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0,
+                          width: `${(asagi / toplam) * 100}%`, background: 'var(--loss)', borderRadius: 3 }} />
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between',
-                        marginTop: 'var(--space-1)', fontSize: 10, color: 'var(--text-muted)' }}>
-            <span style={{ color: 'var(--profit)', fontWeight: 700 }}>{buy} Al</span>
-            <span>{neut} Nötr</span>
-            <span style={{ color: 'var(--loss)', fontWeight: 700 }}>{sell} Sat</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 'var(--space-1)',
+                        fontSize: 10, color: 'var(--text-muted)' }}>
+            <span>{yukari} yukarı</span>
+            <span style={{ color: 'var(--text-secondary)' }}>{ozet}</span>
+            <span>{asagi} aşağı</span>
           </div>
         </div>
+      )}
 
-        {/* Verdict badge */}
-        <div style={{
-          padding: '4px 12px', borderRadius: 'var(--radius-full)',
-          background: verd.bg, color: verd.color,
-          fontSize: 'var(--text-xs)', fontWeight: 800,
-          whiteSpace: 'nowrap', flexShrink: 0,
-        }}>
-          {verd.text}
-        </div>
-      </div>
-
-      {/* Bireysel sinyaller */}
-      <div style={{
-        display: 'flex', flexWrap: 'wrap', gap: '6px 10px',
-      }}>
-        {signals.map(s => (
-          <div key={s.label} style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            fontSize: 10,
-          }}>
-            <span style={{ color: 'var(--text-muted)' }}><TerimTip ad={s.label} />:</span>
-            <span style={{ color: col(s.verdict), fontWeight: 700 }}>{s.verdict}</span>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 10px' }}>
+        {t.map(x => (
+          <div key={x.label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10 }}>
+            <span style={{ color: 'var(--text-muted)' }}><TerimTip ad={x.label} />:</span>
+            <span style={{ color: renk(x.yon), fontWeight: 700 }}>{x.yon}</span>
           </div>
         ))}
+        {s.map(x => (
+          <div key={x.label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10 }}>
+            <span style={{ color: 'var(--text-muted)' }}><TerimTip ad={x.label} />:</span>
+            <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>{x.durum}</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 'var(--space-3)', fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+        Bu bir tavsiye değil, göstergelerin bugünkü durumu. Al/tut kararı yukarıdaki
+        model kararıdır.
       </div>
     </div>
   )
