@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react'
 import { ADMIN, adminFetch } from '../../lib/api'
 import { useConfig } from '../../lib/useConfig'
+import { oranYuzde } from '../../lib/format'
 
 interface Book {
   equity?: number; initial_capital?: number; cash?: number
@@ -67,7 +68,7 @@ export function RiskFilterPanel() {
   const shadowTrades = shadow?.n_trades ?? 0
 
   const fmtRet = (v: number | null) => v == null ? '—'
-    : `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)}%`
+    : oranYuzde(v, 1, true)
 
   return (
     <div className="card" style={{ padding: '14px 16px', marginBottom: 'var(--space-3)' }}>
@@ -91,7 +92,7 @@ export function RiskFilterPanel() {
         Filtre <b>getiri tahmin etmez</b>. Model zaten hisse sıralayamıyor; bu kapı yalnızca
         ölçümle kötü çıkan grubu ayıklar: her gün <b>düşük oynaklık</b> ve
         <b> 52 haftalık zirveye yakınlık</b> sıralamasında en iyi
-        %{((rf?.top_pct ?? 0.3) * 100).toFixed(0)} geçer.
+        {oranYuzde(rf?.top_pct ?? 0.3, 0)} geçer.
         Kural {' '}<code>docs/PLAN_2026-08.md §A0</code>'da <b>önceden</b> yazıldı;
         sonucu görüp değiştirilmeyecek. Karar tarihi <b>{rf?.decision_date ?? '2027-02-12'}</b>.
       </p>

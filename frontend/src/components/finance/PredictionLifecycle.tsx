@@ -9,6 +9,7 @@
 // =============================================================================
 import { useEffect, useMemo, useState } from 'react'
 import { ADMIN, adminFetch } from '../../lib/api'
+import { oranYuzde } from '../../lib/format'
 
 export interface CohortDay {
   date: string
@@ -263,7 +264,7 @@ export function PredictionLifecycle({ onPickDay }: { onPickDay?: (date: string) 
                     </span>
                     <span style={{ fontSize: 9.5, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
                       {c.hit_rate != null
-                        ? `✓${(c.hit_rate * 100).toFixed(0)}%`
+                        ? `✓${oranYuzde(c.hit_rate, 0)}`
                         : c.matured ? 'olgun' : `⏳${c.days_left}g`}
                     </span>
                   </>
@@ -283,8 +284,8 @@ export function PredictionLifecycle({ onPickDay }: { onPickDay?: (date: string) 
               <div style={{ marginTop: 4, color: 'var(--text-secondary)' }}>
                 Yargılandı: {selected.evaluated} · <span className="t-up">hedefe değdi {selected.up}</span> ·{' '}
                 <span className="t-down">stopa değdi {selected.down}</span> · kararsız {selected.neutral}
-                {selected.hit_rate != null && <> · AL isabeti <b>%{(selected.hit_rate * 100).toFixed(0)}</b></>}
-                {selected.avg_return != null && <> · ort. getiri <b>{(selected.avg_return * 100).toFixed(2)}%</b></>}
+                {selected.hit_rate != null && <> · AL isabeti <b>{oranYuzde(selected.hit_rate, 0)}</b></>}
+                {selected.avg_return != null && <> · ort. getiri <b>{oranYuzde(selected.avg_return, 2, true)}</b></>}
               </div>
             ) : (
               <div style={{ marginTop: 4, color: 'var(--text-muted)' }}>

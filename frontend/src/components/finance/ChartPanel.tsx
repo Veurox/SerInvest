@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { yuzde } from '../../lib/format'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Timeframe = '1H' | '1D' | '1W' | '1M' | '3M' | '1Y' | '5Y'
@@ -251,7 +252,7 @@ export function ChartPanel({
   const fmt = (n: number | null | undefined, dec = decimals) =>
     n == null ? '—' : n.toLocaleString('tr-TR', { minimumFractionDigits: dec, maximumFractionDigits: dec })
 
-  const fmtY = (v: number) => compareMode ? `${v >= 0 ? '+' : ''}${v.toFixed(1)}%` : fmt(v)
+  const fmtY = (v: number) => compareMode ? yuzde(v, 1, true) : fmt(v)
 
   // Picker'da gösterilecek aday semboller
   const pickerCandidates = availableSymbols
@@ -282,7 +283,7 @@ export function ChartPanel({
                 fontSize: 'var(--text-base)', fontWeight: 700,
                 color: data.change_pct >= 0 ? 'var(--profit)' : 'var(--loss)',
               }}>
-                {data.change_pct >= 0 ? '+' : ''}{data.change_pct.toFixed(2)}%
+                {yuzde(data.change_pct, 2, true)}
                 <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: 6 }}>
                   ({TF_LABEL[tf]})
                 </span>
@@ -640,7 +641,7 @@ export function ChartPanel({
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color }} />
                 <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>{s.symbol}</span>
                 <span style={{ color: last >= 0 ? 'var(--profit)' : 'var(--loss)', fontWeight: 700 }}>
-                  {last >= 0 ? '+' : ''}{last.toFixed(2)}%
+                  {yuzde(last, 2, true)}
                 </span>
               </span>
             )

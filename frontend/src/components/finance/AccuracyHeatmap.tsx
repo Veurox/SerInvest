@@ -1,3 +1,4 @@
+import { oranYuzde } from '../../lib/format'
 /**
  * Tahmin doğruluk heatmap'i: sembol × gün matrisi.
  * Her hücre o gün o sembolün tahmin sonucunu gösterir:
@@ -141,7 +142,7 @@ export function AccuracyHeatmap({ rows, days = 30, topN = 15 }: AccuracyHeatmapP
               }}>
                 <span>{sym}</span>
                 <span style={{ color: accColor, fontWeight: 'var(--fw-bold)', fontVariantNumeric: 'tabular-nums' }}>
-                  %{(accuracy * 100).toFixed(0)}
+                  {oranYuzde(accuracy, 0)}
                 </span>
               </div>
 

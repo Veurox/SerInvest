@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { fmt, oranYuzde, yuzde } from '../../lib/format'
 
 interface DriftPayload {
   // Faz 4 (07/2026) PSI formatı: OK | WATCH | DRIFT | COLLECTING | NO_DATA | ERROR
@@ -91,7 +92,7 @@ export function DriftBadge({
   // kapısı dolmadıysa gün yazılır (07/2026: "600/200" tamamlanmış izlenimi veriyordu).
   const dInfo = data.drift
   const scoreTxt = data.score != null
-    ? (isZScore ? `${data.score.toFixed(2)}σ` : `${(data.score * 100).toFixed(1)}%`)
+    ? (isZScore ? `${fmt(data.score, 2)}σ` : oranYuzde(data.score, 1))
     : status === 'COLLECTING' && dInfo
       ? (dInfo.min_days != null && (dInfo.n_live_days ?? 0) < dInfo.min_days
           ? `${dInfo.n_live_days ?? 0}/${dInfo.min_days} gün`
@@ -171,7 +172,7 @@ export function DriftBadge({
                     const val = useZ ? f.z_score! : (f.drift_pct ?? 0)
                     const warnLvl  = useZ ? 1.0 : 10
                     const critLvl  = useZ ? 2.0 : 20
-                    const display  = useZ ? `${val.toFixed(2)}σ` : `${val.toFixed(1)}%`
+                    const display  = useZ ? `${fmt(val, 2)}σ` : yuzde(val, 1)
                     return (
                       <div key={f.feature} style={{ display: 'flex', justifyContent: 'space-between',
                                                     fontSize: 'var(--text-xs)', fontFamily: 'monospace' }}>

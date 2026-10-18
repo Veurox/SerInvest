@@ -5,6 +5,7 @@
 // =============================================================================
 import { useMemo, useState } from 'react'
 import type { PredRow } from '../../lib/types'
+import { oranYuzde } from '../../lib/format'
 
 type ResultRow = PredRow & {
   target?: number | null
@@ -70,7 +71,7 @@ export function PredictionResults({ rows }: { rows: PredRow[] }) {
             {stats.total} tahmin yargılandı · <b style={{ color: 'var(--profit)' }}>{stats.up} hedefe ulaştı</b> ·{' '}
             <b style={{ color: 'var(--loss)' }}>{stats.dn} stopa takıldı</b> ·{' '}
             {stats.nt} süre doldu
-            {stats.avg != null && <> · ortalama <b>{(stats.avg * 100).toFixed(2)}%</b></>}
+            {stats.avg != null && <> · ortalama <b>{oranYuzde(stats.avg, 2, true)}</b></>}
           </span>
         </div>
         <div style={{ marginTop: 7, display: 'flex', gap: 5, flexWrap: 'wrap' }}>
@@ -124,7 +125,7 @@ export function PredictionResults({ rows }: { rows: PredRow[] }) {
                   <td style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 700 }}>{num(r.exit_price)}</td>
                   <td style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 700,
                                color: ret >= 0 ? 'var(--profit)' : 'var(--loss)' }}>
-                    {ret >= 0 ? '+' : ''}{(ret * 100).toFixed(2)}%
+                    {oranYuzde(ret, 2, true)}
                   </td>
                   <td style={{ padding: '6px 12px', whiteSpace: 'nowrap' }}>
                     <span style={{

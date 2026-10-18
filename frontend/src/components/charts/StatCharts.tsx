@@ -11,6 +11,7 @@
 // sorunu budur.
 // =============================================================================
 import { useState } from 'react'
+import { oranYuzde } from '../../lib/format'
 
 const VB_W = 1000          // viewBox genişliği (yatayda esner)
 const AXIS_W = 34          // sol eksen etiket şeridi (HTML)
@@ -96,8 +97,8 @@ export function LiftBars({ data, height = 170 }: { data: LiftBar[]; height?: num
                           <div style={{ fontWeight: 700 }}>Dönem {d.fold}</div>
                           <div style={{ color: 'var(--text-muted)', fontSize: 10.5 }}>{d.test}</div>
                           <div style={{ marginTop: 3 }}>
-                            AL isabeti <b>{d.buy_precision != null ? `%${(d.buy_precision * 100).toFixed(0)}` : '—'}</b>
-                            {' '}· taban <b>%{(d.base_rate * 100).toFixed(0)}</b>
+                            AL isabeti <b>{oranYuzde(d.buy_precision, 0)}</b>
+                            {' '}· taban <b>{oranYuzde(d.base_rate, 0)}</b>
                           </div>
                           <div style={{ color: d.liftPct >= 0 ? 'var(--profit)' : 'var(--loss)', fontWeight: 700 }}>
                             fark {d.liftPct >= 0 ? '+' : ''}{d.liftPct} puan
