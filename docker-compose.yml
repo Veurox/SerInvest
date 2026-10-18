@@ -1,9 +1,18 @@
+# Docker logları varsayılan olarak SINIRSIZ büyür (json-file, döndürme yok).
+# Her servis en çok 3 × 10 MB tutar (18.10.2026).
+x-log: &log
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
 
   # ── Altyapı ──────────────────────────────────────────────────────────────────
   postgres:
     image: postgres:15-alpine
     container_name: serinvest-postgres
+    logging: *log
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
@@ -27,6 +36,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: serinvest-redis
+    logging: *log
     # PORT KAPALI (04.09.2026 güvenlik sertleştirmesi). Bu servis yalnızca
     # Docker'ın iç ağından, servis adıyla erişilir — host'a açılmasına gerek yok.
     # Açık bırakıldığında 0.0.0.0'a bağlanıyordu: ev ağındaki HER cihaz ve
@@ -44,6 +54,7 @@ services:
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: serinvest-rabbitmq
+    logging: *log
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
@@ -65,6 +76,7 @@ services:
     build:
       context: ./market-data-service
     container_name: serinvest-market-data
+    logging: *log
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -91,6 +103,7 @@ services:
     build:
       context: ./analyst-engine
     container_name: serinvest-analyst
+    logging: *log
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -100,7 +113,6 @@ services:
       # HİÇ almıyordu ve pika varsayılanı guest/guest ile bağlanıyordu.
       RABBITMQ_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
-      ORACLE_URL: http://serinvest-oracle:5001   # C8 anomali tetikleyici için
     networks:
       - market-network
     restart: unless-stopped
@@ -109,6 +121,7 @@ services:
     build:
       context: ./ai-oracle-service
     container_name: serinvest-oracle
+    logging: *log
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -122,7 +135,7 @@ services:
       ORACLE_CYCLE_MINUTES: ${ORACLE_CYCLE_MINUTES:-60}
       ADMIN_API_KEY: ${ADMIN_API_KEY:-dev_key_change_me}
       TZ: Europe/Istanbul
-      TCMB_RATE_PCT: ${TCMB_RATE_PCT:-42.5}
+      # TCMB_RATE_PCT kaldırıldı (18.10.2026): oracle'da hiçbir kod okumuyordu.
     # PORT KAPALI (04.09.2026 güvenlik sertleştirmesi) — EN KRİTİK OLANI.
     # Bu sunucuda kimlik doğrulaması YOK ve CORS koruması da yok. Açıkken:
     #   • ev ağındaki her cihaz yönetim uç noktalarını çağırabiliyordu,
@@ -144,6 +157,7 @@ services:
     build:
       context: ./fundamental-service
     container_name: serinvest-fundamental
+    logging: *log
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -165,6 +179,7 @@ services:
     build:
       context: ./tefas-service
     container_name: serinvest-tefas
+    logging: *log
     environment:
       TEFAS_HTTP_PORT: 5003
       TEFAS_DATA_DIR: /app/data
@@ -195,6 +210,7 @@ services:
       context: ./core-api
       dockerfile: MarketSentinel.Api/Dockerfile
     container_name: serinvest-api
+    logging: *log
     depends_on:
       postgres:
         condition: service_healthy
@@ -234,6 +250,7 @@ services:
     build:
       context: ./frontend
     container_name: serinvest-frontend
+    logging: *log
     environment:
       # Vite dev server bu env'i `import.meta.env.VITE_ADMIN_API_KEY` olarak yayar.
       # Kişisel kullanım için: tarayıcıda manuel anahtar girmeye gerek yok.
@@ -261,6 +278,7 @@ services:
   yedek:
     image: postgres:15-alpine
     container_name: serinvest-yedek
+    logging: *log
     depends_on:
       postgres:
         condition: service_healthy
