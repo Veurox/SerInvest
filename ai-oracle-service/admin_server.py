@@ -403,6 +403,17 @@ def _admin_make_app():
 
         return jsonify(out)
 
+    # ── GET /admin/golge ──────────────────────────────────────────────────────
+    # D modelinin ileriye dönük gölge sınavı (PLAN §4e). Karara karışmaz;
+    # 60 sınav gününden önce hüküm vermez.
+    @app.get("/admin/golge")
+    def admin_golge():
+        import ml.golge_sinav as golge_sinav
+        try:
+            return jsonify(golge_sinav.rapor(yaz=False))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     # ── GET /admin/model-versions ─────────────────────────────────────────────
     @app.get("/admin/model-versions")
     def admin_model_versions():

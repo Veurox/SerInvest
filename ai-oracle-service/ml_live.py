@@ -57,6 +57,7 @@ import bicim
 from ml.calibration import calibrate, expected_R, kelly_size, load_calibrator
 from ml.config import (COVERAGE_TARGET, EV_FILTER, META_ENABLED, META_VETO_P,
                        PROMOTE_WINDOWS, RISK_FILTER_ON)
+import ml.golge_sinav as golge_sinav
 import ml.meta as meta
 import ml.monitoring as monitoring
 import ml.progress as progress
@@ -838,6 +839,17 @@ def _run_ml_cycle_locked(model_holder: list):
             print(f"  {sym} hata: {e}")
             time.sleep(0.6)
 
+    # ── Gölge sınav: D modeli (PLAN §4e) — hiçbir karara KARIŞMAZ ─────────────
+    # Bu turda tahmini üretilen hisselerin ham özellikleriyle D skoru kaydedilir.
+    # Model dosyası yoksa sessizce atlanır; hata canlı döngüyü asla durdurmaz.
+    if count and gecen:
+        try:
+            n_golge = golge_sinav.kaydet_gun(gecen, {s: snaps[s][3] for s in gecen})
+            if n_golge:
+                print(f"[gölge sınav] D skoru kaydedildi: {n_golge} hisse")
+        except Exception as e:
+            print(f"[gölge sınav] kaydedilemedi (canlıyı etkilemez): {e}")
+
     # Bekleyen emirler: bu turun adaylarını sakla, seans açıksa uygula.
     # Fiyat "taze" = bugünün seansına ait (yarım bar da olur — o anki fiyat).
     try:
@@ -1148,6 +1160,12 @@ def evaluate_ml():
 
     progress.finish(_ptok, True, f"{_pdone} olgun tahmin yargılandı")
     rebuild_ml_stats()
+
+    # Gölge sınav raporu da yeni değerlendirmelerle tazelenir (PLAN §4e).
+    try:
+        golge_sinav.rapor()
+    except Exception as e:
+        print(f"[gölge sınav] rapor yazılamadı: {e}")
 
     # Faz 3: yeni değerlendirmeler geldiyse meta-modeli eğitmeyi dene.
     # train_meta kendi kapılarını uygular (min örnek + test AUC) — kanıtsız
