@@ -16,7 +16,6 @@ import datetime
 import os
 import socket
 import feedparser
-import requests as _requests   # Oracle anomali tetikleyici için
 from pathlib import Path
 from transformers import pipeline as hf_pipeline
 
@@ -395,12 +394,12 @@ SOURCE_WEIGHTS = {
 }
 
 
-# ── Anomali tetikleyici cooldown (30 dakika) ─────────────────────────────────
-_LAST_TRIGGER_AT: datetime.datetime | None = None
-_TRIGGER_COOLDOWN_SEC = 30 * 60  # 30 dakika
-
-# Oracle URL (docker-compose'da ORACLE_URL env var olarak set edilir)
-_ORACLE_URL = os.environ.get("ORACLE_URL", "").rstrip("/")
+# ── Anomali tetikleyici KALDIRILDI (18.10.2026) ──────────────────────────────
+# Güçlü bir haberde Oracle'a "hemen analiz et" diyordu. Oracle artık yalnız
+# KAPANMIŞ bardan tahmin üretiyor (bar kapısı, 16.09) ve model haber
+# kullanmıyor: seans içindeki her tetikleme 50 hisse indirip hepsini
+# reddediyordu. Kâğıt portföyün çıkışları zaten 30 dakikada bir kontrol
+# ediliyor. Haber etkisi bir gün modele girerse doğru yer meta-model kapısı.
 
 
 class NewsAnalyzer:
@@ -526,26 +525,6 @@ class NewsAnalyzer:
             print(f"Sentiment hatası: {e}")
             return 0.0, "NEUTRAL"
 
-    def _fire_anomaly_trigger(self, entity: str, score: float) -> None:
-        """
-        Güçlü BIST sinyali geldiğinde Oracle'ı hemen analiz döngüsü başlatması için uyar.
-        30 dakika cooldown — Oracle'ı spam'lemez.
-        """
-        global _LAST_TRIGGER_AT
-        if not _ORACLE_URL:
-            return
-        now = datetime.datetime.utcnow()
-        if (_LAST_TRIGGER_AT is not None and
-                (now - _LAST_TRIGGER_AT).total_seconds() < _TRIGGER_COOLDOWN_SEC):
-            return  # Cooldown aktif
-        try:
-            _requests.post(f"{_ORACLE_URL}/admin/analyze-now", timeout=3)
-            _LAST_TRIGGER_AT = now
-            direction = "BULLISH" if score > 0 else "BEARISH"
-            print(f"  ⚡ Anomali tetikleyici: {entity} {direction} ({score:+.2f}) → Oracle uyarıldı")
-        except Exception as e:
-            print(f"  [Trigger] Oracle ulaşılamadı: {e}")
-
     @staticmethod
     def _entry_published_utc(entry) -> str:
         """RSS entry'nin gerçek yayın zamanı (event_ts) — ISO 8601 UTC.
@@ -617,12 +596,6 @@ class NewsAnalyzer:
                         weighted = compound  # commodity/macro için kaynak filtrelemesi yok
 
                     print(f"  [{source_name}] {title[:55]}... → {entity} | {sentiment_label} ({compound:+.2f} → {weighted:+.2f})")
-
-                    # C8 Anomali tetikleyici: Türkçe kaynaktan güçlü BIST sinyali
-                    # gelirse Oracle'ı hemen yeni analiz döngüsü başlatması için uyard.
-                    # Eşik: |weighted| >= 0.60 ve source_weight >= 1.20 (TR'ye özel)
-                    if asset_type == "BIST" and abs(weighted) >= 0.60 and src_weight >= 1.20:
-                        self._fire_anomaly_trigger(entity, weighted)
 
                     messages.append({
                         "source": source_name,
@@ -1061,10 +1034,6 @@ class KAPFetcher:
             weighted = round(max(-1.0, min(1.0, compound * src_weight)), 4)
 
             print(f"  [KAP] {ticker} | {subject[:50]}... → {sentiment_label} ({compound:+.2f} → {weighted:+.2f})")
-
-            # Anomali tetikleyici: güçlü KAP sinyali → Oracle'ı hemen uyar
-            if abs(weighted) >= 0.55:
-                self.analyzer._fire_anomaly_trigger(ticker, weighted)
 
             messages.append({
                 "source":           "KAP Bildirimleri",
