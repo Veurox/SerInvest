@@ -37,7 +37,6 @@ from ml.config import (
     PREDICTION_LOG,
     PROMOTE_MIN_EDGE,
     PROMOTE_MIN_FRESH_DAYS,
-    PROMOTE_MIN_PRECISION,
     PROMOTE_MIN_SAMPLES,
     PROMOTE_MIN_WINDOW_DAYS,
     PROMOTION_LOG,
@@ -50,6 +49,7 @@ from ml.config import (
     TRAIN_CACHE,
     TRANSACTION_COST_PCT,
     XSEC_RANK,
+    tarif_parmak_izi,
 )
 import ml.atomic as atomic
 import bar_durumu
@@ -173,6 +173,7 @@ def _write_meta(model, data: pd.DataFrame, extra: dict | None = None):
         "tp_atr_mult":  TP_ATR_MULT,
         "sl_atr_mult":  SL_ATR_MULT,
         "xsec_rank":    XSEC_RANK,   # özellikler gün-içi kesitsel percentile mi?
+        "tarif":        tarif_parmak_izi(),   # kalibratörle aynı tarif mi — I15
         "top_features": [{"name": n, "pct": p} for n, p in imp],
     }
     if extra:
@@ -1301,10 +1302,17 @@ def _promote_if_better_inner(test_window_days: int = 45,
     out-of-sample olur — elma elmaya. O kadar taze veri yoksa hileli bir sonuç
     üretmek yerine dürüstçe "yetersiz" denir ve şampiyon korunur.
 
-    Terfi şartları (değişmedi):
+    Terfi şartları:
       • Rakip pencerelerin ÇOĞUNLUĞUNDA şampiyonu PROMOTE_MIN_EDGE farkla geçer
       • Havuzlanmış AL örneği ≥ PROMOTE_MIN_SAMPLES
-      • Havuzlanmış rakip precision ≥ PROMOTE_MIN_PRECISION
+
+    ═══ KALDIRILAN ŞART (18.10.2026): "rakip isabeti ≥ %50" ═══
+    Yalnız RAKİBE uygulanıyordu; şampiyonun kendi isabeti ne olursa olsun yerinde
+    kalıyordu. AL isabeti büyük ölçüde piyasanın yönüne bağlı: 13.10'da düşen
+    piyasada rakip %15,6, şampiyon %18,2 — hiçbir model %50'yi geçemezdi. Şart
+    pratikte "terfi yalnız yükselen piyasada" demekti. Karar artık iki modelin
+    AYNI pencerelerdeki farkıyla verilir; iki isabet ve başabaş bilgi olarak
+    kaydedilir. Piyasa riskini rejim kapısı yönetir, terfi değil.
     """
     result = {"decision": "kept", "checked_at": now_iso()}
 
@@ -1364,6 +1372,7 @@ def _promote_if_better_inner(test_window_days: int = 45,
     champion = load_champion()
     windows = []
     chal_correct = chal_total = 0      # havuzlanmış rakip AL isabeti
+    champ_correct = champ_total = 0    # aynı pencerelerde şampiyonunki (bilgi)
     wins = comparable = 0
 
     for k in range(n_win):
@@ -1394,6 +1403,9 @@ def _promote_if_better_inner(test_window_days: int = 45,
             wins += 1 if win else 0
             chal_correct += int(round(chal_prec * chal_n))
             chal_total   += chal_n
+            if champ_prec is not None:
+                champ_correct += int(round(champ_prec * champ_n))
+                champ_total   += champ_n
         windows.append({
             "window": f"{w_start.date()}→{w_end.date()}",
             "challenger_precision": round(chal_prec, 4) if chal_prec is not None else None,
@@ -1404,21 +1416,29 @@ def _promote_if_better_inner(test_window_days: int = 45,
         })
 
     pooled_prec = (chal_correct / chal_total) if chal_total > 0 else None
+    champ_pooled = (champ_correct / champ_total) if champ_total > 0 else None
     result.update(
         windows=windows, n_windows=n_win, comparable_windows=comparable,
         challenger_wins=wins,
         pooled_precision=round(pooled_prec, 4) if pooled_prec is not None else None,
         pooled_al_n=chal_total,
+        champion_pooled_precision=round(champ_pooled, 4) if champ_pooled is not None else None,
+        breakeven_precision=round(_breakeven_precision(), 4),
         edge_required=PROMOTE_MIN_EDGE, min_samples=PROMOTE_MIN_SAMPLES,
-        min_precision=PROMOTE_MIN_PRECISION, test_window_days=test_window_days,
+        test_window_days=test_window_days,
     )
+    if comparable < 2:
+        # Kural en az 2 pencere istiyor; 13.10'da 38 günlük taze veriyle yalnız
+        # 1 pencere kurulabildi — sonuç isabetten bağımsız olarak belliydi.
+        # Kayıt bunu açıkça söylesin.
+        result["reason"] = (f"karşılaştırılabilir pencere {comparable} (en az 2 gerekiyor; "
+                            f"pencere ≥ {PROMOTE_MIN_WINDOW_DAYS} gün, taze veri {fresh_days} gün)")
 
     promote = (
         comparable >= 2                                  # en az 2 karşılaştırılabilir pencere
         and wins * 2 > comparable                        # çoğunlukta kazanmalı
         and chal_total >= PROMOTE_MIN_SAMPLES
         and pooled_prec is not None
-        and pooled_prec >= PROMOTE_MIN_PRECISION
     )
 
     if promote:

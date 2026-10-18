@@ -20,7 +20,7 @@ export interface AppConfig {
   drift:       { min_rows: number; min_days: number; psi_watch: number; psi_alert: number }
   calibration: { min_required: number; min_days: number }
   meta:        { min_samples: number; min_auc: number; veto_p: number }
-  promotion:   { min_edge: number; min_samples: number; min_precision: number
+  promotion:   { min_edge: number; min_samples: number
                  min_fresh_days: number; windows: number }
   jobs:        { overdue_hours: Record<string, number> }
   /** Faz A — kural docs/PLAN_2026-08.md §A0'da önceden çivilendi. */
@@ -42,7 +42,7 @@ export const DEFAULTS: AppConfig = {
   drift:       { min_rows: 200, min_days: 20, psi_watch: 0.10, psi_alert: 0.25 },
   calibration: { min_required: 150, min_days: 10 },
   meta:        { min_samples: 300, min_auc: 0.55, veto_p: 0.40 },
-  promotion:   { min_edge: 0.02, min_samples: 200, min_precision: 0.50,
+  promotion:   { min_edge: 0.02, min_samples: 200,
                  min_fresh_days: 30, windows: 3 },
   jobs:        { overdue_hours: { analyze: 4, evaluate: 36, health: 36, promote: 192 } },
   risk_filter: { on: true, top_pct: 0.30, min_symbols: 20,

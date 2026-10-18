@@ -28,6 +28,7 @@ import numpy as np
 
 from ml.config import (
     CALIB_REPORT_FILE,
+    CALIBRATOR_META_FILE,
     DRIFT_REPORT_FILE,
     JOB_OVERDUE_HOURS,
     META_FILE,
@@ -504,6 +505,13 @@ def i10_jobs_not_overdue(now) -> dict:
             late.append(f"{key}: hiç çalışmamış")
         elif age > lim:
             late.append(f"{key}: {_dur(age)} gecikmiş ({_dur(lim)} sınırı)")
+    # Takvim gelecek yılı kapsıyor mu? (18.10.2026) Liste elle güncellenir;
+    # Kasım'dan itibaren yeni yılın tatilleri yoksa 1 Ocak'ta bayram günleri
+    # işlem günü sanılır — emirler düşer, kaçan gün alarmı yanlış çalar.
+    eksik = takvim.eksik_yil()
+    if eksik:
+        late.append(f"takvim: {eksik} tatil listesi yok (takvim.py)")
+
     if not late:
         return _ok("I10", t, "dört işin dördü de güncel")
     return _warn("I10", t, "; ".join(late))
@@ -653,13 +661,43 @@ def i13_no_within_day_constant_feature(now) -> dict:
         return _warn("I13", t, f"kontrol edilemedi: {e}")
 
 
+def i15_recipe_matches(now) -> dict:
+    """
+    Kalibratör ve şampiyon, koddaki TARİFLE kurulmuş mu? (18.10.2026)
+
+    Kalibratör belirli bir modelin değil, tarifin walk-forward tahminleriyle
+    kurulur; aynı tarifle yeniden eğitilen şampiyon için geçerli kalır. Tarif
+    değişirse (özellik, LightGBM ayarı, etiket) eski kalibratör yeni modelin
+    olasılıklarını yanlış çevirir — EV filtresi ve pozisyon büyüklüğü de onunla.
+    Üç iz kıyaslanır: kod (ml.config.tarif_parmak_izi), şampiyon künyesi,
+    kalibratör künyesi.
+    """
+    t = "I15 · Kalibratör ve şampiyon aynı tarifle"
+    from ml.config import tarif_parmak_izi
+    kod = tarif_parmak_izi()
+    kal = _json(CALIBRATOR_META_FILE) or {}
+    sam = _json(META_FILE) or {}
+    if not kal or not sam:
+        return _skip("I15", t, "kalibratör ya da şampiyon künyesi yok")
+    kt, st = kal.get("tarif"), sam.get("tarif")
+    if not kt or not st:
+        return _skip("I15", t, "künyede tarif izi yok (18.10.2026 öncesi kayıt)")
+    if kt != kod:
+        return _fail("I15", t, f"kalibratör başka bir tarifin sınavından kurulmuş "
+                               f"(kalibratör {kt}, kod {kod}) — canlı olasılıklar yanlış çevriliyor")
+    if st != kod:
+        return _warn("I15", t, f"şampiyon eski tarifle eğitilmiş (şampiyon {st}, kod {kod})")
+    return _ok("I15", t, f"kod, şampiyon ve kalibratör aynı tarif ({kod})")
+
+
 CHECKS = [i1_date_basis, i2_train_serve_skew, i3_tier_matches_confidence,
           i4_thresholds_from_config, i5_coverage_envelope, i6_calibrator_sane,
           i7_prediction_schema, i8_no_duplicates, i9_promotion_balance,
           i10_jobs_not_overdue, i11_coverage_target,
           i12_calibrator_matches_reality,
           i13_no_within_day_constant_feature,
-          i14_predictions_from_closed_bars]
+          i14_predictions_from_closed_bars,
+          i15_recipe_matches]
 
 
 
@@ -740,6 +778,12 @@ ACTIONS: dict[tuple[str, str], str] = {
                      "Bir tahmin ancak ~20 gün sonra yargılanabildiği için ilk dürüst "
                      "okuma birkaç hafta sürer. Bu sürede 'Doğrulama Çalıştır'a "
                      "basmak kalibratörü yeniler ve sayacı SIFIRDAN başlatır.",
+
+    ("I15", "FAIL"): "Model sayfasında 'Doğrulama Çalıştır': kalibratör yeni tarifin sınavından "
+                     "yeniden kurulur. Kalibrasyon ölçümünü (I12) sıfırlar, ama yanlış "
+                     "çevrilen olasılıklarla devam etmekten iyidir.",
+    ("I15", "WARN"): "Kod yeni tarifte, şampiyon eskisinde. Pazar terfi sınavı yeni tarifle rakip "
+                     "eğitir; geçerse şampiyon değişir. Acil değil.",
 
     ("I13", "FAIL"): "Bir özellik modele bilgi taşımıyor ama gün kimliği sızdırıyor; "
                      "başarı ölçümleri OLDUĞUNDAN İYİ görünebilir. Geliştiriciye "

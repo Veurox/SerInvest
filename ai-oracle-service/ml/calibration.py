@@ -28,6 +28,7 @@ from ml.config import (
     SL_ATR_MULT,
     TP_ATR_MULT,
     TRANSACTION_COST_PCT,
+    tarif_parmak_izi,
 )
 
 # Kalibratör fit için asgari OOS örneği — altında güvenilmez, fit edilmez.
@@ -163,6 +164,7 @@ def save_calibrator(cal, oos_p: np.ndarray, oos_y: np.ndarray) -> None:
     joblib.dump(cal, CALIBRATOR_FILE)
     meta = {
         "fitted_at": datetime.datetime.utcnow().isoformat(),
+        "tarif": tarif_parmak_izi(),   # hangi tarifin sınavından — bkz. config
         "n_oos": int(len(oos_p)),
         "method": "isotonic",
         "breakeven_p": round(breakeven_p(), 4),

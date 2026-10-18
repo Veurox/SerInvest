@@ -213,7 +213,7 @@ WF_EMBARGO_DAYS       = 5    # purge sonrası ek tampon
 # Rakip, bağımsız test penceresinde şampiyonu EN AZ bu kadar geçmeli (yön isabeti).
 PROMOTE_MIN_EDGE      = 0.02   # +%2 isabet üstünlüğü şart
 PROMOTE_MIN_SAMPLES   = 200    # test penceresinde en az bu kadar değerlendirilmiş tahmin
-PROMOTE_MIN_PRECISION = 0.50   # rakibin AL-precision'ı bunun altındaysa terfi yok
+# PROMOTE_MIN_PRECISION kaldırıldı (18.10.2026) — gerekçe: ml_live._promote_if_better_inner
 
 # ── İşlem Maliyeti (backtest gerçekçiliği) ───────────────────────────────────
 TRANSACTION_COST_PCT = 0.002   # %0.20 round-trip (komisyon + spread)
@@ -267,3 +267,30 @@ FEATURE_NAMES = [
 # Ders: piyasa-geneli bağlam kesitsel yoldan GİREMEZ. Gerekirse sembole özel
 # bir FARKA çevrilmeli (rel_strength_* gibi) ya da ayrı bir rejim/meta
 # katmanından verilmeli. selftest I13 bu kuralı çalıştırılabilir hâle getirir.
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  TARİF PARMAK İZİ (18.10.2026)
+#
+#  Kalibratör belirli bir modelin değil, TARİFİN geçmiş sınavdaki (walk-
+#  forward) tahminleriyle kurulur: aynı özellikler, aynı ayarlar, aynı etiket.
+#  Şampiyon aynı tarifle daha fazla veriyle yeniden eğitilince kalibratör
+#  geçerli kalır — her terfide yenilemek kalibrasyon ölçümünü (I12) boşuna
+#  sıfırlardı. Ama TARİF değişirse (özellik, parametre, etiket) eski
+#  kalibratör yeni modelin olasılıklarını yanlış çevirir. Bu iz kalibratöre ve
+#  şampiyona yazılır; öz denetim I15 üçünü (kod, şampiyon, kalibratör) kıyaslar.
+# ═════════════════════════════════════════════════════════════════════════════
+def tarif_parmak_izi() -> str:
+    import hashlib
+    import json as _json
+    tarif = {
+        "ozellikler":  list(FEATURE_NAMES),
+        "lgbm":        {k: v for k, v in LGBM_PARAMS.items() if k not in ("n_jobs", "verbose")},
+        "ufuk":        HORIZON,
+        "tp":          TP_ATR_MULT,
+        "sl":          SL_ATR_MULT,
+        "zaman_esik":  TIME_BARRIER_MIN_MOVE,
+        "atr_bant":    [ATR_FLOOR, ATR_CAP],
+        "kesitsel":    XSEC_RANK,
+    }
+    return hashlib.sha256(_json.dumps(tarif, sort_keys=True).encode()).hexdigest()[:12]

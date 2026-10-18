@@ -50,7 +50,7 @@ interface JobProgress {
 
 const TASK_LABELS: Record<string, string> = {
   analiz: 'Analiz döngüsü', degerlendirme: 'Değerlendirme', terfi: 'Terfi kontrolü',
-  dogrulama: 'Doğrulama (walk-forward)', 'veri-egitim': 'Veri + eğitim',
+  dogrulama: 'Doğrulama (walk-forward)', 'veri-egitim': 'Veri kurulumu',
 }
 /** Düğme yolu → görev adı: koşan işin kartını vurgulamak için. */
 const PATH_TASK: Record<string, string> = {
@@ -171,8 +171,11 @@ export default function ModelPage() {
   const ONAY: Record<string, string> = {
     walkforward: 'Kalibratör yenilenecek ve kalibrasyon ölçümü (I12) SIFIRDAN '
                + 'başlayacak — ilk dürüst okuma ~3 hafta ertelenir.\n\nDevam edilsin mi?',
-    'reset-model': 'Model sıfırdan yeniden eğitilecek. Mevcut model yerini yenisine '
-                 + 'bırakır ve kalibrasyon ölçümü de sıfırlanır.\n\nDevam edilsin mi?',
+    // 18.10.2026: eskiden "kalibrasyon ölçümü de sıfırlanır" diyordu — yanlıştı,
+    // bu yol kalibratöre dokunmuyor. Artık model de yalnız terfi sınavını
+    // geçerse değişiyor.
+    'reset-model': 'Eğitim verisi baştan indirilecek (birkaç dakika) ve terfi sınavı hemen '
+                 + 'çalışacak. Rakip şampiyonu geçmezse model DEĞİŞMEZ.\n\nDevam edilsin mi?',
   }
 
   const act = async (path: string, label: string) => {
@@ -315,7 +318,7 @@ export default function ModelPage() {
             // Düğme bunu SÖYLEMİYORDU; o gün elle basıldı ve ilk dürüst
             // kalibrasyon okuması ekim başından ekim ortasına kaydı.
             { p: 'walkforward',  t: 'Doğrulama çalıştır',  d: 'Geçmiş veride dürüst sınav + kalibratörü tazeler (~2-5 dk). Kalibrasyon ölçümünü sıfırlar — ilk dürüst okuma ~3 hafta ertelenir', warn: true },
-            { p: 'reset-model',  t: 'Veriyi yenile + eğit', d: 'Veri setini sıfırdan kur ve modeli yeniden eğit (~4-6 dk)', warn: true },
+            { p: 'reset-model',  t: 'Veriyi yenile + sına', d: 'Eğitim verisini baştan indir, terfi sınavını hemen çalıştır (~5-8 dk). Model yalnız rakip geçerse değişir', warn: true },
           ].map(b => {
             const running = !!prog?.running
             const isActive = running && prog?.task === PATH_TASK[b.p]

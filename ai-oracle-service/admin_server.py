@@ -462,13 +462,31 @@ def _admin_make_app():
         if _TRAINING_STATUS["running"]:
             return jsonify({"error": "İşlem devam ediyor — bekleyin"}), 409
 
+        # TEK EĞİTİM KAPISI (18.10.2026). Eskiden bu düğme modeli tüm veriyle
+        # doğrudan yeniden eğitip ŞAMPİYON yapıyordu — haftalık terfinin dürüst
+        # terazisini tek tıkla atlıyordu. Artık veri baştan kurulur ve aynı
+        # korumalı terfi sınavı hemen çalışır: rakip geçmezse model değişmez.
+        # Tek istisna: hiç şampiyon yoksa (bozuk/eksik dosya) doğrudan eğitilir —
+        # kıyaslanacak bir şey yoktur.
         def _run():
-            _set_status(True, "veri-yeniden-kur + champion-eğit")
+            _set_status(True, "veri-yeniden-kur + korumalı-terfi")
             try:
-                send_syslog("[Admin] ml v3 veri seti yeniden kuruluyor + champion eğitiliyor...", "WARN")
-                m = ml_live.train_champion(rebuild_data=True)
-                if m is not None:
-                    _ADMIN_MODEL_HOLDER[0] = m
+                if not (ml_live.champion_meta() or {}).get("date_max"):
+                    send_syslog("[Admin] Şampiyon yok — veri kuruluyor ve ilk model eğitiliyor...", "WARN")
+                    m = ml_live.train_champion(rebuild_data=True)
+                    if m is not None:
+                        _ADMIN_MODEL_HOLDER[0] = m
+                    return
+                send_syslog("[Admin] Veri seti yeniden kuruluyor, ardından korumalı terfi sınavı...", "INFO")
+                tok = progress.start("veri-egitim")
+                progress.update(tok, stage="eğitim verisi baştan indiriliyor (birkaç dk)")
+                ml_live._load_training_data(rebuild=True)
+                progress.finish(tok, True, "veri kuruldu — terfi sınavı başlıyor")
+                res = ml_live.promote_if_better()
+                if res.get("decision") == "promoted":
+                    yeni = ml_live.load_champion()
+                    if yeni is not None:
+                        _ADMIN_MODEL_HOLDER[0] = yeni
             except Exception as e:
                 print(f"[AdminReset] Hata: {e}")
                 progress.fail_running("veri-egitim", str(e))
@@ -476,7 +494,7 @@ def _admin_make_app():
                 _set_status(False, None)
 
         threading.Thread(target=_run, daemon=True).start()
-        return jsonify({"ok": True, "message": "Veri yeniden kuruluyor + champion eğitiliyor (~4-6dk)"})
+        return jsonify({"ok": True, "message": "Veri yeniden kuruluyor, ardından terfi sınavı (~5-8 dk)"})
 
     # ── GET /admin/job-progress ───────────────────────────────────────────────
     @app.get("/admin/job-progress")
@@ -697,7 +715,7 @@ def _admin_make_app():
         from ml.config import (
             BUY_THRESHOLD, EVAL_MIN_AGE_DAYS, HORIZON, JOB_OVERDUE_HOURS,
             KELLY_FRACTION, META_MIN_AUC, META_VETO_P, MIN_META_SAMPLES,
-            PROMOTE_MIN_EDGE, PROMOTE_MIN_FRESH_DAYS, PROMOTE_MIN_PRECISION,
+            PROMOTE_MIN_EDGE, PROMOTE_MIN_FRESH_DAYS,
             PROMOTE_MIN_SAMPLES, PROMOTE_WINDOWS, PSI_ALERT, PSI_WATCH,
             COVERAGE_TARGET, RISK_FILTER_DECISION_DATE, RISK_FILTER_MIN_SYMBOLS,
             RISK_FILTER_ON, RISK_FILTER_TOP_PCT,
@@ -733,7 +751,6 @@ def _admin_make_app():
                            "min_auc": META_MIN_AUC, "veto_p": META_VETO_P},
             "promotion":  {"min_edge": PROMOTE_MIN_EDGE,
                            "min_samples": PROMOTE_MIN_SAMPLES,
-                           "min_precision": PROMOTE_MIN_PRECISION,
                            "min_fresh_days": PROMOTE_MIN_FRESH_DAYS,
                            "windows": PROMOTE_WINDOWS},
             "jobs":       {"overdue_hours": JOB_OVERDUE_HOURS},

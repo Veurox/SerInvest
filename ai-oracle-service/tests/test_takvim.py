@@ -124,3 +124,11 @@ def test_islem_suruyor_mu_arife_ve_tatil():
     assert takvim.islem_suruyor_mu(_t("2026-10-28T12:30"))
     assert not takvim.islem_suruyor_mu(_t("2026-10-28T12:50"))
     assert not takvim.islem_suruyor_mu(_t("2026-10-29T11:00"))
+
+
+def test_i10_eksik_yil_uyarisi(monkeypatch):
+    """Gelecek yılın tatil listesi yoksa öz denetim söylemeli."""
+    import selftest
+    monkeypatch.setattr(takvim, "eksik_yil", lambda bugun=None: 2028)
+    detay = selftest.i10_jobs_not_overdue(dt.datetime(2027, 11, 2, 12, 0))["detail"]
+    assert "2028 tatil listesi yok" in detay

@@ -174,9 +174,9 @@ export default function App() {
     { id: 'sys-analyze',     group: 'Sistem', icon: <Icon name="zap" size={16} />, label: 'Anlık analiz döngüsü',
       keywords: ['cycle', 'tarama'],
       action: () => adminCommand('analyze-now', 'Analiz') },
-    { id: 'sys-reset',       group: 'Sistem', icon: <Icon name="reset" size={16} />, label: 'Modeli sıfırla',
-      keywords: ['reset', 'sıfırla'],
-      action: () => { if (confirm('Mevcut model silinsin ve sıfırdan eğitilsin mi?')) adminCommand('reset-model', 'Reset') } },
+    { id: 'sys-reset',       group: 'Sistem', icon: <Icon name="reset" size={16} />, label: 'Veriyi yenile + terfi sınavı',
+      keywords: ['reset', 'sıfırla', 'eğit', 'veri'],
+      action: () => { if (confirm('Eğitim verisi baştan indirilsin ve terfi sınavı çalışsın mı? Rakip geçmezse model değişmez.')) adminCommand('reset-model', 'Veri + terfi sınavı') } },
   ]
 
   // ── Ortak veri fetch ────────────────────────────────────────────────
