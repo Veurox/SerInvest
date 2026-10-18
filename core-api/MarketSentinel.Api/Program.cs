@@ -51,6 +51,9 @@ builder.Services.AddCors(options =>
 builder.Services.AddDbContext<MarketDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// PriceData saklama kuralı — son 30 gün ayrıntılı, öncesi günlük (18.10.2026)
+builder.Services.AddHostedService<PriceDataRetentionService>();
+
 // Redis — lazy singleton: bağlantı ilk kullanımda kurulur, startup'ı bloklamaz
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
