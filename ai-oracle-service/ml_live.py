@@ -960,7 +960,11 @@ def _log_prediction_locked(log: dict):
                     rows.append(r)
     if not found:
         rows.append(new_row)
-    ML_DIR.mkdir(parents=True, exist_ok=True)
+    # Yazılan dosyanın KENDİ klasörü oluşturulur (18.10.2026). Eskiden sabit
+    # ML_DIR oluşturuluyordu: test günlüğü geçici klasöre yönlendirse bile
+    # /app/models'e dokunuyordu — root'ta sessizce geçiyor, CI'da (yetkisiz
+    # kullanıcı) izin hatası veriyordu. CI bir aydır bu yüzden kırmızıydı.
+    PREDICTION_LOG.parent.mkdir(parents=True, exist_ok=True)
     # Atomik yazım: yarım kalmış dosya = bozuk timestamp (07/2026 bulgusu)
     atomic.write_csv(PREDICTION_LOG, _LOG_FIELDS, rows)
 

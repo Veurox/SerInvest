@@ -141,7 +141,7 @@ def test_training_cap_is_noop_when_small():
 
 # ── Tahmin logu şema bütünlüğü (04.09.2026 bulgusu) ─────────────────────────
 
-def test_log_row_builder_covers_every_schema_field():
+def test_log_row_builder_covers_every_schema_field(tmp_path, monkeypatch):
     """
     _log_prediction_locked satırı anahtar anahtar ELLE kuruyor. Şemaya
     (_LOG_FIELDS) yeni bir kolon eklenip buraya kopyalanmazsa DictWriter onu
@@ -156,27 +156,23 @@ def test_log_row_builder_covers_every_schema_field():
     import ml_live
     from ml_live import _LOG_FIELDS
 
+    # Geçici klasör (18.10.2026): eskiden gerçek günlüğün yanına "__yok_test__"
+    # adı veriliyordu — /app/models'e dokunuyordu ve CI'da (yetkisiz kullanıcı)
+    # izin hatasıyla düşüyordu; CI bir ay bu yüzden kırmızıydı.
     yazilan = {}
-    orijinal = ml_live.atomic.write_csv
-    try:
-        def yakala(path, fieldnames, rows, **kw):
-            yazilan["fields"] = list(fieldnames)
-            yazilan["row"] = dict(rows[-1])
-        ml_live.atomic.write_csv = yakala
 
-        gercek_log = ml_live.PREDICTION_LOG
-        ml_live.PREDICTION_LOG = gercek_log.parent / "__yok_test__.csv"
-        try:
-            ml_live._log_prediction_locked({
-                "symbol": "TEST", "yf_sym": "TEST.IS", "p_up": 0.61,
-                "p_cal": 0.52, "ev": 0.4, "rec": "NÖTR", "rec_dir": "NEUTRAL",
-                "rec_dir_nofilter": "BUY",          # filtre öncesi karar
-                "close": 10.0, "target": 11.0, "stop": 9.0, "atr_pct": 0.02,
-            })
-        finally:
-            ml_live.PREDICTION_LOG = gercek_log
-    finally:
-        ml_live.atomic.write_csv = orijinal
+    def yakala(path, fieldnames, rows, **kw):
+        yazilan["fields"] = list(fieldnames)
+        yazilan["row"] = dict(rows[-1])
+
+    monkeypatch.setattr(ml_live.atomic, "write_csv", yakala)
+    monkeypatch.setattr(ml_live, "PREDICTION_LOG", tmp_path / "ml_v3" / "predictions.csv")
+    ml_live._log_prediction_locked({
+        "symbol": "TEST", "yf_sym": "TEST.IS", "p_up": 0.61,
+        "p_cal": 0.52, "ev": 0.4, "rec": "NÖTR", "rec_dir": "NEUTRAL",
+        "rec_dir_nofilter": "BUY",          # filtre öncesi karar
+        "close": 10.0, "target": 11.0, "stop": 9.0, "atr_pct": 0.02,
+    })
 
     satir = yazilan["row"]
     eksik = [f for f in _LOG_FIELDS if f not in satir]

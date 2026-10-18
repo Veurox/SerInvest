@@ -43,7 +43,21 @@ jobs:
           pip install -r requirements.txt
 
       - name: Testler (etiketleme, kalibrasyon, atomik yazım, olgunluk, kâğıt işlem)
-        run: python -m pytest
+        # Düşen her test GitHub "annotation"ı olarak da yazılır (18.10.2026).
+        # CI bir ay kırmızı kaldı ve logu okumak oturum açmayı gerektirdiği için
+        # nedeni görülemedi; annotation'lar depo sayfasında herkese görünür.
+        run: |
+          python -m pytest --junitxml=pytest-sonuc.xml && exit 0
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          for tc in ET.parse("pytest-sonuc.xml").iter("testcase"):
+              for etiket in ("failure", "error"):
+                  e = tc.find(etiket)
+                  if e is not None:
+                      mesaj = " ".join((e.get("message") or "").split())[:400]
+                      print(f"::error title={tc.get('classname')}.{tc.get('name')}::{mesaj}")
+          PY
+          exit 1
 
       - name: İçe aktarma dumanı — modüller yüklenebiliyor mu
         # Sözdizimi/import hatası canlıda konteyneri açılışta öldürür.
