@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { SystemStatus } from '../lib/types'
-import { isMarketOpen } from '../lib/format'
+import type { PiyasaDurumu } from '../lib/piyasa'
 import { ADMIN, adminFetch } from '../lib/api'
 
 // ── Öz denetim rozeti ────────────────────────────────────────────────────────
@@ -43,6 +43,8 @@ function SelfTestChip() {
 }
 
 interface Props {
+  /** Arka uç takviminden (App.tsx usePiyasa) — tatil ve arifeyi bilir */
+  piyasa: PiyasaDurumu
   status: SystemStatus | null
   assetCount: number
   oracleCount: number
@@ -50,12 +52,12 @@ interface Props {
   lastUpdate: string
 }
 
-export function StatusBar({ status, assetCount, oracleCount, newsCount, lastUpdate }: Props) {
+export function StatusBar({ piyasa, status, assetCount, oracleCount, newsCount, lastUpdate }: Props) {
   const [now, setNow] = useState(() => new Date())
-  const [open, setOpen] = useState(() => isMarketOpen())
+  const open = piyasa.islem
 
   useEffect(() => {
-    const t = setInterval(() => { setNow(new Date()); setOpen(isMarketOpen()) }, 30_000)
+    const t = setInterval(() => setNow(new Date()), 30_000)
     return () => clearInterval(t)
   }, [])
 
@@ -63,10 +65,13 @@ export function StatusBar({ status, assetCount, oracleCount, newsCount, lastUpda
 
   return (
     <footer className="statusbar" role="status">
-      <span className="statusbar__item" title={open ? 'BIST seansı açık' : 'BIST seansı kapalı'}>
+      <span className="statusbar__item"
+            title={open ? 'BIST seansı açık' : `BIST seansı kapalı${piyasa.sebep ? ` — ${piyasa.sebep}` : ''}`}>
         <span className="statusbar__dot"
               style={{ background: open ? 'var(--profit)' : 'var(--text-disabled)' }} />
-        {open ? 'Piyasa Açık' : 'Piyasa Kapalı'}
+        {open ? 'Piyasa Açık'
+          : piyasa.sebep?.startsWith('Tatil') ? piyasa.sebep.replace('Tatil: ', 'Tatil · ')
+          : 'Piyasa Kapalı'}
       </span>
 
       <span className="statusbar__item" title="Servislerin genel durumu">

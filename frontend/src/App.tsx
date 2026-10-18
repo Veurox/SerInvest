@@ -21,7 +21,7 @@ import { WorkspaceTabs } from './shell/WorkspaceTabs'
 import { RightDock, DockWidget } from './shell/RightDock'
 import { StatusBar } from './shell/StatusBar'
 import { Logo } from './components/common/Logo'
-import { isMarketOpen } from './lib/format'
+import { usePiyasa } from './lib/piyasa'
 
 // ── Outlet Context — sayfalar bu ortak veriyi useOutletContext ile alır ──────
 export interface SharedData {
@@ -52,7 +52,11 @@ export default function App() {
   const [sysStatus, setSysStatus]       = useState<SystemStatus | null>(null)
   const [paletteOpen, setPaletteOpen]   = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)   // Faz H1 — "?" listesi
-  const [marketOpen, setMarketOpen]     = useState(isMarketOpen())
+  // Piyasa durumu arka uç takviminden (tatil + arife) — bkz. lib/piyasa.ts
+  const piyasa = usePiyasa()
+  const marketOpen = piyasa.islem
+  const marketOpenRef = useRef(marketOpen)
+  useEffect(() => { marketOpenRef.current = marketOpen }, [marketOpen])
   const seenOracleIds = useRef<Set<string>>(
     new Set(JSON.parse(localStorage.getItem('si_seen_oracle') ?? '[]') as string[])
   )
@@ -248,8 +252,7 @@ export default function App() {
 
     const tick = async () => {
       if (cancelled) return
-      const open = isMarketOpen()
-      setMarketOpen(open)
+      const open = marketOpenRef.current
       await fetchAll()
       if (!cancelled) timer = setTimeout(tick, yenilemeAraligi(open))
     }
@@ -264,9 +267,7 @@ export default function App() {
       }
       if (!cancelled) {
         setLoading(false)
-        const open = isMarketOpen()
-        setMarketOpen(open)
-        timer = setTimeout(tick, yenilemeAraligi(open))
+        timer = setTimeout(tick, yenilemeAraligi(marketOpenRef.current))
       }
     }
     start()
@@ -320,7 +321,9 @@ export default function App() {
                 background: marketOpen ? 'var(--profit)' : 'var(--text-muted)',
                 boxShadow: marketOpen ? '0 0 0 2px rgba(34,197,94,.25)' : 'none',
               }} />
-              {marketOpen ? 'Piyasa Açık' : 'Piyasa Kapalı'}
+              <span title={piyasa.sebep ?? undefined}>
+                {marketOpen ? 'Piyasa Açık' : 'Piyasa Kapalı'}
+              </span>
             </span>
           )}
           {lastUpdate && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{lastUpdate}</span>}
@@ -479,6 +482,7 @@ export default function App() {
       </div>
 
       <StatusBar
+        piyasa={piyasa}
         status={sysStatus}
         assetCount={assets.length}
         oracleCount={oracle.length}

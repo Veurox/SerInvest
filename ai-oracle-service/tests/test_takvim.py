@@ -109,3 +109,18 @@ def test_bar_durumu_yarim_gun_parametresi_geriye_uyumlu():
     yeni = bar_durumu.son_kapanmis_islem_gunu(t, {}, dt.time(18, 30),
                                               yarim_gunler={"2026-10-28": dt.time(13, 30)})
     assert eski == "2026-10-27" and yeni == "2026-10-28"
+
+
+# ── Ekran için "işlem sürüyor mu" — veri eşiğinden (18:30) ayrı ──────────────
+
+def test_islem_suruyor_mu_kapanis_seansi_sonrasi_kapali():
+    """Ekran 18:10'da 'kapalı' demeli; bar ise 18:30'a kadar yarım sayılır."""
+    assert takvim.islem_suruyor_mu(_t("2026-10-19T18:05"))
+    assert not takvim.islem_suruyor_mu(_t("2026-10-19T18:20"))
+    assert takvim.acik_mi(_t("2026-10-19T18:20"))          # veri tarafı hâlâ açık
+
+
+def test_islem_suruyor_mu_arife_ve_tatil():
+    assert takvim.islem_suruyor_mu(_t("2026-10-28T12:30"))
+    assert not takvim.islem_suruyor_mu(_t("2026-10-28T12:50"))
+    assert not takvim.islem_suruyor_mu(_t("2026-10-29T11:00"))

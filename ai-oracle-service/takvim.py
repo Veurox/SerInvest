@@ -33,6 +33,12 @@ KAPANIS = _dt.time(18, 30)
 # gecikme payıyla bar 13:30'da tamam sayılır.
 YARIM_GUN_KAPANIS = _dt.time(13, 30)
 
+# İşlemin GERÇEKTEN sürdüğü aralık — yalnız ekran için ("Piyasa açık").
+# Yukarıdaki KAPANIS veri içindir (bar ne zaman tamam); ekran kapanış
+# seansı bitince "kapalı" demeli, 20 dakika sonra değil.
+ISLEM_BITIS = _dt.time(18, 10)
+YARIM_GUN_ISLEM_BITIS = _dt.time(12, 40)
+
 # ── Tam gün kapalı ───────────────────────────────────────────────────────────
 # Hafta sonuna denk gelenler de yazıldı: liste "takvimde ne var" sorusunun
 # cevabı, "hangi hafta içi günü kapalı" değil.
@@ -119,6 +125,16 @@ def kapali_sebebi(simdi: _dt.datetime | None = None) -> str | None:
 
 def acik_mi(simdi: _dt.datetime | None = None) -> bool:
     return kapali_sebebi(simdi) is None
+
+
+def islem_suruyor_mu(simdi: _dt.datetime | None = None) -> bool:
+    """Ekran için: şu an gerçekten işlem yapılıyor mu (kapanış seansı dahil)."""
+    simdi = simdi or _dt.datetime.now()
+    iso = simdi.date().isoformat()
+    if not islem_gunu_mu(iso):
+        return False
+    bitis = YARIM_GUN_ISLEM_BITIS if iso in YARIM_GUNLER else ISLEM_BITIS
+    return ACILIS <= simdi.time() <= bitis
 
 
 def son_kapanmis_islem_gunu(simdi: _dt.datetime | None = None) -> str:

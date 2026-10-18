@@ -739,9 +739,28 @@ def _admin_make_app():
             "jobs":       {"overdue_hours": JOB_OVERDUE_HOURS},
             # Arayüzdeki "Pazar 20:00", "her 30 dk" gibi ifadeler buradan gelsin —
             # main.py'deki schedule değişince metin yalan söylemesin.
-            "schedule":   {"cycle_min": CYCLE_MIN, "close_scan": "18:10",
+            "schedule":   {"cycle_min": CYCLE_MIN, "close_scan": "18:35 (arife 13:35)",
                            "evaluate": "19:00", "health": "19:20",
                            "selftest": "19:25", "promote": "Pazar 20:00"},
+        })
+
+    # ── GET /admin/piyasa ─────────────────────────────────────────────────────
+    # Piyasa durumu TEK KAYNAKTAN (takvim.py) — 18.10.2026. Arayüz kendi
+    # hesabını yapıyordu (10:00–18:00, tatil YOK): 29 Ekim'de "Piyasa açık"
+    # diyecekti. Artık bu uç noktayı soruyor; ağ yoksa yerel hesaba düşüyor.
+    @app.get("/admin/piyasa")
+    def admin_piyasa():
+        import datetime as dt
+        import takvim
+        simdi = dt.datetime.now()
+        sebep = takvim.kapali_sebebi(simdi)
+        return jsonify({
+            "islem": takvim.islem_suruyor_mu(simdi),   # ekran: işlem sürüyor mu
+            "acik": sebep is None,                     # veri: bar yarım mı
+            "sebep": sebep,
+            "yarim_gun": takvim.YARIM_GUNLER.get(simdi.date().isoformat()),
+            "son_kapanmis": takvim.son_kapanmis_islem_gunu(simdi),
+            "simdi": simdi.isoformat(timespec="seconds"),
         })
 
     # ── GET /admin/jobs ───────────────────────────────────────────────────────
