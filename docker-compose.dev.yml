@@ -1,0 +1,23 @@
+# =============================================================================
+# SerInvest — arayüz GELİŞTİRME modu (HMR)
+#
+# Günlük kullanımda arayüz derlenmiş statik site olarak çalışır (nginx). Kod
+# yazarken anında görmek için bu dosya üstüne binilir:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build frontend
+#
+# Geri dönmek için:   docker compose up -d --build frontend
+#
+# Not: Windows bind-mount'ta dosya izleme yoklamayla yapılır; bu mod boştayken
+# de işlemci harcar — iş bitince günlük moda dönün.
+# =============================================================================
+services:
+  frontend:
+    build:
+      target: dev
+    environment:
+      VITE_ADMIN_API_KEY: ${ADMIN_API_KEY:-dev_key_change_me}
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html

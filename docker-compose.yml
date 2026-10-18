@@ -246,22 +246,20 @@ services:
       retries: 10
       start_period: 30s
 
+  # Günlük kullanım: DERLENMİŞ statik site (nginx) — 18.10.2026. Eskiden Vite
+  # geliştirme sunucusu çalışıyordu ve boştayken sürekli ~%13 işlemci yakıyordu.
+  # Kod değişince: docker compose up -d --build frontend
+  # Geliştirme (HMR): docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d frontend
   frontend:
     build:
       context: ./frontend
+      target: prod
+      args:
+        # Derleme anında koda gömülür (Vite). Kişisel kullanım: tarayıcıda elle
+        # anahtar girmeye gerek yok; port yalnız bu bilgisayara açık.
+        VITE_ADMIN_API_KEY: ${ADMIN_API_KEY:-dev_key_change_me}
     container_name: serinvest-frontend
     logging: *log
-    environment:
-      # Vite dev server bu env'i `import.meta.env.VITE_ADMIN_API_KEY` olarak yayar.
-      # Kişisel kullanım için: tarayıcıda manuel anahtar girmeye gerek yok.
-      VITE_ADMIN_API_KEY: ${ADMIN_API_KEY:-dev_key_change_me}
-      # Windows bind mount'ta inotify çalışmaz — HMR için polling şart
-      CHOKIDAR_USEPOLLING: "true"
-    volumes:
-      # Canlı geliştirme (HMR): kod değişikliği imaj rebuild'i gerektirmez.
-      # node_modules imaj içinde kalır (host'ta node yok).
-      - ./frontend/src:/app/src
-      - ./frontend/index.html:/app/index.html
     ports:
       - "127.0.0.1:3000:3000"   # yalnız bu bilgisayar — bkz. core-api notu
     networks:
