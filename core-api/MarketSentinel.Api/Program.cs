@@ -40,6 +40,16 @@ builder.Services.AddHttpClient("tefas", client =>
 // docker-compose'da Cors__AllowedOrigins ortam değişkeni ile yapılandırılır.
 var allowedOrigins = (builder.Configuration["Cors:AllowedOrigins"] ?? "http://localhost:3000")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+// localhost ile 127.0.0.1 aynı makine ama tarayıcı için FARKLI köken (18.10.2026).
+// Portlar 127.0.0.1'e bağlanınca Docker Desktop'ın port bağlantısı arayüzü
+// http://127.0.0.1:3000 olarak açmaya başladı; API yalnız localhost'a izin
+// verdiği için tarayıcı bütün istekleri engelledi ve ekran "Servisler
+// başlatılıyor"da kaldı. Her localhost kökeninin 127.0.0.1 karşılığı da kabul.
+allowedOrigins = allowedOrigins
+    .Concat(allowedOrigins.Where(o => o.Contains("://localhost"))
+                          .Select(o => o.Replace("://localhost", "://127.0.0.1")))
+    .Distinct()
+    .ToArray();
 
 builder.Services.AddCors(options =>
     options.AddPolicy("ConfiguredOrigins", p =>
