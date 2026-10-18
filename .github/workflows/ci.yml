@@ -71,8 +71,32 @@ jobs:
           assert out["overall"] != "FAIL", "veri yokken FAIL vermemeli"
           PY
 
+  tefas:
+    # 18.10.2026: depoda 75 test vardı ama CI hiç koşmuyordu.
+    name: TEFAS — testler
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tefas-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: tefas-service/requirements.txt
+
+      - name: Bağımlılıklar
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Testler
+        run: python -m pytest -q
+
   frontend:
-    name: Frontend — tipler
+    name: Frontend — tipler, lint, derleme
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -91,6 +115,10 @@ jobs:
 
       - name: Tip denetimi
         run: npx tsc --noEmit -p tsconfig.app.json
+
+      - name: Lint
+        # 18.10.2026: 40 hata sıfırlandı; CI'da olmadığı için birikmişti.
+        run: npm run lint
 
       - name: Derleme
         run: npm run build
