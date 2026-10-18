@@ -364,10 +364,51 @@ def _admin_make_app():
 
         rank = _read("experiment_ranking.json")
         lowvol = _read("experiment_lowvol.json")
+        faz3 = _read("experiment_faz3.json")
 
         out = {"measured": False}
 
-        if rank:
+        # Faz 3 (18.10.2026) varsa ESAS odur: daha yeni, ortak test satırları,
+        # Newey-West t ve sonuçlardan önce yazılmış protokol (PLAN_2026-10 §4c).
+        # A = canlıdaki model. Eski deney yalnız Faz 3 yoksa kullanılır.
+        a = next((v for v in (faz3 or {}).get("varyantlar", [])
+                  if str(v.get("varyant", "")).startswith("A")), None)
+        if a:
+            esik = (faz3.get("esikler") or {}).get("spearman_nw_t", 2.5)
+            t = (a.get("spearman") or {}).get("t")
+            aralik = None
+            try:
+                import pandas as pd
+                g = pd.read_csv(ML_DIR / "experiment_faz3_gunluk.csv")
+                g = g[g["varyant"] == a["varyant"]]
+                aralik = [str(g["date"].min())[:10], str(g["date"].max())[:10]]
+            except Exception:
+                pass
+            en_iyi = max(faz3["varyantlar"], key=lambda v: (v.get("spearman") or {}).get("t") or -9)
+            out.update({
+                "measured": True,
+                "kaynak": "faz3",
+                "n_oos": a.get("n_test_satir"),
+                "n_days": a.get("n_gun"),
+                "date_range": aralik,
+                "ranking": {
+                    "spearman": (a.get("spearman") or {}).get("ort"),
+                    "t": t,
+                    "esik": esik,
+                    "nw": True,
+                    "proven": bool(a.get("gecer")),
+                    "en_iyi_10_fazla": (a.get("en_iyi_10_fazla") or {}).get("ort"),
+                },
+                "faz3": {
+                    "gecenler": faz3.get("gecenler", []),
+                    "karar": faz3.get("karar"),
+                    "en_iyi_aday": {"varyant": en_iyi.get("varyant"),
+                                    "spearman_t": (en_iyi.get("spearman") or {}).get("t"),
+                                    "fazla_t": (en_iyi.get("en_iyi_10_fazla") or {}).get("t")},
+                },
+            })
+
+        if rank and not a:
             sel = (rank.get("selectivity_within_day") or {}).get("spearman_by_day") or {}
             t = sel.get("t")
             out.update({

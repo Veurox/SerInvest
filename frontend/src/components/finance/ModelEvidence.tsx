@@ -4,6 +4,8 @@
 //
 // Neden var: arayüz 50 hissenin 49'una "GÜÇLÜ ALIM · %53 güven" yazıyordu.
 // Ölçüm bu iddiayı desteklemiyor — 485 OOS gününde gün-içi Spearman t = -0.78.
+// 18.10.2026: Faz 3 deneyi (476 gün, Newey-West) aynı sonucu verdi: t = 0,43.
+// Kaynak artık o; eşik 2,5 (protokol §4c).
 // Bir sayıyı büyük puntoyla göstermek onu doğru yapmaz; yanında kanıtı da
 // göstermek zorundayız. Kanıt yoksa bunu açıkça söylüyoruz.
 // =============================================================================
@@ -27,7 +29,8 @@ export function EvidenceBanner() {
         <b style={{ color: 'var(--warning)' }}>Bu sıralamanın ölçülmüş bir gücü yok.</b>{' '}
         Modelin aynı gün içinde iyi hisseyi kötüden ayırma yeteneği
         {e.n_days ? ` ${e.n_days} bağımsız günde` : ''} sınandı ve şanstan ayırt edilemedi
-        {e.ranking?.t != null && <> (sıra korelasyonu t={fmt(e.ranking.t, 2)}; kanıt için |t|≥2 gerekir)</>}.
+        {e.ranking?.t != null && <> (sıra korelasyonu t={fmt(e.ranking.t, 2)}; kanıt için
+          t≥{fmt(e.ranking.esik ?? 2, 1)} gerekir)</>}.
         Güven yüzdeleri modelin çıktısıdır, <b>doğrulanmış bir olasılık değildir</b> —
         yatırım kararına dayanak alınmamalıdır. Ayrıntı: Model sayfası → Kanıt.
       </div>
@@ -63,7 +66,7 @@ export function ModelEvidence() {
       <div className="card" style={{ padding: '12px 14px', marginBottom: 'var(--space-3)',
                                      fontSize: 12.5, color: 'var(--text-muted)' }}>
         <b style={{ color: 'var(--text-secondary)' }}>Kanıt henüz ölçülmedi.</b>{' '}
-        Çalıştır: <code>python -m ml.experiment_ranking</code>
+        Çalıştır: <code>python -m ml.experiment_faz3</code>
       </div>
     )
   }
@@ -107,13 +110,19 @@ export function ModelEvidence() {
               <Row label="Gün-içi sıra korelasyonu"
                    note={`${e.n_oos?.toLocaleString('tr-TR')} tahmin · ${e.n_days} bağımsız gün`}
                    value={fmt(r.spearman ?? null, 4)} />
-              <Row label="İstatistiksel güç (t)"
-                   note="Kanıt için |t| ≥ 2 gerekir"
+              <Row label={r.nw ? 'İstatistiksel güç (Newey-West t)' : 'İstatistiksel güç (t)'}
+                   note={`Kanıt için t ≥ ${fmt(r.esik ?? 2, 1)} gerekir`}
                    value={fmt(r.t ?? null, 2)}
                    tone={proven ? 'var(--profit)' : 'var(--loss)'} />
               <Row label="Yargı"
                    value={proven ? 'sıralayabiliyor' : 'şanstan ayırt edilemiyor'}
                    tone={proven ? 'var(--profit)' : 'var(--loss)'} />
+              {e.faz3 && (
+                <Row label="En iyi aday tarif"
+                     note="Geçmiş sınavda eşiğe en yakın çıkan tarif. Canlıya alınmadı —
+                           yeni veride gölge sınavda (aşağıda)."
+                     value={`${e.faz3.en_iyi_aday.varyant} · t ${fmt(e.faz3.en_iyi_aday.spearman_t ?? null, 2)}`} />
+              )}
             </>
           )}
 
@@ -139,7 +148,10 @@ export function ModelEvidence() {
           )}
 
           <p style={{ fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.6, marginTop: 12 }}>
-            Ölçüm 3 yıllık BIST-50 verisi üzerindedir; tek ülke, tek rejim.
+            {e.kaynak === 'faz3' && e.date_range
+              ? <>Ölçüm BIST-50, test dönemi {e.date_range[0]} → {e.date_range[1]}; tek ülke.
+                  Protokol sonuçlardan önce yazıldı: <code>docs/PLAN_2026-10.md §4c</code>.</>
+              : <>Ölçüm 3 yıllık BIST-50 verisi üzerindedir; tek ülke, tek rejim.</>}{' '}
             Ayrıntılı kanıt zinciri ve tekrarlanamayacak denemeler:{' '}
             <code>docs/MODEL_KANIT.md</code>. Bu sayfa yatırım tavsiyesi değildir.
           </p>

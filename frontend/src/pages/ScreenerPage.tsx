@@ -368,8 +368,13 @@ export default function ScreenerPage() {
           </span>
         )}
 
-        {/* Güven eşiği — modelin ham çıktısı üzerinde, listeyi daraltmak için */}
-        <span className="mc-bar__label">Min güven</span>
+        {/* Güven eşiği — modelin ham çıktısı üzerinde. 18.10.2026: Faz 3'te yüksek
+            güvenli hisseler düşük güvenlilerden iyi gitmedi; filtre bunu söylemeli,
+            yoksa "daha seçici liste = daha iyi liste" izlenimi verir. */}
+        <span className="mc-bar__label"
+              title="Modelin güven skoru. Geçmiş sınavda yüksek güvenli hisseler düşük güvenlilerden iyi gitmedi — bu filtre listeyi kısaltır, iyileştirmez.">
+          Min güven
+        </span>
         <span className="mc-seg" role="group" aria-label="Asgari güven">
           {[0, 0.55, 0.6, 0.7].map(c => (
             <button key={c} aria-pressed={minConf === c} onClick={() => setMinConf(c)}>

@@ -12,7 +12,7 @@ import { ADMIN, API, adminFetch } from '../lib/api'
 import { useConfig } from '../lib/useConfig'
 import { PageHeader } from '../components/ui'
 import { useSearchParams } from 'react-router-dom'
-import { ModelStory, JobStatus, SelfTestPanel, ModelVersions, ModelEvidence,
+import { ModelStory, JobStatus, SelfTestPanel, ModelVersions, ModelEvidence, GolgeSinav,
          RiskFilterPanel, DataDepth } from '../components/finance'
 import { useToast } from '../components/ui/toastBaglam'
 import type { SysLog, TrainingInfo, AdminStatus } from '../lib/types'
@@ -441,6 +441,7 @@ export default function ModelPage() {
 
         {/* Ölçülmüş sıralama gücü — açık başlar, sekmenin asıl konusu bu */}
         <ModelEvidence />
+        <GolgeSinav />
 
         {/* CANLI güvenilirlik eğrisi — ModelStory'dekiyle KARIŞTIRILMAMALI.
             Oradaki eğri eğitim/sınav verisinden: "model kurulurken dürüst

@@ -37,6 +37,7 @@ import { ruhHaliHesapla, type AggRow } from '../lib/sentiment'
 import { Gauge, DotStrip, Donut, BarWithRef, PriceBarriers } from '../components/viz'
 import { TerimTip } from '../components/ui'
 import { AlKarsilastirma, type GetiriKarsilastirma } from '../components/finance/AlKarsilastirma'
+import { useEvidence } from '../components/finance/useEvidence'
 
 // ── Arka uç şekilleri (mevcut Terminal bileşenlerinden birebir) ──────────────
 interface AdminStatus {
@@ -85,6 +86,11 @@ export default function TodayPage() {
   /** AL dediği hisseler vs demedikleri (bkz. AlKarsilastirma). `getiri` adı
       bu sayfada kâğıt portföyün getirisine ait, karışmasın. */
   const [alGetiri, setAlGetiri] = useState<GetiriKarsilastirma | null>(null)
+  // Faz 3 (18.10.2026): modelin hisse seçme gücü ölçüldü, bulunamadı.
+  // Ekran bunu "Neye güvenebilirim"in ilk hücresinde söyler; daha iyi aday
+  // (D) ileri sınavda — PLAN_2026-10 §4d/§4e.
+  const kanit = useEvidence()
+  const [golge, setGolge] = useState<{ sinav_gunu: number; esik_gun: number } | null>(null)
   const [dr, setDr] = useState<DriftResp | null>(null)
   const [paper, setPaper] = useState<PaperSummary | null>(null)
   const [yorum, setYorum] = useState<Commentary | null>(null)
@@ -106,6 +112,8 @@ export default function TodayPage() {
         .then(d => { if (!dur && d) setPaper(d) }).catch(() => {})
       adminFetch(`${ADMIN}/commentary`).then(r => r.ok ? r.json() : null)
         .then(d => { if (!dur && d && !d.error) setYorum(d) }).catch(() => {})
+      adminFetch(`${ADMIN}/golge`).then(r => r.ok ? r.json() : null)
+        .then(d => { if (!dur && d && !d.error) setGolge(d) }).catch(() => {})
     }
     al()
     const t = setInterval(al, 120_000)
@@ -269,7 +277,7 @@ export default function TodayPage() {
           <span className="u-sub">
             {cagrilar.length === 0
               ? 'bugün alım çağrısı yok'
-              : `${cagrilar.length} alım çağrısı · güvene göre sıralı`}
+              : `${cagrilar.length} alım çağrısı · sıra bir üstünlük göstermez`}
           </span>
         </div>
 
@@ -326,9 +334,9 @@ export default function TodayPage() {
                 </button>
               ))}
               <span className="u-sub" style={{ padding: '6px var(--u-s3) 0' }}>
-                Çubuktaki işaret başabaş eşiği ({yuzde(basabas, 0)},
-                maliyet hariç). <TerimTip ad="Güven">Güven</TerimTip> doğrulanmış
-                bir olasılık değildir.
+                Çubuktaki işaret başabaş eşiği ({yuzde(basabas, 0)}, maliyet hariç).
+                Liste <TerimTip ad="Güven">güvene</TerimTip> göre dizili, ama geçmiş sınavda
+                üstteki hisseler alttakilerden iyi gitmedi — sırayı seçim için kullanmayın.
               </span>
             </div>
 
@@ -396,6 +404,24 @@ export default function TodayPage() {
         </div>
 
         <div className="u-cells">
+          <div className="u-cell" style={{ minHeight: 0 }}>
+            <span className="u-label">Model hisse seçebiliyor mu?</span>
+            <span className="u-big" style={{
+              color: !kanit?.measured ? undefined
+                : kanit.ranking?.proven ? 'var(--u-up)' : 'var(--u-warn)' }}>
+              {!kanit?.measured ? '—' : kanit.ranking?.proven ? 'Evet' : 'Hayır'}
+            </span>
+            <span className="u-sub">
+              {kanit?.measured && !kanit.ranking?.proven
+                ? <>{fmt(kanit.n_days ?? null, 0)} günlük geçmiş sınavda modelin sıralaması
+                    getiriyle ilişkisiz çıktı. Sistemi iki kural yönetiyor: rejim kapısı
+                    (endeks 200 günlük ortalamanın altındaysa yeni alım yok) ve risk filtresi.</>
+                : kanit?.measured ? 'Geçmiş sınavda sıralama gücü kanıtlandı.' : 'Henüz ölçülmedi.'}
+              {golge && <> Daha iyi bir aday ileri sınavda:{' '}
+                <b className="u-num">{golge.sinav_gunu}/{golge.esik_gun}</b> gün.</>}
+            </span>
+          </div>
+
           <div className="u-cell" style={{ minHeight: 0 }}>
             {/* "AL isabeti · başabaş" yerine: AL dediği hisseler, demediklerinden
                 iyi mi gitti? Eski karşılaştırma modeli olduğundan iyi

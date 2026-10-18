@@ -161,14 +161,14 @@ export const TERIMLER: Record<string, Terim> = {
   // ── Model çıktıları ────────────────────────────────────────────────────────
   aiKarari: {
     baslik: 'AI Kararı',
-    ozet: 'Modelin o sembol için ürettiği karar (GÜÇLÜ ALIM / ALIM / TUT / SATIŞ).',
-    nasil: 'Model 20 teknik göstergeden bir olasılık üretir, sonra eşiklere göre karara çevirir.',
-    uyari: 'Modelin hisseler arası bir üstünlüğü henüz ÖLÇÜLEMEDİ (Model sayfasındaki kanıt bölümüne bak). Bu bir yatırım tavsiyesi değildir.',
+    ozet: 'Modelin o sembol için ürettiği karar (GÜÇLÜ ALIM / ALIM / TUT).',
+    nasil: 'Model 20 teknik göstergeden bir olasılık üretir, sonra eşiklere göre karara çevirir. Endeks 200 günlük ortalamasının altındaysa rejim kapısı yeni alımı durdurur.',
+    uyari: 'Modelin hisseler arasında seçim yapabildiği ÖLÇÜLDÜ ve bulunamadı (476 günlük sınav, Model → Kanıt). AL dediği hisseler demediklerinden iyi gitmedi. Bu bir yatırım tavsiyesi değildir.',
   },
   guven: {
     baslik: 'Güven',
-    ozet: 'Modelin kendi çıktısının ham skoru.',
-    nasil: 'Listeyi daraltmak için kullanışlıdır: yüksek güvenli tahminleri öne alır.',
+    ozet: 'Modelin, hissenin hedefe stoptan önce değme olasılığı için ürettiği skor.',
+    nasil: 'Başabaş eşiğinin altındaysa model o hissede alım önermez. Hisseleri birbiriyle kıyaslamak için KULLANILMAMALI: 476 günlük sınavda yüksek güvenli hisseler düşük güvenlilerden iyi gitmedi.',
     uyari: 'Doğrulanmış bir olasılık DEĞİLDİR. "%70 güven", "%70 ihtimalle doğru" demek değildir.',
   },
   hedef: {
