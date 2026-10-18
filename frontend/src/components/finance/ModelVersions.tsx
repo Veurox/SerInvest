@@ -8,7 +8,7 @@
 // =============================================================================
 import { useEffect, useState } from 'react'
 import { ADMIN, adminFetch } from '../../lib/api'
-import { useToast } from '../ui/Toast'
+import { useToast } from '../ui/toastBaglam'
 
 interface Version {
   version_id: string; archived_at: string; reason: string

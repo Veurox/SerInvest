@@ -390,7 +390,8 @@ export default function ScreenerPage() {
                   <input type="checkbox" checked={!hidden.has(key)} disabled={key === 'sym'}
                          onChange={() => setHidden(h => {
                            const n = new Set(h)
-                           n.has(key) ? n.delete(key) : n.add(key)
+                           if (n.has(key)) n.delete(key)
+                           else n.add(key)
                            return n
                          })} />
                   {label}

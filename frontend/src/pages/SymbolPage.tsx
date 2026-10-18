@@ -58,7 +58,9 @@ export default function SymbolPage() {
 
   const [agg, setAgg] = useState<AggRow[] | null>(null)
   /** Bu hissenin tahmin günlüğü — modelin buradaki sicili. */
-  const [sicilHam, setSicilHam] = useState<SicilSatiri[] | null>(null)
+  // Sicil sonucu hangi sembole ait olduğunu taşır: sembol değişince eski
+  // sembolün sicili bir kare bile görünmez (eskiden efekt içinde null'lanıyordu).
+  const [sicilSonuc, setSicilSonuc] = useState<{ sembol: string; satirlar: SicilSatiri[] } | null>(null)
   /** Modelin BÜTÜN hisselerdeki gerçekleşmiş AL isabeti — karşılaştırma tabanı.
       Sembol değişince yeniden çekilmiyor; evrensel bir sayı. */
   const [genelIsabet, setGenelIsabet] = useState<number | null>(null)
@@ -151,6 +153,7 @@ export default function SymbolPage() {
   }, [cfg])
 
 
+  const sicilHam = sembol && sicilSonuc?.sembol === sembol ? sicilSonuc.satirlar : null
   const sicil = useMemo(() => sicilCikar(sicilHam ?? []), [sicilHam])
   // sicilYorumu ORAN (0–1) bekliyor; genelIsabet yüzde tutuluyor çünkü
   // IntervalBar ve ekrandaki bütün eşikler yüzde ölçeğinde.
@@ -160,13 +163,12 @@ export default function SymbolPage() {
     [sicil, cfg.model.horizon_days, genelIsabet])
   // Sicil: sembol değişince yeniden çekilir.
   useEffect(() => {
-    if (!sembol) { setSicilHam(null); return }
+    if (!sembol) return
     let dur = false
-    setSicilHam(null)
     adminFetch(`${ADMIN}/prediction-log?symbol=${encodeURIComponent(sembol)}&limit=500`)
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!dur) setSicilHam(d?.rows ?? []) })
-      .catch(() => { if (!dur) setSicilHam([]) })
+      .then(d => { if (!dur) setSicilSonuc({ sembol, satirlar: d?.rows ?? [] }) })
+      .catch(() => { if (!dur) setSicilSonuc({ sembol, satirlar: [] }) })
     return () => { dur = true }
   }, [sembol])
 

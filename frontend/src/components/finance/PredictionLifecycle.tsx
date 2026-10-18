@@ -70,7 +70,10 @@ export function PredictionLifecycle({ onPickDay }: { onPickDay?: (date: string) 
   const load = () =>
     adminFetch(`${ADMIN}/prediction-calendar`)
       .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
-      .then((d: CalendarPayload) => { d.error ? setErr(d.error) : (setData(d), setErr(null)) })
+      .then((d: CalendarPayload) => {
+        if (d.error) setErr(d.error)
+        else { setData(d); setErr(null) }
+      })
       .catch(e => setErr(String(e)))
 
   useEffect(() => {

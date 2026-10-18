@@ -98,8 +98,8 @@ export function FundScreener({ q }: { q: string }) {
   const [eksikGoster, setEksikGoster] = useState(false)
 
   useEffect(() => {
+    // Tek seferlik yükleme: başlangıç durumu zaten "yükleniyor, hata yok".
     let iptal = false
-    setYukleniyor(true); setHata(null)
     fetch(`${API}/fon/tarama`)
       .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
       .then(d => { if (!iptal) { setData(d); setYukleniyor(false) } })

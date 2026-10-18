@@ -81,7 +81,9 @@ export default function ModelPortfolioPage() {
         setState(data)
         if (!editing) setSelected(new Set(data.universe || []))
       }
-    } catch {}
+    } catch {
+      // Ağ hatası: 15 sn sonraki yoklamada yeniden denenir.
+    }
   }, [editing])
 
   const fetchSymbols = useCallback(async () => {
@@ -92,7 +94,9 @@ export default function ModelPortfolioPage() {
         const all = [...d.bist, ...d.commodity, ...d.forex].map(s => s.ticker)
         setSymbols(all)
       }
-    } catch {}
+    } catch {
+      // Sembol listesi alınamadı: seçici boş kalır, sayfa açılışında yeniden denenir.
+    }
   }, [])
 
   useEffect(() => {
@@ -106,7 +110,8 @@ export default function ModelPortfolioPage() {
     setEditing(true)
     setSelected(prev => {
       const next = new Set(prev)
-      next.has(sym) ? next.delete(sym) : next.add(sym)
+      if (next.has(sym)) next.delete(sym)
+      else next.add(sym)
       return next
     })
   }

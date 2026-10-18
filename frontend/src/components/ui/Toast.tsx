@@ -1,6 +1,5 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
-
-type ToastType = 'success' | 'error' | 'warning' | 'info'
+import { useCallback, useState, type ReactNode } from 'react'
+import { ToastContext, type ToastContextValue, type ToastType } from './toastBaglam'
 
 interface ToastItem {
   id: number
@@ -8,16 +7,6 @@ interface ToastItem {
   message: string
   duration: number
 }
-
-interface ToastContextValue {
-  show: (message: string, type?: ToastType, duration?: number) => void
-  success: (message: string) => void
-  error: (message: string) => void
-  warning: (message: string) => void
-  info: (message: string) => void
-}
-
-const ToastContext = createContext<ToastContextValue | null>(null)
 
 const COLORS: Record<ToastType, { bg: string; border: string; color: string; icon: string }> = {
   success: { bg: 'var(--profit-bg)',  border: 'var(--profit-border)',  color: 'var(--profit)',  icon: '✓' },
@@ -92,15 +81,4 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       </div>
     </ToastContext.Provider>
   )
-}
-
-export function useToast(): ToastContextValue {
-  const ctx = useContext(ToastContext)
-  if (!ctx) {
-    // Provider yoksa no-op döndür (hata fırlatmasın)
-    return {
-      show: () => {}, success: () => {}, error: () => {}, warning: () => {}, info: () => {},
-    }
-  }
-  return ctx
 }

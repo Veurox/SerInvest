@@ -15,8 +15,8 @@
 // SATIŞ/TUT ÇAĞRISINDA BARİYER ÇİZİLMEZ. Hedef ve stop yalnız ALIM kararının
 // parçası; başka bir karara iliştirmek uygulanamayan bir sayı gösterirdi.
 // =============================================================================
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { API } from '../../lib/api'
+import { useMemo, useState } from 'react'
+import { useGrafikVerisi } from '../../lib/useGrafikVerisi'
 import { useConfig } from '../../lib/useConfig'
 import { PriceChart, type CrosshairInfo, type Overlay } from '../charts/PriceChart'
 import type { Bar } from '../../lib/bars'
@@ -38,7 +38,6 @@ const hacim = (v: number | null) => {
   return String(Math.round(v))
 }
 
-interface Cevap { symbol: string; points: Bar[]; error?: string }
 
 export function PriceBarriers({
   sembol, analiz, yukseklik = 300, ondalik = 2, ekSeviyeler = [], onBarlar,
@@ -55,30 +54,21 @@ export function PriceBarriers({
   const cfg = useConfig()
   const [dilim, setDilim] = useState<Dilim>('3M')
   const [tur, setTur] = useState<'candle' | 'line'>('candle')
-  const [barlar, setBarlar] = useState<Bar[]>([])
-  const [yukleniyor, setYukleniyor] = useState(false)
-  const [hata, setHata] = useState<string | null>(null)
   const [imlec, setImlec] = useState<CrosshairInfo | null>(null)
   // Geri çağrıyı ref'te tutuyoruz: çağıran satır içi bir lambda geçerse her
   // render'da kimliği değişir ve efekt veriyi yeniden çekerdi. Bağımlılıkta
   // olmaması da sessiz bir bayatlama riskiydi; ref ikisini birden çözüyor.
-  const barCb = useRef(onBarlar)
-  barCb.current = onBarlar
+  // onBarlar hook içinde ref'te tutulur: satır içi lambda geçilse de istek
+  // yinelenmez (eskiden burada elle yapılıyordu).
+  const { bars: barlar, yukleniyor, hata } = useGrafikVerisi(sembol, dilim, onBarlar)
 
-  useEffect(() => {
-    let dur = false
-    setYukleniyor(true); setHata(null); setImlec(null)
-    fetch(`${API}/market/${encodeURIComponent(sembol)}/chart?tf=${dilim}`)
-      .then(r => r.json())
-      .then((j: Cevap) => {
-        if (dur) return
-        if (j.error || !j.points?.length) { setHata(j.error || 'veri yok'); setBarlar([]) }
-        else { setBarlar(j.points); barCb.current?.(j.points) }
-      })
-      .catch(e => { if (!dur) setHata(String(e)) })
-      .finally(() => { if (!dur) setYukleniyor(false) })
-    return () => { dur = true }
-  }, [sembol, dilim])
+  // Sembol ya da dilim değişince imleç okuması temizlenir (render sırasında).
+  const anahtar = `${sembol}:${dilim}`
+  const [oncekiAnahtar, setOncekiAnahtar] = useState(anahtar)
+  if (anahtar !== oncekiAnahtar) {
+    setOncekiAnahtar(anahtar)
+    setImlec(null)
+  }
 
   const alim = !!analiz && analiz.recommendation.includes('ALIM')
   const hedef = alim ? analiz?.shortTermTarget ?? null : null

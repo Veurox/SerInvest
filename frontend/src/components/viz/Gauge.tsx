@@ -76,11 +76,11 @@ export function Gauge({
   // Veri yoksa boş kadran + açık "veri yok" — sıfır çizmek yalan olurdu.
   const ibre = v == null ? null : BAS + (v / 100) * YAY
 
-  let onceki = 0
-  const diller = bolgeler.map(b => {
+  // Her dilim bir öncekinin bittiği yerden başlar — dış değişken yok.
+  const diller = bolgeler.map((b, i) => {
+    const onceki = i > 0 ? bolgeler[i - 1].bit : 0
     const d1 = BAS + (onceki / 100) * YAY
     const d2 = BAS + (b.bit / 100) * YAY
-    onceki = b.bit
     return { yol: yayYolu(cx, cy, r, d1, d2), renk: b.renk, ad: b.ad }
   })
 

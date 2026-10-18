@@ -20,31 +20,32 @@ const CACHE_TTL = 5 * 60 * 1000   // 5 dk
 export function Sparkline({
   symbol, days = 7, width = 80, height = 28, showAxis,
 }: SparklineProps) {
-  const [points, setPoints] = useState<number[] | null>(null)
+  // Noktalar modül önbelleğinden okunur; efekt yalnız eksik ya da bayatsa
+  // çeker ve bitince yeniden çizdirir (eskiden önbellek isabetinde efekt
+  // içinde senkron setState vardı — fazladan bir render).
+  const anahtar = `${symbol}:${days}`
+  const [, yenidenCiz] = useState(0)
+  const points = cache[anahtar]?.points ?? null
 
   useEffect(() => {
-    const cacheKey = `${symbol}:${days}`
-    const c = cache[cacheKey]
-    if (c && Date.now() - c.ts < CACHE_TTL) {
-      setPoints(c.points)
-      return
-    }
+    const c = cache[anahtar]
+    if (c && Date.now() - c.ts < CACHE_TTL) return
 
     let cancelled = false
     fetch(`${API}/market/price-history/${symbol}?days=${days}`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => {
+      .then((data: { points?: { close: number | null }[] } | null) => {
         if (cancelled || !data?.points) return
         const pts = data.points
-          .map((p: any) => p.close)
-          .filter((v: any) => v != null)
-        cache[cacheKey] = { ts: Date.now(), points: pts }
-        setPoints(pts)
+          .map(p => p.close)
+          .filter((v): v is number => v != null)
+        cache[anahtar] = { ts: Date.now(), points: pts }
+        yenidenCiz(n => n + 1)
       })
       .catch(() => {})
 
     return () => { cancelled = true }
-  }, [symbol, days])
+  }, [anahtar, symbol, days])
 
   if (!points || points.length < 2) {
     return (

@@ -101,6 +101,9 @@ export interface TrainingInfo {
   walkforward?: {
     completed_at: string; n_symbols: number; n_steps: number
     n_predictions: number; overall_accuracy: number
+    // Faz 2 sınav özeti — eski kayıtlarda yok
+    buy_precision?: number | null; breakeven_precision?: number | null
+    auc?: number | null; n_oos?: number
     step_stats: { step: number; train_days: number; accuracy: number }[]
     top_symbols: { symbol: string; accuracy: number; n: number }[]
   }

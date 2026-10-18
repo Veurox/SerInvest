@@ -3,7 +3,7 @@
 // Pozisyon takibi, nakit/temettü yönetimi, varlık dağılımı pasta grafiği.
 // İçerir: PortfolioTab + 4 modal (Position/Close/Cash/Dividend) + AllocationPieChart
 // =============================================================================
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Button, KPI, EmptyState, useToast, PageHeader, Icon } from '../components/ui'
 import { API } from '../lib/api'
 import { downloadCsv, fmt, yuzde, oranYuzde } from '../lib/format'
@@ -11,7 +11,8 @@ import { Donut } from '../components/viz'
 import { PnLValue, PositionDrawer, DailyChangeBadge } from '../components/finance'
 import { COMPANY_NAMES } from '../lib/companies'
 import { CompanyLogo } from '../components/common/CompanyLogo'
-import { Modal, Field, inputStyle, btnStyle } from '../components/common/Modal'
+import { Modal, Field } from '../components/common/Modal'
+import { inputStyle, btnStyle } from '../components/common/modalStil'
 
 interface PortfolioPosition {
   id: string
@@ -67,18 +68,20 @@ export function PortfolioTab() {
   const [drawerPos,    setDrawerPos]    = useState<PortfolioPosition | null>(null)
   const [error, setError] = useState('')
 
-  const fetchAll = async () => {
-    try {
-      const [pRes, sRes] = await Promise.all([
-        fetch(`${API}/portfolio/positions`),
-        fetch(`${API}/portfolio/summary`),
-      ])
-      if (pRes.ok) setPositions(await pRes.json())
-      if (sRes.ok) setSummary(await sRes.json())
-    } catch (e) { setError(String(e)) }
-  }
+  // Yalnız sonuçta state yazar (eşzamansız) — efekt içinden güvenle çağrılır.
+  const fetchAll = useCallback(() =>
+    Promise.all([fetch(`${API}/portfolio/positions`), fetch(`${API}/portfolio/summary`)])
+      .then(async ([pRes, sRes]) => {
+        if (pRes.ok) setPositions(await pRes.json())
+        if (sRes.ok) setSummary(await sRes.json())
+      })
+      .catch(e => setError(String(e))), [])
 
-  useEffect(() => { fetchAll(); const t = setInterval(fetchAll, 30_000); return () => clearInterval(t) }, [])
+  useEffect(() => {
+    fetchAll()
+    const t = setInterval(fetchAll, 30_000)
+    return () => clearInterval(t)
+  }, [fetchAll])
 
   const fmtTL = (n: number) => n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₺'
   const fmtPct = (n: number) => oranYuzde(n, 2, true)
@@ -567,7 +570,7 @@ function ClosePositionModal({ position, onClose, onSaved }: {
   const submit = async () => {
     setBusy(true); setErr('')
     try {
-      const body: any = {
+      const body: Record<string, string | number> = {
         closePrice: priceNum,
         closeDate: new Date(closeDate).toISOString(),
         closeCommission: commNum,
@@ -726,12 +729,16 @@ function DividendFormModal({ onClose, onSaved }: { onClose: () => void; onSaved:
 interface EqPoint { date: string; value: number }
 
 function PortfolioEquityChart({ positions }: { positions: PortfolioPosition[] }) {
-  const [equity, setEquity] = useState<EqPoint[]>([])
-  const [loading, setLoading] = useState(false)
+  // Pozisyon listesi her 30 sn yeni bir dizi olarak geliyor. Eskiden her
+  // gelişte "hesaplanıyor" ekranına dönüp eğriyi yeniden çiziyordu; artık
+  // yeni hesap gelene kadar önceki eğri kalır, bekleme ekranı yalnız ilk kez.
+  const [hesap, setHesap] = useState<EqPoint[] | null>(null)
+  const equity = positions.length === 0 ? [] : (hesap ?? [])
+  const loading = positions.length > 0 && hesap == null
 
   useEffect(() => {
-    if (positions.length === 0) { setEquity([]); return }
-    setLoading(true)
+    if (positions.length === 0) return
+    let dur = false
     const DAYS = 90
     Promise.all(
       positions.map(p =>
@@ -755,8 +762,9 @@ function PortfolioEquityChart({ positions }: { positions: PortfolioPosition[] })
       const sorted = [...dayMap.entries()]
         .sort(([a], [b]) => a.localeCompare(b))
         .filter(([, v]) => v > 0)
-      setEquity(sorted.map(([date, value]) => ({ date, value })))
-    }).finally(() => setLoading(false))
+      if (!dur) setHesap(sorted.map(([date, value]) => ({ date, value })))
+    })
+    return () => { dur = true }
   }, [positions])
 
   if (loading) return (

@@ -68,20 +68,23 @@ export function Donut({
   const kalinlik = Math.max(10, Math.round(boyut * 0.155))
   const r = cx - kalinlik / 2 - 1
 
+  // Kümülatif açı düz döngüyle — map içinden dış değişkeni güncellemek
+  // render'ı saf olmaktan çıkarıyordu.
+  const yaylar: (DonutDilim & { pay: number; yol: string; renk: string })[] = []
   let aci = 0
-  const yaylar = gosterilen.map((d, i) => {
+  for (const [i, d] of gosterilen.entries()) {
     const pay = toplam > 0 ? d.deger / toplam : 0
     const d1 = aci
     // Dilimler arasında ince bir boşluk: kenarları ayırmak için 1.2°
     const d2 = aci + pay * 360
     aci = d2
-    return {
+    yaylar.push({
       ...d,
       pay,
       yol: yay(cx, cy, r, d1 + (pay < 0.02 ? 0 : 0.6), Math.max(d1 + 0.4, d2 - 0.6)),
       renk: d.renk ?? SERI[i % SERI.length],
-    }
-  })
+    })
+  }
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--u-s4)' }}>

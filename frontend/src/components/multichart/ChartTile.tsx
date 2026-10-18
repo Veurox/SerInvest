@@ -10,7 +10,7 @@
 // dar hücrede ayrı bir okuma satırına yer harcanmaz.
 // =============================================================================
 import { useEffect, useMemo, useState } from 'react'
-import { API } from '../../lib/api'
+import { useGrafikVerisi } from '../../lib/useGrafikVerisi'
 import { PriceChart, type Bar, type CrosshairInfo, type Overlay } from '../charts/PriceChart'
 import { barAtOrBefore, toPercent } from '../../lib/bars'
 import type { OracleAnalysis, PriceData } from '../../lib/types'
@@ -19,7 +19,6 @@ import { fmt, yuzde } from '../../lib/format'
 
 export type TF = '1H' | '1D' | '1W' | '1M' | '3M' | '1Y' | '5Y'
 
-interface ChartPayload { symbol: string; points: Bar[]; error?: string }
 
 interface Props {
   symbol: string
@@ -65,26 +64,18 @@ export function ChartTile({
   interactive = true, visibleRange = null, percent = false,
   crosshairAt = null, onSpan, onHoverTime, onFocus,
 }: Props) {
-  const [bars, setBars] = useState<Bar[]>([])
-  const [loading, setLoading] = useState(true)
-  const [err, setErr] = useState<string | null>(null)
+  const { bars, yukleniyor: loading, hata: err } = useGrafikVerisi(symbol, tf)
   const [picking, setPicking] = useState(false)
   const [hover, setHover] = useState<CrosshairInfo | null>(null)
 
-  useEffect(() => {
-    let stop = false
-    setLoading(true); setErr(null); setHover(null)
-    fetch(`${API}/market/${encodeURIComponent(symbol)}/chart?tf=${tf}`)
-      .then(r => r.json())
-      .then((j: ChartPayload) => {
-        if (stop) return
-        if (j.error || !j.points?.length) { setErr(j.error || 'veri yok'); setBars([]) }
-        else setBars(j.points)
-      })
-      .catch(e => { if (!stop) setErr(String(e)) })
-      .finally(() => { if (!stop) setLoading(false) })
-    return () => { stop = true }
-  }, [symbol, tf])
+  // Sembol ya da aralık değişince imleç okuması temizlenir — render sırasında,
+  // önceki anahtarla karşılaştırarak (efekt bir kare eski okumayı gösterirdi).
+  const anahtar = `${symbol}:${tf}`
+  const [oncekiAnahtar, setOncekiAnahtar] = useState(anahtar)
+  if (anahtar !== oncekiAnahtar) {
+    setOncekiAnahtar(anahtar)
+    setHover(null)
+  }
 
   // Bu hücrenin zaman aralığını sayfaya bildir: ortak pencere tüm hücrelerin
   // birleşiminden hesaplanır (bar sayıları eşit olmasa da tarihler hizalı kalsın).
@@ -121,13 +112,20 @@ export function ChartTile({
 
   const isBuy = !!analysis && analysis.recommendation.includes('ALIM')
 
+  // "Şimdi" render sırasında okunmaz (render saf olmalı); dakikada bir tazelenir.
+  const [simdi, setSimdi] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setSimdi(Date.now()), 60_000)
+    return () => clearInterval(t)
+  }, [])
+
   // ── Veri tazeliği (Faz H) ────────────────────────────────────────────────
   // Son barın yaşı. Bayat veriyle karar vermeyi önlemek için: kullanıcı
   // grafiğe bakıp "şu an böyle" sanabilir, oysa veri günler öncesine ait
   // olabilir (hafta sonu, tatil, veri kaynağı kesintisi).
   // Eşik aralığa göre: dakikalık grafikte 1 saat bayat, günlükte değil.
   const lastTs = bars.length ? bars[bars.length - 1].t : null
-  const ageMin = lastTs ? (Date.now() - lastTs) / 60000 : null
+  const ageMin = lastTs ? (simdi - lastTs) / 60000 : null
   const staleAfter = tf === '1H' || tf === '1D' ? 90 : 60 * 24 * 4   // dk
   const stale = ageMin != null && ageMin > staleAfter
   const ageLabel = ageMin == null ? null
@@ -137,15 +135,15 @@ export function ChartTile({
 
   // Referans çizgileri kimliği her render'da değişmesin diye memo — aksi hâlde
   // PriceChart onları her seferinde söküp yeniden kurardı (görsel titreme).
+  const hedef = analysis?.shortTermTarget ?? null
+  const stopFiyat = analysis?.shortTermStop ?? null
   const overlays = useMemo<Overlay[]>(() => {
     if (!isBuy) return []
     const out: Overlay[] = []
-    if (analysis?.shortTermTarget != null)
-      out.push({ price: analysis.shortTermTarget, color: 'var(--profit)', label: 'HEDEF' })
-    if (analysis?.shortTermStop != null)
-      out.push({ price: analysis.shortTermStop, color: 'var(--loss)', label: 'STOP' })
+    if (hedef != null) out.push({ price: hedef, color: 'var(--profit)', label: 'HEDEF' })
+    if (stopFiyat != null) out.push({ price: stopFiyat, color: 'var(--loss)', label: 'STOP' })
     return out
-  }, [isBuy, analysis?.shortTermTarget, analysis?.shortTermStop])
+  }, [isBuy, hedef, stopFiyat])
 
   // Kullanıcının seçtiği tip AYNEN uygulanır.
   // 08/2026 dersi (iki kez tekrarlandı): kararı hücre SAYISINA göre vermek

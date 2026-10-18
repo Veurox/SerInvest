@@ -66,24 +66,29 @@ const degisim = (dizi: (number | null)[]): number | null => {
 
 export function FonDetay({ kod, onKapat }: { kod: string; onKapat: () => void }) {
   const [gun, setGun] = useState<number>(400)
-  const [seri, setSeri] = useState<Seri | null>(null)
-  const [yukleniyor, setYukleniyor] = useState(true)
-  const [hata, setHata] = useState<string | null>(null)
+  // Sonuç, hangi istekten geldiğini (anahtar) taşır: yükleniyor/hata durumu
+  // efekt içinde elle sıfırlanmaz, anahtardan TÜRETİLİR. Yeni dönem yüklenirken
+  // önceki seri ekranda kalır (eskiden de öyleydi), hata ise yalnız güncel
+  // isteğe aittir.
+  const anahtar = `${kod}:${gun}`
+  const [sonuc, setSonuc] = useState<{ anahtar: string; seri: Seri | null; hata: string | null } | null>(null)
+  const guncel = sonuc?.anahtar === anahtar ? sonuc : null
+  const yukleniyor = guncel == null
+  const seri = guncel ? guncel.seri : (sonuc?.seri ?? null)
+  const hata = guncel?.hata ?? null
 
   useEffect(() => {
     let dur = false
-    setYukleniyor(true); setHata(null)
     fetch(`${API}/fon/seri/${encodeURIComponent(kod)}?gun=${gun}`)
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((j: Seri) => {
         if (dur) return
-        if (j.bulunamadi || !j.nokta?.length) { setHata('Bu fon için kayıtlı seri yok.'); setSeri(null) }
-        else setSeri(j)
+        if (j.bulunamadi || !j.nokta?.length) setSonuc({ anahtar, seri: null, hata: 'Bu fon için kayıtlı seri yok.' })
+        else setSonuc({ anahtar, seri: j, hata: null })
       })
-      .catch(e => { if (!dur) { setHata(String(e.message ?? e)); setSeri(null) } })
-      .finally(() => { if (!dur) setYukleniyor(false) })
+      .catch(e => { if (!dur) setSonuc({ anahtar, seri: null, hata: String(e.message ?? e) }) })
     return () => { dur = true }
-  }, [kod, gun])
+  }, [anahtar, kod, gun])
 
   // `seri`ye bağlanıyor, `seri?.nokta ?? []` ifadesine değil: ikincisi her
   // render'da yeni bir dizi kimliği üretiyor ve aşağıdaki memo boşa çalışıyordu.

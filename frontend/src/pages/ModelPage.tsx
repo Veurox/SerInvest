@@ -14,7 +14,7 @@ import { PageHeader } from '../components/ui'
 import { useSearchParams } from 'react-router-dom'
 import { ModelStory, JobStatus, SelfTestPanel, ModelVersions, ModelEvidence,
          RiskFilterPanel, DataDepth } from '../components/finance'
-import { useToast } from '../components/ui/Toast'
+import { useToast } from '../components/ui/toastBaglam'
 import type { SysLog, TrainingInfo, AdminStatus } from '../lib/types'
 import { fmt, oranYuzde } from '../lib/format'
 
@@ -125,7 +125,7 @@ export default function ModelPage() {
   const [prog, setProg]   = useState<JobProgress | null>(null)
 
   const load = useCallback(() => {
-    const g = (p: string, set: (v: any) => void) =>
+    const g = <T,>(p: string, set: (v: T) => void) =>
       adminFetch(`${ADMIN}/${p}`).then(r => r.ok ? r.json() : null).then(d => d && set(d)).catch(() => {})
     g('training-info', setInfo)
     g('status', setStatus)
@@ -182,7 +182,8 @@ export default function ModelPage() {
       const r = await adminFetch(`${ADMIN}/${path}`, { method: 'POST' })
       if (r.status === 401) { toast.error('Yetki yok — Admin API anahtarı eksik'); return }
       const j = await r.json()
-      j.error ? toast.error(j.error) : toast.success(j.message ?? `${label} başlatıldı`)
+      if (j.error) toast.error(j.error)
+      else toast.success(j.message ?? `${label} başlatıldı`)
       setTimeout(load, 2000)
     } catch { toast.error('Sunucuya ulaşılamadı') } finally { setBusy(false) }
   }
@@ -193,7 +194,7 @@ export default function ModelPage() {
   const live     = info?.live_accuracy
   const hit      = cal?.hit_rate ?? null
   // Taban çizgisi: "hepsini alsaydık" oranı — lift'in referansı
-  const baseRate = (live as any)?.base_rate ?? null
+  const baseRate = live?.base_rate ?? null
   const lift     = baseRate != null && hit != null ? hit - baseRate : null
 
   const skill = lift == null ? null
@@ -502,15 +503,15 @@ export default function ModelPage() {
         <Fold title="İleri metrikler" hint="· doğrulama sınavı, kâr eşiği, ayrım gücü">
         <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
           {[
-            { k: 'Geçmiş sınav — yön doğruluğu', v: pct(info?.walkforward?.overall_accuracy as any),
+            { k: 'Geçmiş sınav — yön doğruluğu', v: pct(info?.walkforward?.overall_accuracy),
               h: 'Walk-forward: modelin hiç görmediği geçmiş dönemlerde yönü bilme oranı' },
-            { k: 'Geçmiş sınav — AL isabeti', v: pct((info?.walkforward as any)?.buy_precision),
+            { k: 'Geçmiş sınav — AL isabeti', v: pct(info?.walkforward?.buy_precision),
               h: 'AL dediğinde hedefe önce değme oranı (geçmiş sınavda)' },
-            { k: 'Kâr eşiği', v: pct((info?.walkforward as any)?.breakeven_precision),
+            { k: 'Kâr eşiği', v: pct(info?.walkforward?.breakeven_precision),
               h: 'Bu oranın ÜSTÜ kârlı. Hedef stoptan büyük olduğu için %50 gerekmiyor' },
-            { k: 'Ayrım gücü (AUC)', v: ((info?.walkforward as any)?.auc ?? '—').toString(),
+            { k: 'Ayrım gücü (AUC)', v: info?.walkforward?.auc != null ? fmt(info.walkforward.auc, 3) : '—',
               h: '0.50 = yazı-tura, 1.00 = kusursuz ayrım' },
-            { k: 'Sınav örneklemi', v: (info?.walkforward?.n_predictions ?? (info?.walkforward as any)?.n_oos ?? '—').toLocaleString?.('tr-TR') ?? '—',
+            { k: 'Sınav örneklemi', v: (info?.walkforward?.n_predictions ?? info?.walkforward?.n_oos)?.toLocaleString('tr-TR') ?? '—',
               h: 'Geçmiş sınavda değerlendirilen tahmin sayısı' },
             { k: 'Eğitim verisi', v: (info?.training_csv?.total_rows ?? '—').toLocaleString?.('tr-TR') ?? '—',
               h: 'Modelin öğrendiği örnek sayısı' },
@@ -562,7 +563,7 @@ export default function ModelPage() {
       <Fold title="İzlenen varlıklar" hint={`· ${info?.symbols?.total ?? 0} sembol`}>
         <div style={{ marginTop: 10, fontSize: 11.5, lineHeight: 1.9, color: 'var(--text-secondary)' }}>
           {(['bist', 'commodity', 'forex'] as const).map(k => {
-            const arr = (info?.symbols as any)?.[k] as string[] | undefined
+            const arr = info?.symbols?.[k]
             if (!arr?.length) return null
             const lbl = k === 'bist' ? 'BIST hisseleri' : k === 'commodity' ? 'Emtia' : 'Döviz'
             return (

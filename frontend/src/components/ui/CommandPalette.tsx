@@ -37,13 +37,20 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
   const [activeIdx, setActiveIdx] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Açılınca input'a focus
+  // Her açılışta arama sıfırlanır. Efekt içinde değil, render sırasında
+  // önceki `open` ile karşılaştırarak — React'in "önceki prop'a göre state
+  // ayarlama" deseni; açılışta bir kare eski sorguyu göstermez.
+  const [oncekiOpen, setOncekiOpen] = useState(open)
+  if (open !== oncekiOpen) {
+    setOncekiOpen(open)
+    if (open) { setQuery(''); setActiveIdx(0) }
+  }
+
+  // Açılınca input'a focus (DOM işi — state yok)
   useEffect(() => {
-    if (open) {
-      setQuery('')
-      setActiveIdx(0)
-      setTimeout(() => inputRef.current?.focus(), 50)
-    }
+    if (!open) return
+    const t = setTimeout(() => inputRef.current?.focus(), 50)
+    return () => clearTimeout(t)
   }, [open])
 
   // Filter

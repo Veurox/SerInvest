@@ -84,8 +84,8 @@ export default function MultiChartPage() {
 
   // Varsayılan doldurma: en güvenli AL sinyalleri, yoksa ilk BIST hisseleri.
   // Yalnızca kayıt yoksa çalışır — kullanıcının kurduğu ekranı ezmez.
-  useEffect(() => {
-    if (slots.length > 0 || assets.length === 0) return
+  // Render sırasında (efektte değil): boş ızgara bir kare bile çizilmez.
+  if (slots.length === 0 && assets.length > 0) {
     const buys = [...latest.values()]
       .filter(o => o.recommendation.includes('ALIM'))
       .sort((a, b) => b.confidence - a.confidence)
@@ -93,7 +93,7 @@ export default function MultiChartPage() {
     const bist = assets.filter(a => a.assetType === 'BIST').map(a => a.symbol)
     const seed = [...new Set([...buys, ...bist])].slice(0, 8)
     if (seed.length) setSlots(seed)
-  }, [assets, latest, slots.length])
+  }
 
   useEffect(() => { localStorage.setItem(LS_SLOTS, JSON.stringify(slots)) }, [slots])
   useEffect(() => { localStorage.setItem(LS_LAYOUT, JSON.stringify(layout)) }, [layout])
@@ -103,7 +103,13 @@ export default function MultiChartPage() {
 
   // Aralık değişince pencere tam açılır: 3A'dan 1Y'ye geçince eski dar pencere
   // artık başka bir döneme denk gelir ve kullanıcı nereye baktığını şaşırır.
-  useEffect(() => { setWin(FULL); setSpans({}) }, [tf])
+  // Önceki aralıkla render sırasında karşılaştırılır (efekt bir kare geç kalırdı).
+  const [oncekiTf, setOncekiTf] = useState(tf)
+  if (tf !== oncekiTf) {
+    setOncekiTf(tf)
+    setWin(FULL)
+    setSpans({})
+  }
 
   const onSpan = useCallback((symbol: string, sp: { from: number; to: number } | null) => {
     setSpans(prev => {

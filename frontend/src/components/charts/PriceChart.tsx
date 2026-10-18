@@ -11,7 +11,7 @@
 // grafiği aynı bileşeni kullanır, yalnız `compact` ve `overlays` değişir.
 // İki ayrı grafik uygulaması tutmak, ikisinin zamanla ayrışması demekti.
 // =============================================================================
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import {
   createChart, CandlestickSeries, LineSeries, HistogramSeries, CrosshairMode,
   type IChartApi, type ISeriesApi,
@@ -104,6 +104,9 @@ interface Props {
  * grafik de onu alır. Kökten okusaydı yeni sayfada eski paletle çizerdi —
  * aynı ekranda iki farklı yeşil olurdu.
  */
+/** Crosshair altındaki noktanın okunan alanları (mum ya da çizgi/hacim). */
+type NoktaVerisi = { open?: number; high?: number; low?: number; close?: number; value?: number }
+
 const cssVar = (el: Element, name: string, fallback: string) => {
   const v = getComputedStyle(el).getPropertyValue(name).trim()
   return v || fallback
@@ -122,7 +125,6 @@ export function PriceChart({
   // Callback'i ref'te tutuyoruz: her render'da yeni fonksiyon gelse bile
   // grafik yeniden kurulmasın (kurulum pahalı ve görsel zıplama yaratır).
   const cbRef = useRef(onCrosshair)
-  cbRef.current = onCrosshair
 
   // Temizlenmiş barlar ref'te: crosshair senkronunda o tarihin fiyatını
   // bulmak için gerekiyor (setCrosshairPosition fiyat ister).
@@ -130,7 +132,12 @@ export function PriceChart({
   // Dışarıdan pencere dayatılıyor mu? ResizeObserver'ın sığdırma yapıp
   // sayfanın penceresini ezmemesi için kurulum efektinden okunur.
   const rangeRef = useRef<{ from: number; to: number } | null>(visibleRange)
-  rangeRef.current = visibleRange
+  // Son değerler render sırasında değil, çizimden önce yazılır (React kuralı:
+  // render saf olmalı; render sırasında ref'e yazmak eşzamanlı modda tutarsızlık doğurur).
+  useLayoutEffect(() => {
+    cbRef.current = onCrosshair
+    rangeRef.current = visibleRange
+  })
 
   // ── Kurulum: yalnız görsel yapı değişince ─────────────────────────────────
   useEffect(() => {
@@ -222,9 +229,9 @@ export function PriceChart({
       const cb = cbRef.current
       if (!cb) return
       if (!param.time || !mainRef.current) { cb(null); return }
-      const d = param.seriesData.get(mainRef.current) as any
+      const d = param.seriesData.get(mainRef.current) as NoktaVerisi | undefined
       if (!d) { cb(null); return }
-      const vd = volRef.current ? (param.seriesData.get(volRef.current) as any) : null
+      const vd = volRef.current ? (param.seriesData.get(volRef.current) as NoktaVerisi | undefined) : null
       cb({
         time: (param.time as number) * 1000,
         o: d.open ?? null, h: d.high ?? null, l: d.low ?? null,

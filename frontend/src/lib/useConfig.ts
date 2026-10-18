@@ -67,7 +67,7 @@ function fetchConfig(): Promise<AppConfig> {
       // Backend yeni bir alan eklemediyse DEFAULTS'tan tamamla (kısmi birleştirme).
       const merged = { ...DEFAULTS } as AppConfig
       for (const k of Object.keys(DEFAULTS) as (keyof AppConfig)[]) {
-        if (j[k]) (merged as any)[k] = { ...(DEFAULTS[k] as object), ...(j[k] as object) }
+        if (j[k]) (merged as unknown as Record<string, object>)[k] = { ...(DEFAULTS[k] as object), ...(j[k] as object) }
       }
       cache = merged
       subs.forEach(f => f(merged))

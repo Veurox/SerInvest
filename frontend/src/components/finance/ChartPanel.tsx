@@ -45,6 +45,12 @@ const COMPARE_COLORS = [
 const MAX_COMPARE = 4
 
 // ── Component ─────────────────────────────────────────────────────────────────
+// Çizim alanı ölçüleri (px) — sabit; bileşen içinde tanımlıyken her render'da
+// yeniden oluşuyor ve memo bağımlılıklarını karıştırıyordu.
+const W = 760, H = 280
+const PAD_L = 56, PAD_R = 12, PAD_T = 16, PAD_B = 28
+const VPAD = 54   // hacim paneli yüksekliği
+
 export function ChartPanel({
   symbol,
   apiBase,
@@ -117,7 +123,9 @@ export function ChartPanel({
   // TF değişince eski cache'i temizle
   useEffect(() => { setCompareData({}) }, [tf])
 
-  const points = data?.points ?? []
+  // Memo'lu: `?? []` her render'da yeni dizi üretiyor, ona bağlı ölçek
+  // hesapları her seferinde baştan yapılıyordu.
+  const points = useMemo(() => data?.points ?? [], [data])
   const hasData = points.length >= 2
 
   const compareSeries = useMemo(() => {
@@ -128,8 +136,6 @@ export function ChartPanel({
   }, [compareList, compareData, tf])
 
   // ── Skala (normalize % mod) ─────────────────────────────────────────────────
-  const W = 760, H = 280
-  const PAD_L = compareMode ? 56 : 56, PAD_R = 12, PAD_T = 16, PAD_B = 28
 
   // Tüm serileri (ana + compare) normalize ederek tek skalada çiz
   const series = useMemo(() => {
@@ -186,7 +192,6 @@ export function ChartPanel({
   }, [minVal, maxVal, series])
 
   // ── Mum grafik ön-hesabı ────────────────────────────────────────────────────
-  const VPAD = 54   // hacim paneli yüksekliği (px)
   const candleScale = useMemo(() => {
     if (!hasData || chartType !== 'candle' || compareMode) return null
     const pts = points.filter(p => p.l != null && p.h != null && p.o != null)

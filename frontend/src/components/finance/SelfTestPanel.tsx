@@ -6,7 +6,7 @@
 // göstermek. 08/2026 denetiminde 23 kusurun 9'u sessizdi — terfi terazisi
 // bozuk olduğu için model bir ay donuk kaldı ve hiçbir uyarı çıkmadı.
 // =============================================================================
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ADMIN, adminFetch } from '../../lib/api'
 
 export interface Check {
@@ -38,16 +38,26 @@ export function SelfTestPanel() {
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const load = (rerun = false) => {
-    if (rerun) setBusy(true)
+  // Yalnız sonuçta state yazar (eşzamansız) — efekt içinden güvenle çağrılır.
+  const getir = useCallback((rerun: boolean) =>
     adminFetch(`${ADMIN}/selftest${rerun ? '?run=1' : ''}`)
       .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
-      .then((j: SelfTest) => j.error ? setErr(j.error) : (setD(j), setErr(null)))
-      .catch(e => setErr(String(e)))
-      .finally(() => setBusy(false))
+      .then((j: SelfTest) => {
+        if (j.error) setErr(j.error)
+        else { setD(j); setErr(null) }
+      })
+      .catch(e => setErr(String(e))), [])
+
+  const load = (rerun = false) => {
+    if (rerun) setBusy(true)
+    getir(rerun).finally(() => setBusy(false))
   }
 
-  useEffect(() => { load(); const t = setInterval(() => load(), 300_000); return () => clearInterval(t) }, [])
+  useEffect(() => {
+    getir(false)
+    const t = setInterval(() => getir(false), 300_000)
+    return () => clearInterval(t)
+  }, [getir])
 
   if (err) return <div className="card" style={{ padding: 14, fontSize: 13, color: 'var(--text-muted)' }}>Öz denetim alınamadı: {err}</div>
   if (!d)  return <div className="card" style={{ padding: 14, fontSize: 13, color: 'var(--text-muted)' }}>Öz denetim yükleniyor…</div>
